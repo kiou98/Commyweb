@@ -40,7 +40,7 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 
 ## 🚀 Quick Install (30 Seconds, No Coding Needed)
 
-1. Download the latest `commyweb-extension.zip` from the [**Releases**](https://github.com/kiou98/Commyweb/releases) page.
+1. Download the latest [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip) (direct download link, or visit [Releases](https://github.com/kiou98/Commyweb/releases)).
 2. Unzip the file on your computer.
 3. Open Google Chrome (or Brave, Edge, Opera) and navigate to `chrome://extensions/`.
 4. Turn **ON** the **Developer mode** toggle in the top-right corner.
