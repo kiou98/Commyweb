@@ -8,9 +8,25 @@ import { ExtensionMessage } from '../types';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[Commyweb] Extension installed and ready.');
+  
+  // Create native right-click context menu
+  chrome.contextMenus.create({
+    id: 'commyweb-add-comment',
+    title: '💬 Ajouter un commentaire Commyweb',
+    contexts: ['page', 'selection', 'link', 'image']
+  });
 });
 
-// Handle keyboard shortcut command defined in manifest
+// Handle right-click context menu action
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'commyweb-add-comment' && tab?.id) {
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'CONTEXT_MENU_ADD_COMMENT'
+    });
+  }
+});
+
+// Handle keyboard shortcut command defined in manifest (Alt + C)
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'toggle-comment-mode') {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -72,6 +88,50 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           break;
         }
 
+        case 'INVITE_MEMBER': {
+          const { urlHash, url, email, addedBy } = message.payload || {};
+          if (urlHash && email) {
+            const member = await CacheManager.addOrInviteMember(urlHash, url || '', email, addedBy);
+            sendResponse({ success: true, member });
+          } else {
+            sendResponse({ error: 'Missing email or urlHash' });
+          }
+          break;
+        }
+
+        case 'REVOKE_MEMBER': {
+          const { urlHash, memberId } = message.payload || {};
+          if (urlHash && memberId) {
+            const success = await CacheManager.revokeMember(urlHash, memberId);
+            sendResponse({ success });
+          } else {
+            sendResponse({ error: 'Missing parameters' });
+          }
+          break;
+        }
+
+        case 'GET_MEMBERS': {
+          const { urlHash, url } = message.payload || {};
+          if (urlHash) {
+            const policy = await CacheManager.getPolicy(urlHash, url);
+            sendResponse({ members: policy.members });
+          } else {
+            sendResponse({ members: [] });
+          }
+          break;
+        }
+
+        case 'VALIDATE_JOIN_CODE': {
+          const { urlHash, code, email } = message.payload || {};
+          if (urlHash && code) {
+            const valid = await CacheManager.validateJoinCode(urlHash, code, email || '');
+            sendResponse({ valid });
+          } else {
+            sendResponse({ valid: false });
+          }
+          break;
+        }
+
         default:
           sendResponse({ error: 'Unknown message type' });
       }
@@ -81,5 +141,5 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     }
   })();
 
-  return true; // Keep message channel open for async response
+  return true;
 });

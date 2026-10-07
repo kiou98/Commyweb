@@ -90,5 +90,37 @@
   "justNow": {
     "message": "à l'instant",
     "description": "Temps relatif à l'instant"
+  },
+  "inviteCollaborators": {
+    "message": "Inviter des collaborateurs",
+    "description": "Titre invitation par email"
+  },
+  "inviteByEmail": {
+    "message": "Inviter par email",
+    "description": "Bouton inviter par email"
+  },
+  "emailPlaceholder": {
+    "message": "collaborateur@entreprise.com",
+    "description": "Placeholder pour l'adresse email"
+  },
+  "sendInvite": {
+    "message": "Envoyer l'invitation",
+    "description": "Bouton envoyer l'invitation"
+  },
+  "copyInviteLink": {
+    "message": "Copier le lien d'invitation",
+    "description": "Bouton copier le lien d'invitation"
+  },
+  "linkCopied": {
+    "message": "Lien copié dans le presse-papier !",
+    "description": "Message de confirmation de copie"
+  },
+  "members": {
+    "message": "Membres invités",
+    "description": "Section membres invités"
+  },
+  "noMembers": {
+    "message": "Aucune invitation envoyée pour le moment.",
+    "description": "Texte quand aucun membre n'est invité"
   }
 }

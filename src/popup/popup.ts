@@ -1,13 +1,16 @@
-import { WebComment, UserSettings, Author } from '../types';
+import { WebComment, UserSettings, Author, ProjectMember } from '../types';
 import { normalizeUrl, hashUrl, escapeHtml } from '../utils/security';
 import { formatRelativeTime, t } from '../utils/i18n';
 import { CacheManager } from '../storage/cache';
+import { generateInviteEmailHtml } from '../utils/email-template';
 
 class PopupController {
   private currentTabId?: number;
+  private currentTabUrl?: string;
   private currentUrlHash?: string;
   private comments: WebComment[] = [];
   private activeFilter: 'all' | 'open' | 'resolved' = 'all';
+  private currentAuthorName: string = 'Vincent';
 
   constructor() {
     this.init();
@@ -17,6 +20,7 @@ class PopupController {
     this.localizeUI();
     await this.setupCurrentTab();
     await this.loadSettings();
+    await this.loadInvitedMembers();
     this.setupEventListeners();
     await this.fetchComments();
   }
@@ -39,16 +43,31 @@ class PopupController {
 
     const btnSave = document.getElementById('btn-save-settings');
     if (btnSave) btnSave.textContent = t('saveSettings');
+
+    const lblInviteTitle = document.getElementById('lbl-invite-title');
+    if (lblInviteTitle) lblInviteTitle.textContent = t('inviteCollaborators');
+
+    const btnSendInvite = document.getElementById('btn-send-invite');
+    if (btnSendInvite) btnSendInvite.textContent = t('inviteByEmail');
+
+    const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
+    if (inputEmail) inputEmail.placeholder = t('emailPlaceholder');
+
+    const lblMembersTitle = document.getElementById('lbl-members-title');
+    if (lblMembersTitle) lblMembersTitle.textContent = t('members');
+
+    const lblNoMembers = document.getElementById('lbl-no-members');
+    if (lblNoMembers) lblNoMembers.textContent = t('noMembers');
   }
 
   private async setupCurrentTab() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.id && tab.url) {
       this.currentTabId = tab.id;
+      this.currentTabUrl = tab.url;
       const normalized = normalizeUrl(tab.url);
       this.currentUrlHash = hashUrl(normalized);
 
-      // Query comment mode status from tab
       try {
         chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
           if (res && typeof res.isCommentModeActive === 'boolean') {
@@ -57,7 +76,7 @@ class PopupController {
           }
         });
       } catch {
-        // Tab might not have content script loaded (e.g. chrome://)
+        // Tab might not have content script loaded
       }
     }
   }
@@ -71,16 +90,16 @@ class PopupController {
     if (tokenInput && settings.githubToken) tokenInput.value = settings.githubToken;
     if (repoInput && settings.storageRepo) repoInput.value = settings.storageRepo;
 
-    // Check cached user
     chrome.storage.local.get(['commyweb_user'], (res) => {
       const user: Author = res.commyweb_user;
       if (user && user.username) {
+        this.currentAuthorName = user.name || user.username;
         const badge = document.getElementById('user-badge');
         const avatar = document.getElementById('user-avatar') as HTMLImageElement;
         const name = document.getElementById('user-name');
         if (badge && avatar && name) {
           badge.style.display = 'flex';
-          avatar.src = user.avatarUrl || 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png';
+          avatar.src = user.avatarUrl || '/icons/logo.png';
           name.textContent = `@${user.username}`;
         }
       }
@@ -88,7 +107,6 @@ class PopupController {
   }
 
   private setupEventListeners() {
-    // Comment Mode Toggle Switch
     const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
     chk?.addEventListener('change', () => {
       if (this.currentTabId) {
@@ -96,12 +114,40 @@ class PopupController {
       }
     });
 
-    // Settings Drawer Toggle
     const btnSettings = document.getElementById('btn-toggle-settings');
-    const drawer = document.getElementById('settings-drawer');
+    const settingsDrawer = document.getElementById('settings-drawer');
+    const inviteDrawer = document.getElementById('invite-drawer');
+
     btnSettings?.addEventListener('click', () => {
-      drawer?.classList.toggle('open');
+      inviteDrawer?.classList.remove('open');
+      settingsDrawer?.classList.toggle('open');
     });
+
+    const btnInvite = document.getElementById('btn-toggle-invite');
+    btnInvite?.addEventListener('click', () => {
+      settingsDrawer?.classList.remove('open');
+      inviteDrawer?.classList.toggle('open');
+    });
+
+    // Send Email Invite
+    const btnSendInvite = document.getElementById('btn-send-invite');
+    btnSendInvite?.addEventListener('click', () => this.handleSendInvite());
+
+    const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
+    inputEmail?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.handleSendInvite();
+      }
+    });
+
+    // Copy Formatted HTML Email
+    const btnCopyHtml = document.getElementById('btn-copy-html-email');
+    btnCopyHtml?.addEventListener('click', () => this.handleCopyHtmlEmail());
+
+    // Copy Simple Link
+    const btnCopyLink = document.getElementById('btn-copy-invite-link');
+    btnCopyLink?.addEventListener('click', () => this.handleCopyInviteLink());
 
     // Save Settings
     const btnSave = document.getElementById('btn-save-settings');
@@ -116,10 +162,9 @@ class PopupController {
 
       await CacheManager.saveSettings(newSettings);
 
-      // Trigger background verification
       chrome.runtime.sendMessage({ type: 'USER_SETTINGS_UPDATED' }, () => {
         this.loadSettings();
-        drawer?.classList.remove('open');
+        settingsDrawer?.classList.remove('open');
       });
     });
 
@@ -131,6 +176,166 @@ class PopupController {
         tab.classList.add('active');
         this.activeFilter = (tab.getAttribute('data-tab') as any) || 'all';
         this.renderCommentsList();
+      });
+    });
+  }
+
+  private async handleSendInvite() {
+    const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
+    const email = inputEmail?.value.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('Veuillez entrer une adresse email valide.');
+      return;
+    }
+
+    if (!this.currentUrlHash || !this.currentTabUrl) return;
+
+    // Register member via background
+    chrome.runtime.sendMessage({
+      type: 'INVITE_MEMBER',
+      payload: {
+        urlHash: this.currentUrlHash,
+        url: this.currentTabUrl,
+        email,
+        addedBy: this.currentAuthorName
+      }
+    }, async (res) => {
+      if (res && res.member) {
+        inputEmail.value = '';
+        await this.loadInvitedMembers();
+
+        const member: ProjectMember = res.member;
+        const magicLink = `${this.currentTabUrl}#commyweb_join=${member.authCode}&email=${encodeURIComponent(email)}`;
+
+        const subject = encodeURIComponent(`[Commyweb] Invitation à collaborer sur : ${this.currentTabUrl}`);
+        const body = encodeURIComponent(
+          `Bonjour,\n\n` +
+          `${this.currentAuthorName} vous a invité à réviser et commenter la page web suivante avec l'extension Commyweb :\n` +
+          `👉 ${this.currentTabUrl}\n\n` +
+          `Lien d'accès autorisé :\n` +
+          `🔗 ${magicLink}\n\n` +
+          `Guide express d'installation (30 sec) :\n` +
+          `1. Téléchargez : https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip\n` +
+          `2. Dans Chrome, allez sur chrome://extensions, activez "Mode développeur" et cliquez sur "Charger l'extension non empaquetée".\n` +
+          `3. Cliquez sur le lien d'accès ci-dessus. Appuyez sur Alt + C (ou clic droit) pour commenter sur le site comme dans Figma !\n\n` +
+          `Bonne collaboration !`
+        );
+
+        window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+      }
+    });
+  }
+
+  private async handleCopyHtmlEmail() {
+    if (!this.currentTabUrl || !this.currentUrlHash) return;
+
+    const emailHtml = generateInviteEmailHtml({
+      recipientEmail: 'collaborateur@entreprise.com',
+      invitedByName: this.currentAuthorName,
+      pageUrl: this.currentTabUrl,
+      authCode: 'cw_auth_join'
+    });
+
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        const blobHtml = new Blob([emailHtml], { type: 'text/html' });
+        const blobText = new Blob([this.currentTabUrl], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': blobHtml,
+            'text/plain': blobText
+          })
+        ]);
+      } else {
+        await navigator.clipboard.writeText(emailHtml);
+      }
+      this.showToast('Email HTML copié ! Prêt à coller dans Gmail / Outlook.');
+    } catch {
+      await navigator.clipboard.writeText(emailHtml);
+      this.showToast('Code HTML copié !');
+    }
+  }
+
+  private async handleCopyInviteLink() {
+    if (!this.currentTabUrl) return;
+
+    const inviteText = 
+      `Collaborer sur cette page via Commyweb :\n` +
+      `👉 ${this.currentTabUrl}\n\n` +
+      `Extension gratuite (Alt + C ou clic droit pour commenter) : https://github.com/kiou98/Commyweb/releases`;
+
+    await navigator.clipboard.writeText(inviteText);
+    this.showToast('Lien copié dans le presse-papier !');
+  }
+
+  private showToast(msg: string) {
+    const toast = document.getElementById('toast-invite');
+    if (toast) {
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 3000);
+    }
+  }
+
+  private async loadInvitedMembers() {
+    if (!this.currentUrlHash) return;
+
+    chrome.runtime.sendMessage({
+      type: 'GET_MEMBERS',
+      payload: { urlHash: this.currentUrlHash, url: this.currentTabUrl }
+    }, (res) => {
+      const members: ProjectMember[] = res?.members || [];
+      const container = document.getElementById('invited-members-list');
+      const emptyState = document.getElementById('lbl-no-members');
+      if (!container) return;
+
+      container.innerHTML = '';
+
+      if (members.length === 0) {
+        if (emptyState) {
+          container.appendChild(emptyState);
+          emptyState.style.display = 'block';
+        }
+        return;
+      }
+
+      members.forEach(member => {
+        const chip = document.createElement('div');
+        chip.className = 'member-chip';
+
+        const isRevoked = member.status === 'revoked';
+
+        chip.innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span class="member-email" style="${isRevoked ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${escapeHtml(member.email)}</span>
+            <span class="member-status">${isRevoked ? '⚠️ Révoqué' : '✓ Autorisé'} • ${formatRelativeTime(member.addedAt)}</span>
+          </div>
+          <div>
+            ${!isRevoked ? `
+              <button class="btn-revoke" data-id="${member.id}" style="background: none; border: 1px solid #e4e4e7; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; cursor: pointer; color: #000000; transition: all 0.15s;">
+                Révoquer
+              </button>
+            ` : `
+              <span style="font-size: 10px; color: #a1a1aa; font-weight: 600;">Accès coupé</span>
+            `}
+          </div>
+        `;
+
+        const btnRevoke = chip.querySelector('.btn-revoke');
+        btnRevoke?.addEventListener('click', () => {
+          if (confirm(`Voulez-vous vraiment révoquer l'accès de ${member.email} ?`)) {
+            chrome.runtime.sendMessage({
+              type: 'REVOKE_MEMBER',
+              payload: { urlHash: this.currentUrlHash, memberId: member.id }
+            }, () => {
+              this.loadInvitedMembers();
+            });
+          }
+        });
+
+        container.appendChild(chip);
       });
     });
   }
@@ -169,13 +374,11 @@ class PopupController {
     const emptyState = document.getElementById('empty-state');
     if (!container || !emptyState) return;
 
-    // Filter list
     const filtered = this.comments.filter(c => {
       if (this.activeFilter === 'all') return true;
       return c.status === this.activeFilter;
     });
 
-    // Clean container while keeping empty-state element
     container.innerHTML = '';
 
     if (filtered.length === 0) {
@@ -196,7 +399,7 @@ class PopupController {
       card.innerHTML = `
         <div class="card-header">
           <div class="card-author">
-            <img class="card-avatar" src="${escapeHtml(comment.author.avatarUrl || 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png')}" alt="">
+            <img class="card-avatar" src="${escapeHtml(comment.author.avatarUrl || '/icons/logo.png')}" alt="">
             <span class="card-name">${escapeHtml(comment.author.name || comment.author.username)}</span>
           </div>
           <span class="card-time">${formatRelativeTime(comment.createdAt)}</span>
@@ -211,7 +414,6 @@ class PopupController {
       `;
 
       card.addEventListener('click', () => {
-        // Send focus message to tab and close popup
         if (this.currentTabId) {
           chrome.tabs.sendMessage(this.currentTabId, {
             type: 'FOCUS_COMMENT',

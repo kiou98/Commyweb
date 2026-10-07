@@ -7,6 +7,7 @@ export interface ThreadModalCallbacks {
   onToggleResolve: (commentId: string) => void;
   onCreateNew: (text: string) => void;
   onClose: () => void;
+  onInvite?: () => void;
 }
 
 export class ThreadModal {
@@ -21,7 +22,7 @@ export class ThreadModal {
   }
 
   /**
-   * Render existing comment thread
+   * Render existing comment thread in pure Black & White DA
    */
   public renderThread(comment: WebComment, pinX: number, pinY: number) {
     const isResolved = comment.status === 'resolved';
@@ -29,7 +30,7 @@ export class ThreadModal {
     this.element.innerHTML = `
       <div class="commyweb-modal-header">
         <div class="commyweb-header-user">
-          <img class="commyweb-header-avatar" src="${escapeHtml(comment.author.avatarUrl || 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png')}" alt="" />
+          <img class="commyweb-header-avatar" src="${escapeHtml(comment.author.avatarUrl || 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/icon48.png')}" alt="" />
           <div>
             <div class="commyweb-header-name">${escapeHtml(comment.author.name || comment.author.username)}</div>
             <div class="commyweb-header-time">${formatRelativeTime(comment.createdAt)}</div>
@@ -37,7 +38,7 @@ export class ThreadModal {
         </div>
         <div class="commyweb-header-actions">
           <button class="commyweb-btn-resolve" id="btn-toggle-resolve" title="${isResolved ? t('reopen') : t('resolve')}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
             <span>${isResolved ? t('reopen') : t('resolve')}</span>
@@ -64,7 +65,6 @@ export class ThreadModal {
 
     this.positionNear(pinX, pinY);
 
-    // Event handlers
     const resolveBtn = this.element.querySelector('#btn-toggle-resolve');
     resolveBtn?.addEventListener('click', () => {
       this.callbacks.onToggleResolve(comment.id);
@@ -104,6 +104,9 @@ export class ThreadModal {
     this.element.innerHTML = `
       <div class="commyweb-modal-header">
         <div class="commyweb-header-user">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
           <div class="commyweb-header-name">${t('addComment')}</div>
         </div>
         <button class="commyweb-btn-icon" id="btn-close-modal">
@@ -117,7 +120,7 @@ export class ThreadModal {
         <textarea class="commyweb-input" id="new-comment-input" placeholder="${t('addComment')}" rows="3" style="min-height: 60px;"></textarea>
       </div>
       <div class="commyweb-modal-footer" style="justify-content: flex-end;">
-        <button class="commyweb-btn-icon" id="btn-cancel-new" style="padding: 6px 12px; font-size: 12px;">${t('cancel')}</button>
+        <button class="commyweb-btn-icon" id="btn-cancel-new" style="padding: 6px 12px; font-size: 12px; font-weight: 600;">${t('cancel')}</button>
         <button class="commyweb-btn-send" id="btn-submit-new">${t('send')}</button>
       </div>
     `;
@@ -153,7 +156,7 @@ export class ThreadModal {
   private renderReplyHtml(reply: CommentReply): string {
     return `
       <div class="commyweb-reply-item">
-        <img class="commyweb-reply-avatar" src="${escapeHtml(reply.author.avatarUrl || 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png')}" alt="" />
+        <img class="commyweb-reply-avatar" src="${escapeHtml(reply.author.avatarUrl || 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/icon48.png')}" alt="" />
         <div class="commyweb-reply-content">
           <div class="commyweb-reply-header">
             <span class="commyweb-reply-author">${escapeHtml(reply.author.name || reply.author.username)}</span>
@@ -172,7 +175,6 @@ export class ThreadModal {
     let targetX = x + 12;
     let targetY = y + 12;
 
-    // Check bounds
     if (targetX + modalWidth > window.scrollX + window.innerWidth - padding) {
       targetX = x - modalWidth - 12;
     }

@@ -90,5 +90,37 @@
   "justNow": {
     "message": "just now",
     "description": "Relative time just now"
+  },
+  "inviteCollaborators": {
+    "message": "Invite Collaborators",
+    "description": "Invite by email title"
+  },
+  "inviteByEmail": {
+    "message": "Invite by email",
+    "description": "Invite by email button"
+  },
+  "emailPlaceholder": {
+    "message": "collaborator@company.com",
+    "description": "Email input placeholder"
+  },
+  "sendInvite": {
+    "message": "Send Invitation",
+    "description": "Send invite button"
+  },
+  "copyInviteLink": {
+    "message": "Copy Invitation Link",
+    "description": "Copy invite link button"
+  },
+  "linkCopied": {
+    "message": "Link copied to clipboard!",
+    "description": "Toast message after copying link"
+  },
+  "members": {
+    "message": "Invited Members",
+    "description": "Members section header"
+  },
+  "noMembers": {
+    "message": "No one invited yet.",
+    "description": "Empty members label"
   }
 }

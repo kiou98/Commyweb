@@ -23,6 +23,7 @@ class CommywebContentApp {
   private isCommentModeActive: boolean = false;
   private pendingNewAnchor: AnchorData | null = null;
   private filterStatus: 'all' | 'open' | 'resolved' = 'all';
+  private lastRightClickEvent: MouseEvent | null = null;
 
   constructor() {
     this.currentUrl = normalizeUrl(window.location.href);
@@ -43,14 +44,83 @@ class CommywebContentApp {
 
     this.initEventListeners();
     this.initMessageListener();
+    this.checkMagicJoinLink();
     this.loadComments();
     this.loadCurrentUser();
   }
 
+  /**
+   * Magic Link join handler:
+   * Detects #commyweb_join=... in URL, validates access, and shows welcoming toast
+   */
+  private checkMagicJoinLink() {
+    const hash = window.location.hash;
+    if (hash && hash.includes('commyweb_join=')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const code = params.get('commyweb_join');
+      const email = params.get('email');
+
+      if (code) {
+        chrome.runtime.sendMessage({
+          type: 'VALIDATE_JOIN_CODE',
+          payload: { urlHash: this.currentUrlHash, code, email }
+        }, (res) => {
+          if (res && res.valid) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            this.showJoinSuccessBanner(email || 'Collaborateur');
+            setTimeout(() => this.setCommentMode(true), 800);
+          }
+        });
+      }
+    }
+  }
+
+  private showJoinSuccessBanner(userLabel: string) {
+    const banner = document.createElement('div');
+    banner.style.cssText = `
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: #000000;
+      color: #ffffff;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Satoshi', sans-serif;
+      animation: commyweb-fade-in 0.2s ease-out;
+    `;
+    banner.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+      <span>✓ Accès autorisé ! Bienvenue sur le projet (${userLabel})</span>
+    `;
+
+    this.shadowHost.shadowRoot.appendChild(banner);
+    setTimeout(() => {
+      banner.style.opacity = '0';
+      banner.style.transition = 'opacity 0.4s';
+      setTimeout(() => banner.remove(), 400);
+    }, 4500);
+  }
+
   private initEventListeners() {
-    // Intercept clicks on page for commenting
+    // Record right click event position
+    window.addEventListener('contextmenu', (e) => {
+      // Don't track if right clicking inside our shadow root
+      if (e.target === this.shadowHost.hostElement) return;
+      this.lastRightClickEvent = e;
+    }, true);
+
+    // Left click handling
     window.addEventListener('click', (e) => {
-      // Don't intercept if clicking inside our shadow root
       if (e.target === this.shadowHost.hostElement) return;
 
       if (this.isCommentModeActive) {
@@ -58,7 +128,6 @@ class CommywebContentApp {
         e.stopPropagation();
         this.handleClickToComment(e);
       } else {
-        // Outside click closes open modal
         if (this.activePin) {
           const path = e.composedPath();
           if (!path.includes(this.threadModal.element)) {
@@ -68,12 +137,11 @@ class CommywebContentApp {
       }
     }, true);
 
-    // Reposition pins on window resize and scroll
     const updatePositions = () => this.refreshPinPositions();
     window.addEventListener('resize', updatePositions, { passive: true });
     window.addEventListener('scroll', updatePositions, { passive: true });
 
-    // Keyboard shortcut: Alt+C to toggle comment mode
+    // Keyboard shortcut: Alt+C
     window.addEventListener('keydown', (e) => {
       if (e.altKey && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
@@ -85,7 +153,11 @@ class CommywebContentApp {
   private initMessageListener() {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-        if (message.type === 'TOGGLE_COMMENT_MODE') {
+        if (message.type === 'CONTEXT_MENU_ADD_COMMENT') {
+          // Triggered from right-click context menu "Ajouter un commentaire"
+          this.handleRightClickAddComment();
+          sendResponse({ success: true });
+        } else if (message.type === 'TOGGLE_COMMENT_MODE') {
           this.setCommentMode(!this.isCommentModeActive);
           sendResponse({ isCommentModeActive: this.isCommentModeActive });
         } else if (message.type === 'GET_COMMENT_MODE') {
@@ -98,6 +170,23 @@ class CommywebContentApp {
           if (commentId) this.focusComment(commentId);
         }
       });
+    }
+  }
+
+  /**
+   * Called when user selects "Ajouter un commentaire" on right click
+   */
+  private handleRightClickAddComment() {
+    if (!this.lastRightClickEvent) return;
+
+    this.pendingNewAnchor = AnchorEngine.createAnchorFromEvent(this.lastRightClickEvent);
+    const coords = AnchorEngine.resolveCoordinates(this.pendingNewAnchor);
+
+    if (coords) {
+      if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
+        this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
+      }
+      this.threadModal.renderNewCommentBox(coords.x, coords.y);
     }
   }
 
@@ -143,7 +232,6 @@ class CommywebContentApp {
     this.closeActiveModal();
     this.pendingNewAnchor = null;
 
-    // Send to background service worker for storage/sync
     chrome.runtime.sendMessage({
       type: 'ADD_COMMENT',
       payload: { comment: newComment }
@@ -164,7 +252,6 @@ class CommywebContentApp {
     if (!comment.replies) comment.replies = [];
     comment.replies.push(reply);
 
-    // Re-render modal thread
     const pin = this.pins.get(commentId);
     if (pin) {
       const coords = AnchorEngine.resolveCoordinates(comment.anchor);
@@ -203,7 +290,6 @@ class CommywebContentApp {
     const coords = AnchorEngine.resolveCoordinates(comment.anchor);
     if (!coords) return;
 
-    // Remove existing pin for this comment if any
     const existing = this.pins.get(comment.id);
     if (existing) {
       existing.element.remove();
@@ -276,11 +362,9 @@ class CommywebContentApp {
       (response) => {
         if (response && response.comments) {
           this.comments = response.comments;
-          // Clear current pins
           this.pins.forEach(p => p.element.remove());
           this.pins.clear();
 
-          // Render all
           this.comments.forEach((c, i) => {
             if (this.filterStatus === 'all' || c.status === this.filterStatus) {
               this.renderPin(c, i + 1);
@@ -300,7 +384,6 @@ class CommywebContentApp {
   }
 }
 
-// Auto bootstrap when script executes
 if (typeof window !== 'undefined') {
   new CommywebContentApp();
 }
