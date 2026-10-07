@@ -18,6 +18,17 @@ export class ThreadModal {
     this.callbacks = callbacks;
     this.element = document.createElement('div');
     this.element.className = 'commyweb-modal';
+    this.element.style.position = 'absolute';
+    this.element.style.width = '320px';
+    this.element.style.maxWidth = '90vw';
+    this.element.style.background = '#ffffff';
+    this.element.style.border = '1px solid #000000';
+    this.element.style.borderRadius = '14px';
+    this.element.style.boxShadow = '0 20px 35px -5px rgba(0, 0, 0, 0.35)';
+    this.element.style.zIndex = '2147483647';
+    this.element.style.display = 'flex';
+    this.element.style.flexDirection = 'column';
+    this.element.style.pointerEvents = 'auto';
     this.element.addEventListener('click', (e) => e.stopPropagation());
   }
 

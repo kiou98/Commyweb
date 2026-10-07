@@ -219,10 +219,16 @@ class CommywebContentApp {
       scrollOffset: { x: window.scrollX, y: window.scrollY }
     };
 
+    // Ensure hostElement is attached to document
+    if (!document.contains(this.shadowHost.hostElement)) {
+      (document.body || document.documentElement).appendChild(this.shadowHost.hostElement);
+    }
+
     if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
       this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
 
+    console.log('[Commyweb] Opening comment box at:', clickPageX, clickPageY);
     this.threadModal.renderNewCommentBox(clickPageX, clickPageY);
   }
 

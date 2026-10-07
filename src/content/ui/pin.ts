@@ -17,9 +17,21 @@ export class PinElement {
 
     this.element = document.createElement('div');
     this.element.className = 'commyweb-pin';
+    this.element.style.position = 'absolute';
+    this.element.style.width = '32px';
+    this.element.style.height = '32px';
+    this.element.style.background = '#000000';
+    this.element.style.borderRadius = '50% 50% 50% 4px';
+    this.element.style.transform = 'translate(-10px, -32px) rotate(-45deg)';
+    this.element.style.border = '2px solid #ffffff';
+    this.element.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.4)';
+    this.element.style.cursor = 'pointer';
+    this.element.style.pointerEvents = 'auto';
+    this.element.style.zIndex = '2147483646';
     this.element.dataset.commentId = comment.id;
     if (comment.status === 'resolved') {
       this.element.classList.add('resolved');
+      this.element.style.background = '#71717a';
     }
 
     const inner = document.createElement('div');

@@ -33,11 +33,17 @@ chrome.runtime.onStartup.addListener(() => {
 // Exécuter également au démarrage du worker
 setupContextMenu();
 
-// Handle right-click context menu action
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === CONTEXT_MENU_ID && tab?.id) {
+  if (info.menuItemId === CONTEXT_MENU_ID) {
+    let targetTabId = tab?.id;
+    if (!targetTabId) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) return;
+
     try {
-      await chrome.tabs.sendMessage(tab.id, {
+      await chrome.tabs.sendMessage(targetTabId, {
         type: 'CONTEXT_MENU_ADD_COMMENT',
         payload: {
           selectionText: info.selectionText,
@@ -50,20 +56,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       // on injecte dynamiquement content.js et on réessaie immédiatement
       try {
         await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
+          target: { tabId: targetTabId },
           files: ['content.js']
         });
         setTimeout(() => {
-          if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, {
-              type: 'CONTEXT_MENU_ADD_COMMENT',
-              payload: {
-                selectionText: info.selectionText,
-                linkUrl: info.linkUrl,
-                srcUrl: info.srcUrl
-              }
-            }).catch(() => {});
-          }
+          chrome.tabs.sendMessage(targetTabId, {
+            type: 'CONTEXT_MENU_ADD_COMMENT',
+            payload: {
+              selectionText: info.selectionText,
+              linkUrl: info.linkUrl,
+              srcUrl: info.srcUrl
+            }
+          }).catch(() => {});
         }, 120);
       } catch (injectErr) {
         console.warn('[Commyweb] Impossible d injecter content script sur cet onglet:', injectErr);
