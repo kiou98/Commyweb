@@ -182,6 +182,14 @@ export class ThreadModal {
       targetX = window.scrollX + padding;
     }
 
+    const viewportBottom = window.scrollY + window.innerHeight;
+    if (targetY + 220 > viewportBottom - padding) {
+      targetY = Math.max(window.scrollY + padding, y - 220);
+    }
+    if (targetY < window.scrollY + padding) {
+      targetY = window.scrollY + padding;
+    }
+
     this.element.style.left = `${Math.round(targetX)}px`;
     this.element.style.top = `${Math.round(targetY)}px`;
   }

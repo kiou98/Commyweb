@@ -26,10 +26,13 @@ export class ShadowHostManager {
     this.hostElement.style.pointerEvents = 'none';
     this.hostElement.style.zIndex = '2147483640';
 
+    this.hostElement.style.minHeight = '100vh';
+    this.hostElement.style.minWidth = '100vw';
+
     this.shadowRoot = this.hostElement.attachShadow({ mode: 'open' });
     this.injectStyles();
 
-    document.documentElement.appendChild(this.hostElement);
+    (document.body || document.documentElement).appendChild(this.hostElement);
   }
 
   public static getInstance(): ShadowHostManager {
