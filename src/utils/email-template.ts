@@ -19,7 +19,7 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
   
   // Magic link: opening this URL automatically authorizes the user's extension
   const magicLink = `${pageUrl}#commyweb_join=${authCode}&email=${encodeURIComponent(recipientEmail)}`;
-  const logoUrl = 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/logo.png';
+  const logotypeUrl = 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/logotype.png';
   const releaseZipUrl = 'https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip';
   const releasesPageUrl = 'https://github.com/kiou98/Commyweb/releases';
 
@@ -169,9 +169,8 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
     <table class="main-table" width="100%" cellpadding="0" cellspacing="0">
       <!-- En-tête -->
       <tr>
-        <td class="header">
-          <img src="${logoUrl}" alt="Commyweb" class="logo" />
-          <h1 class="brand-title">Commyweb</h1>
+        <td class="header" style="text-align: center; padding: 36px 36px 24px;">
+          <img src="${logotypeUrl}" alt="Commyweb" style="height: 36px; max-width: 220px; display: inline-block; object-fit: contain;" />
         </td>
       </tr>
 
