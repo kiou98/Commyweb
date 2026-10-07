@@ -23,7 +23,15 @@ class CommywebContentApp {
   private isCommentModeActive: boolean = false;
   private pendingNewAnchor: AnchorData | null = null;
   private filterStatus: 'all' | 'open' | 'resolved' = 'all';
-  private lastRightClickEvent: MouseEvent | null = null;
+
+  // Last right click position tracking
+  private lastRightClickPoint = {
+    x: 200,
+    y: 200,
+    pageX: 200,
+    pageY: 200,
+    target: document.body as Element
+  };
 
   constructor() {
     this.currentUrl = normalizeUrl(window.location.href);
@@ -50,8 +58,7 @@ class CommywebContentApp {
   }
 
   /**
-   * Magic Link join handler:
-   * Detects #commyweb_join=... in URL, validates access, and shows welcoming toast
+   * Magic Link join handler
    */
   private checkMagicJoinLink() {
     const hash = window.location.hash;
@@ -112,11 +119,24 @@ class CommywebContentApp {
   }
 
   private initEventListeners() {
-    // Record right click event position
-    window.addEventListener('contextmenu', (e) => {
-      // Don't track if right clicking inside our shadow root
+    // Save coordinates on every right-click event
+    const recordRightClick = (e: MouseEvent) => {
       if (e.target === this.shadowHost.hostElement) return;
-      this.lastRightClickEvent = e;
+      this.lastRightClickPoint = {
+        x: e.pageX || (e.clientX + window.scrollX),
+        y: e.pageY || (e.clientY + window.scrollY),
+        pageX: e.pageX || (e.clientX + window.scrollX),
+        pageY: e.pageY || (e.clientY + window.scrollY),
+        target: (e.target as Element) || document.body
+      };
+    };
+
+    window.addEventListener('contextmenu', recordRightClick, true);
+    window.addEventListener('pointerdown', (e) => {
+      if (e.button === 2) recordRightClick(e);
+    }, true);
+    window.addEventListener('mousedown', (e) => {
+      if (e.button === 2) recordRightClick(e);
     }, true);
 
     // Left click handling
@@ -154,7 +174,6 @@ class CommywebContentApp {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message.type === 'CONTEXT_MENU_ADD_COMMENT') {
-          // Triggered from right-click context menu "Ajouter un commentaire"
           this.handleRightClickAddComment();
           sendResponse({ success: true });
         } else if (message.type === 'TOGGLE_COMMENT_MODE') {
@@ -174,20 +193,37 @@ class CommywebContentApp {
   }
 
   /**
-   * Called when user selects "Ajouter un commentaire" on right click
+   * Called when user clicks "Ajouter un commentaire" on right click
    */
   private handleRightClickAddComment() {
-    if (!this.lastRightClickEvent) return;
+    const targetEl = this.lastRightClickPoint.target || document.body;
+    const rect = targetEl.getBoundingClientRect();
+    const width = Math.max(rect.width, 1);
+    const height = Math.max(rect.height, 1);
 
-    this.pendingNewAnchor = AnchorEngine.createAnchorFromEvent(this.lastRightClickEvent);
-    const coords = AnchorEngine.resolveCoordinates(this.pendingNewAnchor);
+    const clickPageX = this.lastRightClickPoint.pageX;
+    const clickPageY = this.lastRightClickPoint.pageY;
 
-    if (coords) {
-      if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
-        this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
-      }
-      this.threadModal.renderNewCommentBox(coords.x, coords.y);
+    const elemPageX = rect.left + window.scrollX;
+    const elemPageY = rect.top + window.scrollY;
+
+    const xPercent = Math.min(Math.max((clickPageX - elemPageX) / width, 0), 1);
+    const yPercent = Math.min(Math.max((clickPageY - elemPageY) / height, 0), 1);
+
+    this.pendingNewAnchor = {
+      selector: AnchorEngine.getCssSelector(targetEl),
+      xpath: AnchorEngine.getXPath(targetEl),
+      xPercent,
+      yPercent,
+      textSnippet: targetEl.textContent?.trim().slice(0, 80) || undefined,
+      scrollOffset: { x: window.scrollX, y: window.scrollY }
+    };
+
+    if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
+      this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
+
+    this.threadModal.renderNewCommentBox(clickPageX, clickPageY);
   }
 
   public setCommentMode(active: boolean) {
@@ -203,13 +239,14 @@ class CommywebContentApp {
     this.pendingNewAnchor = AnchorEngine.createAnchorFromEvent(e);
     const coords = AnchorEngine.resolveCoordinates(this.pendingNewAnchor);
 
-    if (coords) {
-      if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
-        this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
-      }
-      this.threadModal.renderNewCommentBox(coords.x, coords.y);
-      this.setCommentMode(false);
+    const x = coords ? coords.x : e.pageX;
+    const y = coords ? coords.y : e.pageY;
+
+    if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
+      this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
+    this.threadModal.renderNewCommentBox(x, y);
+    this.setCommentMode(false);
   }
 
   private handleCreateNewComment(text: string) {
@@ -255,9 +292,9 @@ class CommywebContentApp {
     const pin = this.pins.get(commentId);
     if (pin) {
       const coords = AnchorEngine.resolveCoordinates(comment.anchor);
-      if (coords) {
-        this.threadModal.renderThread(comment, coords.x, coords.y);
-      }
+      const x = coords ? coords.x : (comment.anchor.scrollOffset?.x || 100);
+      const y = coords ? coords.y : (comment.anchor.scrollOffset?.y || 100);
+      this.threadModal.renderThread(comment, x, y);
     }
 
     chrome.runtime.sendMessage({
@@ -275,9 +312,9 @@ class CommywebContentApp {
     if (pin) {
       pin.updateComment(comment);
       const coords = AnchorEngine.resolveCoordinates(comment.anchor);
-      if (coords) {
-        this.threadModal.renderThread(comment, coords.x, coords.y);
-      }
+      const x = coords ? coords.x : 100;
+      const y = coords ? coords.y : 100;
+      this.threadModal.renderThread(comment, x, y);
     }
 
     chrome.runtime.sendMessage({
@@ -288,7 +325,8 @@ class CommywebContentApp {
 
   private renderPin(comment: WebComment, index: number) {
     const coords = AnchorEngine.resolveCoordinates(comment.anchor);
-    if (!coords) return;
+    const x = coords ? coords.x : (this.lastRightClickPoint.pageX || 100);
+    const y = coords ? coords.y : (this.lastRightClickPoint.pageY || 100);
 
     const existing = this.pins.get(comment.id);
     if (existing) {
@@ -299,7 +337,7 @@ class CommywebContentApp {
       this.openThread(c, p);
     });
 
-    pin.setPosition(coords.x, coords.y);
+    pin.setPosition(x, y);
     this.shadowHost.shadowRoot.appendChild(pin.element);
     this.pins.set(comment.id, pin);
   }
@@ -312,12 +350,13 @@ class CommywebContentApp {
     pin.setActive(true);
 
     const coords = AnchorEngine.resolveCoordinates(comment.anchor);
-    if (coords) {
-      if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
-        this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
-      }
-      this.threadModal.renderThread(comment, coords.x, coords.y);
+    const x = coords ? coords.x : parseInt(pin.element.style.left) || 100;
+    const y = coords ? coords.y : parseInt(pin.element.style.top) || 100;
+
+    if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
+      this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
+    this.threadModal.renderThread(comment, x, y);
   }
 
   private closeActiveModal() {
@@ -333,14 +372,15 @@ class CommywebContentApp {
     const pin = this.pins.get(commentId);
     if (comment && pin) {
       const coords = AnchorEngine.resolveCoordinates(comment.anchor);
-      if (coords) {
-        window.scrollTo({
-          top: Math.max(0, coords.y - 150),
-          left: Math.max(0, coords.x - 150),
-          behavior: 'smooth'
-        });
-        setTimeout(() => this.openThread(comment, pin), 300);
-      }
+      const x = coords ? coords.x : parseInt(pin.element.style.left) || 100;
+      const y = coords ? coords.y : parseInt(pin.element.style.top) || 100;
+
+      window.scrollTo({
+        top: Math.max(0, y - 150),
+        left: Math.max(0, x - 150),
+        behavior: 'smooth'
+      });
+      setTimeout(() => this.openThread(comment, pin), 300);
     }
   }
 

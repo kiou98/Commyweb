@@ -6,23 +6,69 @@ import { ExtensionMessage } from '../types';
  * Commyweb Background Service Worker (Manifest V3)
  */
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Commyweb] Extension installed and ready.');
-  
-  // Create native right-click context menu
-  chrome.contextMenus.create({
-    id: 'commyweb-add-comment',
-    title: '💬 Ajouter un commentaire Commyweb',
-    contexts: ['page', 'selection', 'link', 'image']
+const CONTEXT_MENU_ID = 'commyweb-add-comment';
+
+function setupContextMenu() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: CONTEXT_MENU_ID,
+      title: 'Ajouter un commentaire', // SANS EMOJI comme demandé
+      contexts: ['all']
+    }, () => {
+      if (chrome.runtime.lastError) {
+        // Ignorer si déjà existant
+      }
+    });
   });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  setupContextMenu();
 });
 
+chrome.runtime.onStartup.addListener(() => {
+  setupContextMenu();
+});
+
+// Exécuter également au démarrage du worker
+setupContextMenu();
+
 // Handle right-click context menu action
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'commyweb-add-comment' && tab?.id) {
-    chrome.tabs.sendMessage(tab.id, {
-      type: 'CONTEXT_MENU_ADD_COMMENT'
-    });
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === CONTEXT_MENU_ID && tab?.id) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, {
+        type: 'CONTEXT_MENU_ADD_COMMENT',
+        payload: {
+          selectionText: info.selectionText,
+          linkUrl: info.linkUrl,
+          srcUrl: info.srcUrl
+        }
+      });
+    } catch {
+      // Si l'onglet était déjà ouvert avant le chargement/reload de l'extension,
+      // on injecte dynamiquement content.js et on réessaie immédiatement
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content.js']
+        });
+        setTimeout(() => {
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: 'CONTEXT_MENU_ADD_COMMENT',
+              payload: {
+                selectionText: info.selectionText,
+                linkUrl: info.linkUrl,
+                srcUrl: info.srcUrl
+              }
+            }).catch(() => {});
+          }
+        }, 120);
+      } catch (injectErr) {
+        console.warn('[Commyweb] Impossible d injecter content script sur cet onglet:', injectErr);
+      }
+    }
   }
 });
 
@@ -31,7 +77,7 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'toggle-comment-mode') {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_COMMENT_MODE' });
+      chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_COMMENT_MODE' }).catch(() => {});
     }
   }
 });
