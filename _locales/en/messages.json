@@ -1,0 +1,94 @@
+{
+  "appName": {
+    "message": "Commyweb - Figma-like Web Comments",
+    "description": "Application name"
+  },
+  "appDescription": {
+    "message": "Collaborative, open-source commenting on any website like Figma (no database required)",
+    "description": "Application description"
+  },
+  "actionTitle": {
+    "message": "Commyweb Comments",
+    "description": "Action title tooltip"
+  },
+  "commandToggleComment": {
+    "message": "Toggle comment mode",
+    "description": "Keyboard shortcut description"
+  },
+  "commentMode": {
+    "message": "Comment Mode",
+    "description": "Comment mode label"
+  },
+  "clickToComment": {
+    "message": "Click anywhere to pin a comment",
+    "description": "Tooltip when hovering page"
+  },
+  "addComment": {
+    "message": "Add a comment...",
+    "description": "Input placeholder"
+  },
+  "reply": {
+    "message": "Reply...",
+    "description": "Reply placeholder"
+  },
+  "send": {
+    "message": "Send",
+    "description": "Send button"
+  },
+  "cancel": {
+    "message": "Cancel",
+    "description": "Cancel button"
+  },
+  "resolve": {
+    "message": "Resolve",
+    "description": "Resolve thread button"
+  },
+  "reopen": {
+    "message": "Reopen",
+    "description": "Reopen thread button"
+  },
+  "resolved": {
+    "message": "Resolved",
+    "description": "Resolved badge"
+  },
+  "active": {
+    "message": "Active",
+    "description": "Active badge"
+  },
+  "filterAll": {
+    "message": "All",
+    "description": "Filter tab all"
+  },
+  "filterActive": {
+    "message": "Active",
+    "description": "Filter tab active"
+  },
+  "filterResolved": {
+    "message": "Resolved",
+    "description": "Filter tab resolved"
+  },
+  "noComments": {
+    "message": "No comments yet on this page. Be the first to leave one!",
+    "description": "Empty state message"
+  },
+  "githubConnected": {
+    "message": "Connected as",
+    "description": "GitHub connected indicator"
+  },
+  "githubConnect": {
+    "message": "Connect GitHub",
+    "description": "Connect GitHub button"
+  },
+  "githubRepo": {
+    "message": "Storage Repository",
+    "description": "GitHub repo configuration"
+  },
+  "saveSettings": {
+    "message": "Save Settings",
+    "description": "Save settings button"
+  },
+  "justNow": {
+    "message": "just now",
+    "description": "Relative time just now"
+  }
+}

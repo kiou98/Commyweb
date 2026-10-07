@@ -1,0 +1,94 @@
+{
+  "appName": {
+    "message": "Commyweb - Commentaires Web style Figma",
+    "description": "Nom de l'application"
+  },
+  "appDescription": {
+    "message": "Commentaires collaboratifs et open-source sur n'importe quel site web façon Figma (sans base de données)",
+    "description": "Description de l'application"
+  },
+  "actionTitle": {
+    "message": "Commentaires Commyweb",
+    "description": "Infobulle de l'icône"
+  },
+  "commandToggleComment": {
+    "message": "Activer/désactiver le mode commentaire",
+    "description": "Description du raccourci clavier"
+  },
+  "commentMode": {
+    "message": "Mode commentaire",
+    "description": "Libellé du mode commentaire"
+  },
+  "clickToComment": {
+    "message": "Cliquez n'importe où pour épingler un commentaire",
+    "description": "Infobulle au survol de la page"
+  },
+  "addComment": {
+    "message": "Ajouter un commentaire...",
+    "description": "Texte indicatif de saisie"
+  },
+  "reply": {
+    "message": "Répondre...",
+    "description": "Texte indicatif de réponse"
+  },
+  "send": {
+    "message": "Envoyer",
+    "description": "Bouton envoyer"
+  },
+  "cancel": {
+    "message": "Annuler",
+    "description": "Bouton annuler"
+  },
+  "resolve": {
+    "message": "Résoudre",
+    "description": "Bouton de résolution de fil"
+  },
+  "reopen": {
+    "message": "Rouvrir",
+    "description": "Bouton pour rouvrir un fil"
+  },
+  "resolved": {
+    "message": "Résolu",
+    "description": "Badge résolu"
+  },
+  "active": {
+    "message": "Actif",
+    "description": "Badge actif"
+  },
+  "filterAll": {
+    "message": "Tous",
+    "description": "Onglet de filtre tous"
+  },
+  "filterActive": {
+    "message": "Actifs",
+    "description": "Onglet de filtre actifs"
+  },
+  "filterResolved": {
+    "message": "Résolus",
+    "description": "Onglet de filtre résolus"
+  },
+  "noComments": {
+    "message": "Aucun commentaire sur cette page pour le moment. Soyez le premier !",
+    "description": "Message d'état vide"
+  },
+  "githubConnected": {
+    "message": "Connecté en tant que",
+    "description": "Indicateur de connexion GitHub"
+  },
+  "githubConnect": {
+    "message": "Connecter GitHub",
+    "description": "Bouton de connexion GitHub"
+  },
+  "githubRepo": {
+    "message": "Dépôt de stockage",
+    "description": "Configuration du repo GitHub"
+  },
+  "saveSettings": {
+    "message": "Enregistrer les paramètres",
+    "description": "Bouton d'enregistrement des paramètres"
+  },
+  "justNow": {
+    "message": "à l'instant",
+    "description": "Temps relatif à l'instant"
+  }
+}
