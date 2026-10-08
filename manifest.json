@@ -12,7 +12,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://api.github.com/*"
+    "https://api.github.com/*",
+    "https://api.resend.com/*"
   ],
   "background": {
     "service_worker": "background.js",

@@ -86,9 +86,11 @@ class PopupController {
 
     const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
     const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
+    const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
 
     if (tokenInput && settings.githubToken) tokenInput.value = settings.githubToken;
     if (repoInput && settings.storageRepo) repoInput.value = settings.storageRepo;
+    if (resendKeyInput && settings.resendApiKey) resendKeyInput.value = settings.resendApiKey;
 
     chrome.storage.local.get(['commyweb_user'], (res) => {
       const user: Author = res.commyweb_user;
@@ -193,10 +195,12 @@ class PopupController {
       const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
       const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
       const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
+      const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
 
       const newSettings: Partial<UserSettings> = {
         githubToken: tokenInput?.value.trim() || undefined,
-        storageRepo: repoInput?.value.trim() || undefined
+        storageRepo: repoInput?.value.trim() || undefined,
+        resendApiKey: resendKeyInput?.value.trim() || undefined
       };
 
       const newName = userNameInput?.value.trim();
@@ -240,7 +244,7 @@ class PopupController {
 
     if (!this.currentUrlHash || !this.currentTabUrl) return;
 
-    // Register member via background
+    // Register member via background and dispatch email
     chrome.runtime.sendMessage({
       type: 'INVITE_MEMBER',
       payload: {
@@ -254,6 +258,12 @@ class PopupController {
         inputEmail.value = '';
         await this.loadInvitedMembers();
 
+        if (res.emailSent) {
+          this.showToast(`✓ Email d'invitation envoyé automatiquement à ${email} !`);
+          return;
+        }
+
+        // If no API key configured, guide user or open mailto fallback
         const member: ProjectMember = res.member;
         const magicLink = `${this.currentTabUrl}#commyweb_join=${member.authCode}&email=${encodeURIComponent(email)}`;
 
@@ -265,13 +275,20 @@ class PopupController {
           `Lien d'accès autorisé :\n` +
           `🔗 ${magicLink}\n\n` +
           `Guide express d'installation (30 sec) :\n` +
-          `1. Téléchargez : https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip\n` +
+          `1. Téléchargez : https://github.com/kiou98/Commyweb/releases/latest\n` +
           `2. Dans Chrome, allez sur chrome://extensions, activez "Mode développeur" et cliquez sur "Charger l'extension non empaquetée".\n` +
           `3. Cliquez sur le lien d'accès ci-dessus. Appuyez sur Alt + C (ou clic droit) pour commenter sur le site comme dans Figma !\n\n` +
           `Bonne collaboration !`
         );
 
-        window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+        if (res.emailError === 'NO_API_KEY') {
+          // Open mailto fallback and explain how to configure Resend for 100% auto send
+          window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+          this.showToast('Client mail ouvert ! (Configurez votre clé Resend dans les paramètres pour l\'envoi 100% automatique)');
+        } else {
+          window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+          this.showToast(`Erreur envoi auto: ${res.emailError || 'Email ouvert'}`);
+        }
       }
     });
   }

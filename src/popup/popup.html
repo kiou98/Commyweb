@@ -102,8 +102,12 @@
         <label for="input-storage-repo">Dépôt GitHub privé du projet (ex: mon-equipe/projet-secret)</label>
         <input type="text" class="input-text" id="input-storage-repo" placeholder="owner/repo-prive">
       </div>
+      <div class="form-group" style="margin-top: 14px; border-top: 1px solid #f4f4f5; padding-top: 12px;">
+        <label for="input-resend-key">Resend API Key (Envoi d'email automatique)</label>
+        <input type="password" class="input-text" id="input-resend-key" placeholder="re_...">
+      </div>
       <p style="font-size: 11px; color: #71717a; margin-top: -6px; margin-bottom: 12px; line-height: 1.4;">
-        🔒 <strong>Confidentialité garantie :</strong> Les données sont sauvegardées dans votre stockage local et synchronisées uniquement dans le dépôt privé spécifié. Seules les personnes autorisées sur ce dépôt ou invitées y ont accès.
+        ⚡ <strong>Envoi automatique d'invitations :</strong> Clé API gratuite depuis <a href="https://resend.com" target="_blank" style="color: #000000; font-weight: 700;">resend.com</a> (3 000 emails gratuits/mois). L'invitation est envoyée instantanément sans ouvrir votre boîte mail.
       </p>
       <button class="btn-black" id="btn-save-settings">Save Settings</button>
     </div>

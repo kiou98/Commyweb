@@ -58,6 +58,8 @@ export interface UserSettings {
   isCommentModeActive?: boolean;
   filterStatus?: 'all' | 'open' | 'resolved';
   userEmail?: string;
+  resendApiKey?: string;
+  resendFromEmail?: string;
 }
 
 export interface ExtensionMessage {
