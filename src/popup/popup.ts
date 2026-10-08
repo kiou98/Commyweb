@@ -307,15 +307,19 @@ class PopupController {
   }
 
   private async handleCopyInviteLink() {
-    if (!this.currentTabUrl) return;
+    if (!this.currentTabUrl || !this.currentUrlHash) return;
 
-    const inviteText = 
-      `Collaborer sur cette page via Commyweb :\n` +
+    const inviteText =
+      `Bonjour,\n\n` +
+      `${this.currentAuthorName} vous invite à réviser et commenter la page suivante avec l'extension Commyweb :\n` +
       `👉 ${this.currentTabUrl}\n\n` +
-      `Extension gratuite (Alt + C ou clic droit pour commenter) : https://github.com/kiou98/Commyweb/releases`;
+      `Guide express (30s) :\n` +
+      `1. Téléchargez l'extension : https://github.com/kiou98/Commyweb/releases/latest\n` +
+      `2. Sur chrome://extensions/, activez "Mode développeur" et chargez le dossier décompressé.\n` +
+      `3. Rendez-vous sur la page web. Appuyez sur Alt + C (ou faites un clic droit) pour commenter comme dans Figma !`;
 
     await navigator.clipboard.writeText(inviteText);
-    this.showToast('Lien copié dans le presse-papier !');
+    this.showToast('Message d\'invitation copié ! Prêt à envoyer par Slack/Teams/Email.');
   }
 
   private showToast(msg: string) {
