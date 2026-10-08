@@ -109,6 +109,23 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           break;
         }
 
+        case 'UPDATE_COMMENT_ANCHOR': {
+          const { commentId, urlHash, anchor } = message.payload || {};
+          if (commentId && urlHash && anchor) {
+            const comments = await CacheManager.getCommentsForUrl(urlHash);
+            const comment = comments.find(c => c.id === commentId);
+            if (comment) {
+              comment.anchor = anchor;
+              comment.updatedAt = new Date().toISOString();
+              await CacheManager.saveCommentsForUrl(urlHash, comments);
+            }
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false });
+          }
+          break;
+        }
+
         case 'ADD_REPLY': {
           const { commentId, urlHash, reply } = message.payload || {};
           if (commentId && urlHash && reply) {

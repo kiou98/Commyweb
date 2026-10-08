@@ -1,20 +1,35 @@
 import { WebComment } from '../../types';
 import { getUserColor } from '../../utils/security';
 
+export interface PinCallbacks {
+  onClick: (comment: WebComment, pin: PinElement) => void;
+  onDragEnd?: (comment: WebComment, newX: number, newY: number) => void;
+}
+
 export class PinElement {
   public element: HTMLDivElement;
   public comment: WebComment;
   public index: number;
-  private onClickCallback: (comment: WebComment, pin: PinElement) => void;
+  private callbacks: PinCallbacks;
+  private isDragging: boolean = false;
+  private hasMoved: boolean = false;
+  private startMouseX: number = 0;
+  private startMouseY: number = 0;
+  private startPinX: number = 0;
+  private startPinY: number = 0;
 
   constructor(
     comment: WebComment,
     index: number,
-    onClick: (comment: WebComment, pin: PinElement) => void
+    callbacks: PinCallbacks | ((comment: WebComment, pin: PinElement) => void)
   ) {
     this.comment = comment;
     this.index = index;
-    this.onClickCallback = onClick;
+    if (typeof callbacks === 'function') {
+      this.callbacks = { onClick: callbacks };
+    } else {
+      this.callbacks = callbacks;
+    }
 
     const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
     const userColor = getUserColor(authorId);
@@ -29,7 +44,7 @@ export class PinElement {
     this.element.style.transform = 'translate(-6px, -26px) rotate(-45deg)';
     this.element.style.border = '2px solid #ffffff';
     this.element.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.4)';
-    this.element.style.cursor = 'pointer';
+    this.element.style.cursor = 'grab';
     this.element.style.pointerEvents = 'auto';
     this.element.style.zIndex = '2147483646';
     this.element.dataset.commentId = comment.id;
@@ -56,9 +71,66 @@ export class PinElement {
 
     this.element.appendChild(inner);
 
-    this.element.addEventListener('click', (e) => {
+    this.setupDragEvents();
+  }
+
+  private setupDragEvents() {
+    this.element.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return; // Only left button
       e.stopPropagation();
-      this.onClickCallback(this.comment, this);
+      e.preventDefault();
+
+      this.isDragging = true;
+      this.hasMoved = false;
+      this.startMouseX = e.pageX;
+      this.startMouseY = e.pageY;
+      this.startPinX = parseInt(this.element.style.left) || e.pageX;
+      this.startPinY = parseInt(this.element.style.top) || e.pageY;
+
+      this.element.style.cursor = 'grabbing';
+      this.element.style.zIndex = '2147483647';
+      this.element.setPointerCapture(e.pointerId);
+
+      const onPointerMove = (moveEv: PointerEvent) => {
+        if (!this.isDragging) return;
+        const dx = moveEv.pageX - this.startMouseX;
+        const dy = moveEv.pageY - this.startMouseY;
+
+        if (Math.hypot(dx, dy) > 4) {
+          this.hasMoved = true;
+        }
+
+        const newX = this.startPinX + dx;
+        const newY = this.startPinY + dy;
+        this.setPosition(newX, newY);
+      };
+
+      const onPointerUp = (upEv: PointerEvent) => {
+        if (!this.isDragging) return;
+        this.isDragging = false;
+        this.element.style.cursor = 'grab';
+        this.element.style.zIndex = '2147483646';
+
+        try {
+          this.element.releasePointerCapture(upEv.pointerId);
+        } catch {}
+
+        window.removeEventListener('pointermove', onPointerMove, true);
+        window.removeEventListener('pointerup', onPointerUp, true);
+
+        if (this.hasMoved) {
+          const finalX = parseInt(this.element.style.left) || upEv.pageX;
+          const finalY = parseInt(this.element.style.top) || upEv.pageY;
+          if (this.callbacks.onDragEnd) {
+            this.callbacks.onDragEnd(this.comment, finalX, finalY);
+          }
+        } else {
+          this.callbacks.onClick(this.comment, this);
+        }
+      };
+
+      window.addEventListener('pointermove', onPointerMove, true);
+      window.addEventListener('pointerup', onPointerUp, true);
     });
   }
 

@@ -66,6 +66,7 @@ export interface ExtensionMessage {
     | 'GET_COMMENT_MODE'
     | 'GET_PAGE_COMMENTS'
     | 'ADD_COMMENT'
+    | 'UPDATE_COMMENT_ANCHOR'
     | 'ADD_REPLY'
     | 'RESOLVE_COMMENT'
     | 'REOPEN_COMMENT'

@@ -1,6 +1,6 @@
 {
   "name": "commyweb-extension",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Collaborative, open-source Figma-like website commenting Chrome extension (no database required)",
   "type": "module",
   "scripts": {

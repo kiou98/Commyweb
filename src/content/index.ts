@@ -29,6 +29,8 @@ class CommywebContentApp {
     y: 200,
     pageX: 200,
     pageY: 200,
+    clientX: 200,
+    clientY: 200,
     target: document.body as Element
   };
 
@@ -126,6 +128,8 @@ class CommywebContentApp {
         y: e.pageY || (e.clientY + window.scrollY),
         pageX: e.pageX || (e.clientX + window.scrollX),
         pageY: e.pageY || (e.clientY + window.scrollY),
+        clientX: e.clientX,
+        clientY: e.clientY,
         target: (e.target as Element) || document.body
       };
     };
@@ -195,28 +199,13 @@ class CommywebContentApp {
    * Called when user clicks "Ajouter un commentaire" on right click
    */
   private handleRightClickAddComment() {
-    const targetEl = this.lastRightClickPoint.target || document.body;
-    const rect = targetEl.getBoundingClientRect();
-    const width = Math.max(rect.width, 1);
-    const height = Math.max(rect.height, 1);
-
+    const clickClientX = this.lastRightClickPoint.clientX;
+    const clickClientY = this.lastRightClickPoint.clientY;
     const clickPageX = this.lastRightClickPoint.pageX;
     const clickPageY = this.lastRightClickPoint.pageY;
+    const targetEl = this.lastRightClickPoint.target || document.body;
 
-    const elemPageX = rect.left + window.scrollX;
-    const elemPageY = rect.top + window.scrollY;
-
-    const xPercent = Math.min(Math.max((clickPageX - elemPageX) / width, 0), 1);
-    const yPercent = Math.min(Math.max((clickPageY - elemPageY) / height, 0), 1);
-
-    this.pendingNewAnchor = {
-      selector: AnchorEngine.getCssSelector(targetEl),
-      xpath: AnchorEngine.getXPath(targetEl),
-      xPercent,
-      yPercent,
-      textSnippet: targetEl.textContent?.trim().slice(0, 80) || undefined,
-      scrollOffset: { x: window.scrollX, y: window.scrollY }
-    };
+    this.pendingNewAnchor = AnchorEngine.createAnchorFromPoint(clickClientX, clickClientY, targetEl);
 
     // Ensure hostElement is attached to document
     if (!document.contains(this.shadowHost.hostElement)) {
@@ -363,13 +352,42 @@ class CommywebContentApp {
       existing.element.remove();
     }
 
-    const pin = new PinElement(comment, index, (c, p) => {
-      this.openThread(c, p);
+    const pin = new PinElement(comment, index, {
+      onClick: (c, p) => this.openThread(c, p),
+      onDragEnd: (c, newX, newY) => this.handlePinMoved(c, newX, newY)
     });
 
     pin.setPosition(x, y);
     this.shadowHost.shadowRoot.appendChild(pin.element);
     this.pins.set(comment.id, pin);
+  }
+
+  /**
+   * Handle dragging and dropping a pin to a new position on the page
+   */
+  private handlePinMoved(comment: WebComment, newPageX: number, newPageY: number) {
+    const clientX = newPageX - window.scrollX;
+    const clientY = newPageY - window.scrollY;
+
+    const newAnchor = AnchorEngine.createAnchorFromPoint(clientX, clientY);
+    comment.anchor = newAnchor;
+    comment.updatedAt = new Date().toISOString();
+
+    const pin = this.pins.get(comment.id);
+    if (pin) {
+      pin.updateComment(comment);
+      pin.setPosition(newPageX, newPageY);
+    }
+
+    // Persist new position
+    chrome.runtime.sendMessage({
+      type: 'UPDATE_COMMENT_ANCHOR',
+      payload: {
+        commentId: comment.id,
+        urlHash: this.currentUrlHash,
+        anchor: newAnchor
+      }
+    });
   }
 
   private openThread(comment: WebComment, pin: PinElement) {

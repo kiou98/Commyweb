@@ -86,14 +86,26 @@ export class AnchorEngine {
    * Creates anchor data from a mouse click event
    */
   static createAnchorFromEvent(event: MouseEvent): AnchorData {
-    const target = event.target as Element;
-    const rect = target.getBoundingClientRect();
+    return this.createAnchorFromPoint(event.clientX, event.clientY, event.target as Element);
+  }
 
+  /**
+   * Creates anchor data from client/viewport coordinates and optional target element
+   */
+  static createAnchorFromPoint(clientX: number, clientY: number, fallbackTarget?: Element): AnchorData {
+    let target = fallbackTarget || document.elementFromPoint(clientX, clientY) || document.body;
+    
+    // Ignore Commyweb shadow host if hit
+    if (target && (target.id === 'commyweb-extension-host' || (target as HTMLElement).classList?.contains('commyweb-pin'))) {
+      target = document.body;
+    }
+
+    const rect = target.getBoundingClientRect();
     const width = Math.max(rect.width, 1);
     const height = Math.max(rect.height, 1);
 
-    const xPercent = Math.min(Math.max((event.clientX - rect.left) / width, 0), 1);
-    const yPercent = Math.min(Math.max((event.clientY - rect.top) / height, 0), 1);
+    const xPercent = Math.min(Math.max((clientX - rect.left) / width, 0), 1);
+    const yPercent = Math.min(Math.max((clientY - rect.top) / height, 0), 1);
 
     const selector = this.getCssSelector(target);
     const xpath = this.getXPath(target);
