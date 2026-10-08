@@ -71,3 +71,29 @@ export function generateId(): string {
     return v.toString(16);
   });
 }
+
+/**
+ * Generates a consistent, distinct, vibrant color for a user based on their name or ID
+ */
+export function getUserColor(identifier: string): string {
+  if (!identifier) return '#18181b';
+  const palette = [
+    '#2563eb', // Blue
+    '#7c3aed', // Purple
+    '#db2777', // Pink
+    '#ea580c', // Orange
+    '#059669', // Emerald
+    '#0891b2', // Cyan
+    '#d97706', // Amber
+    '#4f46e5', // Indigo
+    '#e11d48', // Rose
+    '#0d9488', // Teal
+  ];
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % palette.length;
+  return palette[index];
+}
+

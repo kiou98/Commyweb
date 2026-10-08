@@ -1,5 +1,5 @@
 import { WebComment, UserSettings, Author, ProjectMember } from '../types';
-import { normalizeUrl, hashUrl, escapeHtml } from '../utils/security';
+import { normalizeUrl, hashUrl, escapeHtml, getUserColor } from '../utils/security';
 import { formatRelativeTime, t } from '../utils/i18n';
 import { CacheManager } from '../storage/cache';
 import { generateInviteEmailHtml } from '../utils/email-template';
@@ -92,16 +92,20 @@ class PopupController {
 
     chrome.storage.local.get(['commyweb_user'], (res) => {
       const user: Author = res.commyweb_user;
-      if (user && user.username) {
+      const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
+      if (user && (user.name || user.username)) {
         this.currentAuthorName = user.name || user.username;
+        if (userNameInput) userNameInput.value = this.currentAuthorName;
         const badge = document.getElementById('user-badge');
         const avatar = document.getElementById('user-avatar') as HTMLImageElement;
         const name = document.getElementById('user-name');
         if (badge && avatar && name) {
           badge.style.display = 'flex';
           avatar.src = user.avatarUrl || '/icons/logo.png';
-          name.textContent = `@${user.username}`;
+          name.textContent = `@${this.currentAuthorName}`;
         }
+      } else if (userNameInput) {
+        userNameInput.value = this.currentAuthorName;
       }
     });
   }
@@ -154,11 +158,23 @@ class PopupController {
     btnSave?.addEventListener('click', async () => {
       const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
       const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
+      const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
 
       const newSettings: Partial<UserSettings> = {
         githubToken: tokenInput?.value.trim() || undefined,
         storageRepo: repoInput?.value.trim() || undefined
       };
+
+      const newName = userNameInput?.value.trim();
+      if (newName) {
+        this.currentAuthorName = newName;
+        chrome.storage.local.get(['commyweb_user'], (res) => {
+          const user: Author = res.commyweb_user || { id: 'anonymous', username: newName, avatarUrl: '' };
+          user.name = newName;
+          user.username = newName;
+          chrome.storage.local.set({ commyweb_user: user });
+        });
+      }
 
       await CacheManager.saveSettings(newSettings);
 
@@ -393,20 +409,22 @@ class PopupController {
       const card = document.createElement('div');
       card.className = `comment-card ${comment.status === 'resolved' ? 'resolved' : ''}`;
       
+      const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
+      const userColor = getUserColor(authorId);
       const repliesCount = comment.replies?.length || 0;
       const repliesText = repliesCount > 0 ? `${repliesCount} ${t('reply')}` : '';
 
       card.innerHTML = `
         <div class="card-header">
-          <div class="card-author">
-            <img class="card-avatar" src="${escapeHtml(comment.author.avatarUrl || '/icons/logo.png')}" alt="">
-            <span class="card-name">${escapeHtml(comment.author.name || comment.author.username)}</span>
+          <div class="card-author" style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${userColor}; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
+            <span class="card-name" style="font-weight: 700;">${escapeHtml(comment.author.name || comment.author.username)}</span>
           </div>
           <span class="card-time">${formatRelativeTime(comment.createdAt)}</span>
         </div>
         <div class="card-text">${escapeHtml(comment.content)}</div>
         <div class="card-footer">
-          <span class="badge-tag ${comment.status === 'resolved' ? 'badge-resolved' : 'badge-open'}">
+          <span class="badge-tag ${comment.status === 'resolved' ? 'badge-resolved' : 'badge-open'}" style="${comment.status !== 'resolved' ? `border-color: ${userColor}; color: ${userColor};` : ''}">
             ${comment.status === 'resolved' ? t('resolved') : t('active')} #${index + 1}
           </span>
           <span>${repliesText}</span>

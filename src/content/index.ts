@@ -22,7 +22,6 @@ class CommywebContentApp {
   };
   private isCommentModeActive: boolean = false;
   private pendingNewAnchor: AnchorData | null = null;
-  private filterStatus: 'all' | 'open' | 'resolved' = 'all';
 
   // Last right click position tracking
   private lastRightClickPoint = {
@@ -46,15 +45,15 @@ class CommywebContentApp {
     this.threadModal = new ThreadModal({
       onReply: (commentId, text) => this.handleReply(commentId, text),
       onToggleResolve: (commentId) => this.handleToggleResolve(commentId),
-      onCreateNew: (text) => this.handleCreateNewComment(text),
+      onCreateNew: (text, authorName) => this.handleCreateNewComment(text, authorName),
       onClose: () => this.closeActiveModal()
     });
 
     this.initEventListeners();
     this.initMessageListener();
     this.checkMagicJoinLink();
-    this.loadComments();
     this.loadCurrentUser();
+    this.loadComments();
   }
 
   /**
@@ -228,8 +227,8 @@ class CommywebContentApp {
       this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
 
-    console.log('[Commyweb] Opening comment box at:', clickPageX, clickPageY);
-    this.threadModal.renderNewCommentBox(clickPageX, clickPageY);
+    const currentAuthor = this.currentUser.name || this.currentUser.username || '';
+    this.threadModal.renderNewCommentBox(clickPageX, clickPageY, currentAuthor === 'Guest User' ? '' : currentAuthor);
   }
 
   public setCommentMode(active: boolean) {
@@ -239,6 +238,8 @@ class CommywebContentApp {
     if (active) {
       this.closeActiveModal();
     }
+    // Re-render pins: show pins only if comment mode is active
+    this.renderAllPins();
   }
 
   private handleClickToComment(e: MouseEvent) {
@@ -251,19 +252,26 @@ class CommywebContentApp {
     if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
       this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
-    this.threadModal.renderNewCommentBox(x, y);
+    const currentAuthor = this.currentUser.name || this.currentUser.username || '';
+    this.threadModal.renderNewCommentBox(x, y, currentAuthor === 'Guest User' ? '' : currentAuthor);
     this.setCommentMode(false);
   }
 
-  private handleCreateNewComment(text: string) {
+  private handleCreateNewComment(text: string, authorName?: string) {
     if (!this.pendingNewAnchor) return;
+
+    if (authorName && authorName.trim()) {
+      this.currentUser.name = authorName.trim();
+      this.currentUser.username = authorName.trim();
+      chrome.storage.local.set({ commyweb_user: this.currentUser });
+    }
 
     const newComment: WebComment = {
       id: generateId(),
       url: this.currentUrl,
       urlHash: this.currentUrlHash,
       anchor: this.pendingNewAnchor,
-      author: this.currentUser,
+      author: { ...this.currentUser },
       content: text,
       status: 'open',
       createdAt: new Date().toISOString(),
@@ -271,6 +279,11 @@ class CommywebContentApp {
     };
 
     this.comments.push(newComment);
+    // When a comment is created, ensure pins are visible
+    if (!this.isCommentModeActive) {
+      this.isCommentModeActive = true;
+      this.cursorManager.setActive(true);
+    }
     this.renderPin(newComment, this.comments.length);
     this.closeActiveModal();
     this.pendingNewAnchor = null;
@@ -287,7 +300,7 @@ class CommywebContentApp {
 
     const reply = {
       id: generateId(),
-      author: this.currentUser,
+      author: { ...this.currentUser },
       content: text,
       createdAt: new Date().toISOString()
     };
@@ -314,9 +327,18 @@ class CommywebContentApp {
     if (!comment) return;
 
     comment.status = comment.status === 'resolved' ? 'open' : 'resolved';
-    const pin = this.pins.get(commentId);
-    if (pin) {
-      pin.updateComment(comment);
+    
+    // When resolved, hide pin from the page
+    if (comment.status === 'resolved') {
+      const pin = this.pins.get(commentId);
+      if (pin) {
+        pin.element.remove();
+        this.pins.delete(commentId);
+      }
+      this.closeActiveModal();
+    } else {
+      // Reopened
+      this.renderPin(comment, this.comments.indexOf(comment) + 1);
       const coords = AnchorEngine.resolveCoordinates(comment.anchor);
       const x = coords ? coords.x : 100;
       const y = coords ? coords.y : 100;
@@ -329,7 +351,30 @@ class CommywebContentApp {
     });
   }
 
+  private renderAllPins() {
+    this.pins.forEach(p => p.element.remove());
+    this.pins.clear();
+
+    // ONLY display pins on the webpage if Comment Mode is ACTIVE
+    if (!this.isCommentModeActive) {
+      this.closeActiveModal();
+      return;
+    }
+
+    this.comments.forEach((c, i) => {
+      // Never display closed/resolved comments as pins
+      if (c.status !== 'resolved') {
+        this.renderPin(c, i + 1);
+      }
+    });
+  }
+
   private renderPin(comment: WebComment, index: number) {
+    // Only render open pins and only when comment mode is active
+    if (!this.isCommentModeActive || comment.status === 'resolved') {
+      return;
+    }
+
     const coords = AnchorEngine.resolveCoordinates(comment.anchor);
     const x = coords ? coords.x : (this.lastRightClickPoint.pageX || 100);
     const y = coords ? coords.y : (this.lastRightClickPoint.pageY || 100);
@@ -374,8 +419,15 @@ class CommywebContentApp {
   }
 
   private focusComment(commentId: string) {
+    if (!this.isCommentModeActive) {
+      this.setCommentMode(true);
+    }
     const comment = this.comments.find(c => c.id === commentId);
-    const pin = this.pins.get(commentId);
+    let pin = this.pins.get(commentId);
+    if (!pin && comment) {
+      this.renderPin(comment, this.comments.indexOf(comment) + 1);
+      pin = this.pins.get(commentId);
+    }
     if (comment && pin) {
       const coords = AnchorEngine.resolveCoordinates(comment.anchor);
       const x = coords ? coords.x : parseInt(pin.element.style.left) || 100;
@@ -386,7 +438,9 @@ class CommywebContentApp {
         left: Math.max(0, x - 150),
         behavior: 'smooth'
       });
-      setTimeout(() => this.openThread(comment, pin), 300);
+      setTimeout(() => {
+        if (pin) this.openThread(comment, pin);
+      }, 300);
     }
   }
 
@@ -408,14 +462,7 @@ class CommywebContentApp {
       (response) => {
         if (response && response.comments) {
           this.comments = response.comments;
-          this.pins.forEach(p => p.element.remove());
-          this.pins.clear();
-
-          this.comments.forEach((c, i) => {
-            if (this.filterStatus === 'all' || c.status === this.filterStatus) {
-              this.renderPin(c, i + 1);
-            }
-          });
+          this.renderAllPins();
         }
       }
     );

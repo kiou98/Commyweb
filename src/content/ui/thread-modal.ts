@@ -1,11 +1,11 @@
 import { WebComment, CommentReply } from '../../types';
 import { formatRelativeTime, t } from '../../utils/i18n';
-import { escapeHtml } from '../../utils/security';
+import { escapeHtml, getUserColor } from '../../utils/security';
 
 export interface ThreadModalCallbacks {
   onReply: (commentId: string, text: string) => void;
   onToggleResolve: (commentId: string) => void;
-  onCreateNew: (text: string) => void;
+  onCreateNew: (text: string, authorName?: string) => void;
   onClose: () => void;
   onInvite?: () => void;
 }
@@ -37,11 +37,16 @@ export class ThreadModal {
    */
   public renderThread(comment: WebComment, pinX: number, pinY: number) {
     const isResolved = comment.status === 'resolved';
+    const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
+    const userColor = getUserColor(authorId);
+    const initial = (authorId.charAt(0) || 'U').toUpperCase();
 
     this.element.innerHTML = `
       <div class="commyweb-modal-header">
         <div class="commyweb-header-user">
-          <img class="commyweb-header-avatar" src="${escapeHtml(comment.author.avatarUrl || 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/icon48.png')}" alt="" />
+          <div style="width: 28px; height: 28px; border-radius: 50%; background-color: ${userColor}; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.25);">
+            ${escapeHtml(initial)}
+          </div>
           <div>
             <div class="commyweb-header-name">${escapeHtml(comment.author.name || comment.author.username)}</div>
             <div class="commyweb-header-time">${formatRelativeTime(comment.createdAt)}</div>
@@ -109,9 +114,9 @@ export class ThreadModal {
   }
 
   /**
-   * Render creation box for a new comment
+   * Render creation box for a new comment with author name prompt
    */
-  public renderNewCommentBox(x: number, y: number) {
+  public renderNewCommentBox(x: number, y: number, defaultName: string = '') {
     this.element.innerHTML = `
       <div class="commyweb-modal-header">
         <div class="commyweb-header-user">
@@ -128,6 +133,10 @@ export class ThreadModal {
         </button>
       </div>
       <div class="commyweb-modal-body">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 700; color: #71717a; white-space: nowrap;">Votre nom :</span>
+          <input type="text" id="new-comment-name-input" value="${escapeHtml(defaultName)}" placeholder="Ex: Vincent" style="flex: 1; border: 1px solid #d4d4d8; border-radius: 6px; padding: 5px 8px; font-size: 12px; font-weight: 700; outline: none; background: #fafafa;" />
+        </div>
         <textarea class="commyweb-input" id="new-comment-input" placeholder="${t('addComment')}" rows="3" style="min-height: 60px;"></textarea>
       </div>
       <div class="commyweb-modal-footer" style="justify-content: flex-end;">
@@ -142,14 +151,16 @@ export class ThreadModal {
     const cancelBtn = this.element.querySelector('#btn-cancel-new');
     const submitBtn = this.element.querySelector('#btn-submit-new');
     const input = this.element.querySelector('#new-comment-input') as HTMLTextAreaElement;
+    const nameInput = this.element.querySelector('#new-comment-name-input') as HTMLInputElement;
 
     closeBtn?.addEventListener('click', () => this.callbacks.onClose());
     cancelBtn?.addEventListener('click', () => this.callbacks.onClose());
 
     const submitAction = () => {
       const text = input?.value.trim();
+      const authorName = nameInput?.value.trim();
       if (text) {
-        this.callbacks.onCreateNew(text);
+        this.callbacks.onCreateNew(text, authorName || undefined);
       }
     };
 
@@ -161,13 +172,25 @@ export class ThreadModal {
       }
     });
 
-    setTimeout(() => input?.focus(), 50);
+    setTimeout(() => {
+      if (!defaultName) {
+        nameInput?.focus();
+      } else {
+        input?.focus();
+      }
+    }, 50);
   }
 
   private renderReplyHtml(reply: CommentReply): string {
+    const authorId = reply.author.name || reply.author.username || reply.author.id || 'User';
+    const userColor = getUserColor(authorId);
+    const initial = (authorId.charAt(0) || 'U').toUpperCase();
+
     return `
       <div class="commyweb-reply-item">
-        <img class="commyweb-reply-avatar" src="${escapeHtml(reply.author.avatarUrl || 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/icon48.png')}" alt="" />
+        <div style="width: 22px; height: 22px; border-radius: 50%; background-color: ${userColor}; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+          ${escapeHtml(initial)}
+        </div>
         <div class="commyweb-reply-content">
           <div class="commyweb-reply-header">
             <span class="commyweb-reply-author">${escapeHtml(reply.author.name || reply.author.username)}</span>

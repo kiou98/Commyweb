@@ -1,4 +1,5 @@
 import { WebComment } from '../../types';
+import { getUserColor } from '../../utils/security';
 
 export class PinElement {
   public element: HTMLDivElement;
@@ -15,12 +16,15 @@ export class PinElement {
     this.index = index;
     this.onClickCallback = onClick;
 
+    const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
+    const userColor = getUserColor(authorId);
+
     this.element = document.createElement('div');
     this.element.className = 'commyweb-pin';
     this.element.style.position = 'absolute';
     this.element.style.width = '32px';
     this.element.style.height = '32px';
-    this.element.style.background = '#000000';
+    this.element.style.background = userColor;
     this.element.style.borderRadius = '50% 50% 50% 4px';
     this.element.style.transform = 'translate(-10px, -32px) rotate(-45deg)';
     this.element.style.border = '2px solid #ffffff';
@@ -75,8 +79,11 @@ export class PinElement {
     this.comment = comment;
     if (comment.status === 'resolved') {
       this.element.classList.add('resolved');
+      this.element.style.background = '#71717a';
     } else {
       this.element.classList.remove('resolved');
+      const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
+      this.element.style.background = getUserColor(authorId);
     }
   }
 }
