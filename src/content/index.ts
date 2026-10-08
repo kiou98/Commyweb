@@ -226,6 +226,8 @@ class CommywebContentApp {
     if (active) {
       this.closeActiveModal();
     }
+    // Only display comment pins when comment mode is active
+    this.renderAllPins();
   }
 
   private handleClickToComment(e: MouseEvent) {
@@ -239,7 +241,6 @@ class CommywebContentApp {
       this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
     this.threadModal.renderNewCommentBox(x, y);
-    this.setCommentMode(false);
   }
 
   private handleCreateNewComment(text: string) {
@@ -258,7 +259,11 @@ class CommywebContentApp {
     };
 
     this.comments.push(newComment);
-    this.renderPin(newComment, this.comments.length);
+    if (!this.isCommentModeActive) {
+      this.setCommentMode(true);
+    } else {
+      this.renderPin(newComment, this.comments.length);
+    }
     this.closeActiveModal();
     this.pendingNewAnchor = null;
 
@@ -329,7 +334,13 @@ class CommywebContentApp {
     this.pins.forEach(p => p.element.remove());
     this.pins.clear();
 
-    // All open (unresolved) comments remain displayed on the page
+    // If comment mode is NOT active, do not display any comments on the site
+    if (!this.isCommentModeActive) {
+      this.closeActiveModal();
+      return;
+    }
+
+    // When comment mode is active, display all open comments
     this.comments.forEach((c, i) => {
       if (c.status !== 'resolved') {
         this.renderPin(c, i + 1);
@@ -338,8 +349,8 @@ class CommywebContentApp {
   }
 
   private renderPin(comment: WebComment, index: number) {
-    // Never display closed / resolved comments on page
-    if (comment.status === 'resolved') {
+    // Only display comments if Comment Mode is ACTIVE and comment is not resolved
+    if (!this.isCommentModeActive || comment.status === 'resolved') {
       return;
     }
 
