@@ -45,7 +45,7 @@ class CommywebContentApp {
     this.threadModal = new ThreadModal({
       onReply: (commentId, text) => this.handleReply(commentId, text),
       onToggleResolve: (commentId) => this.handleToggleResolve(commentId),
-      onCreateNew: (text, authorName) => this.handleCreateNewComment(text, authorName),
+      onCreateNew: (text) => this.handleCreateNewComment(text),
       onClose: () => this.closeActiveModal()
     });
 
@@ -227,8 +227,7 @@ class CommywebContentApp {
       this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
 
-    const currentAuthor = this.currentUser.name || this.currentUser.username || '';
-    this.threadModal.renderNewCommentBox(clickPageX, clickPageY, currentAuthor === 'Guest User' ? '' : currentAuthor);
+    this.threadModal.renderNewCommentBox(clickPageX, clickPageY);
   }
 
   public setCommentMode(active: boolean) {
@@ -238,8 +237,6 @@ class CommywebContentApp {
     if (active) {
       this.closeActiveModal();
     }
-    // Re-render pins: show pins only if comment mode is active
-    this.renderAllPins();
   }
 
   private handleClickToComment(e: MouseEvent) {
@@ -252,19 +249,12 @@ class CommywebContentApp {
     if (!this.shadowHost.shadowRoot.contains(this.threadModal.element)) {
       this.shadowHost.shadowRoot.appendChild(this.threadModal.element);
     }
-    const currentAuthor = this.currentUser.name || this.currentUser.username || '';
-    this.threadModal.renderNewCommentBox(x, y, currentAuthor === 'Guest User' ? '' : currentAuthor);
+    this.threadModal.renderNewCommentBox(x, y);
     this.setCommentMode(false);
   }
 
-  private handleCreateNewComment(text: string, authorName?: string) {
+  private handleCreateNewComment(text: string) {
     if (!this.pendingNewAnchor) return;
-
-    if (authorName && authorName.trim()) {
-      this.currentUser.name = authorName.trim();
-      this.currentUser.username = authorName.trim();
-      chrome.storage.local.set({ commyweb_user: this.currentUser });
-    }
 
     const newComment: WebComment = {
       id: generateId(),
@@ -279,11 +269,6 @@ class CommywebContentApp {
     };
 
     this.comments.push(newComment);
-    // When a comment is created, ensure pins are visible
-    if (!this.isCommentModeActive) {
-      this.isCommentModeActive = true;
-      this.cursorManager.setActive(true);
-    }
     this.renderPin(newComment, this.comments.length);
     this.closeActiveModal();
     this.pendingNewAnchor = null;
@@ -355,14 +340,8 @@ class CommywebContentApp {
     this.pins.forEach(p => p.element.remove());
     this.pins.clear();
 
-    // ONLY display pins on the webpage if Comment Mode is ACTIVE
-    if (!this.isCommentModeActive) {
-      this.closeActiveModal();
-      return;
-    }
-
+    // All open (unresolved) comments remain displayed on the page
     this.comments.forEach((c, i) => {
-      // Never display closed/resolved comments as pins
       if (c.status !== 'resolved') {
         this.renderPin(c, i + 1);
       }
@@ -370,8 +349,8 @@ class CommywebContentApp {
   }
 
   private renderPin(comment: WebComment, index: number) {
-    // Only render open pins and only when comment mode is active
-    if (!this.isCommentModeActive || comment.status === 'resolved') {
+    // Never display closed / resolved comments on page
+    if (comment.status === 'resolved') {
       return;
     }
 
@@ -474,6 +453,15 @@ class CommywebContentApp {
         this.currentUser = res.commyweb_user;
       }
     });
+
+    // Listen to changes to author name from popup
+    if (chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName === 'local' && changes.commyweb_user?.newValue) {
+          this.currentUser = changes.commyweb_user.newValue;
+        }
+      });
+    }
   }
 }
 

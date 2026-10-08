@@ -26,7 +26,7 @@ export class PinElement {
     this.element.style.height = '32px';
     this.element.style.background = userColor;
     this.element.style.borderRadius = '50% 50% 50% 4px';
-    this.element.style.transform = 'translate(-10px, -32px) rotate(-45deg)';
+    this.element.style.transform = 'translate(-6px, -26px) rotate(-45deg)';
     this.element.style.border = '2px solid #ffffff';
     this.element.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.4)';
     this.element.style.cursor = 'pointer';

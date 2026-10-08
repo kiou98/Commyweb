@@ -69,7 +69,7 @@ export class ShadowHostManager {
         width: 32px;
         height: 32px;
         border-radius: 50% 50% 50% 4px;
-        transform: translate(-10px, -32px) rotate(-45deg);
+        transform: translate(-6px, -26px) rotate(-45deg);
         background: #000000;
         border: 2px solid #ffffff;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
@@ -83,14 +83,13 @@ export class ShadowHostManager {
       }
 
       .commyweb-pin:hover {
-        transform: translate(-10px, -36px) rotate(-45deg) scale(1.12);
+        transform: translate(-6px, -29px) rotate(-45deg) scale(1.12);
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
       }
 
       .commyweb-pin.active {
-        background: #000000;
         box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #000000, 0 10px 25px rgba(0, 0, 0, 0.4);
-        transform: translate(-10px, -36px) rotate(-45deg) scale(1.15);
+        transform: translate(-6px, -29px) rotate(-45deg) scale(1.15);
       }
 
       .commyweb-pin.resolved {

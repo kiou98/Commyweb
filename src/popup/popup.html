@@ -43,6 +43,15 @@
       </label>
     </div>
 
+    <!-- Quick Author Profile Row -->
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; margin: 0 0 4px; background: #fafafa; border-bottom: 1px solid #f4f4f5; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+        <div id="quick-user-color-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #000000;"></div>
+        <span style="font-size: 11px; font-weight: 700; color: #71717a; white-space: nowrap;">Votre nom :</span>
+      </div>
+      <input type="text" id="quick-author-name" placeholder="Ex: Vincent" style="flex: 1; border: 1px solid #e4e4e7; border-radius: 6px; padding: 5px 8px; font-size: 12px; font-weight: 700; outline: none; background: #ffffff;" />
+    </div>
+
     <!-- Invite Collaborators Drawer -->
     <div class="drawer" id="invite-drawer">
       <div class="drawer-header">
@@ -87,9 +96,12 @@
         <input type="password" class="input-text" id="input-github-token" placeholder="github_pat_...">
       </div>
       <div class="form-group">
-        <label for="input-storage-repo">Storage Repository</label>
-        <input type="text" class="input-text" id="input-storage-repo" placeholder="kiou98/Commyweb">
+        <label for="input-storage-repo">Dépôt GitHub privé du projet (ex: mon-equipe/projet-secret)</label>
+        <input type="text" class="input-text" id="input-storage-repo" placeholder="owner/repo-prive">
       </div>
+      <p style="font-size: 11px; color: #71717a; margin-top: -6px; margin-bottom: 12px; line-height: 1.4;">
+        🔒 <strong>Confidentialité garantie :</strong> Les données sont sauvegardées dans votre stockage local et synchronisées uniquement dans le dépôt privé spécifié. Seules les personnes autorisées sur ce dépôt ou invitées y ont accès.
+      </p>
       <button class="btn-black" id="btn-save-settings">Save Settings</button>
     </div>
 

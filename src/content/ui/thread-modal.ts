@@ -5,7 +5,7 @@ import { escapeHtml, getUserColor } from '../../utils/security';
 export interface ThreadModalCallbacks {
   onReply: (commentId: string, text: string) => void;
   onToggleResolve: (commentId: string) => void;
-  onCreateNew: (text: string, authorName?: string) => void;
+  onCreateNew: (text: string) => void;
   onClose: () => void;
   onInvite?: () => void;
 }
@@ -114,9 +114,9 @@ export class ThreadModal {
   }
 
   /**
-   * Render creation box for a new comment with author name prompt
+   * Render creation box for a new comment
    */
-  public renderNewCommentBox(x: number, y: number, defaultName: string = '') {
+  public renderNewCommentBox(x: number, y: number) {
     this.element.innerHTML = `
       <div class="commyweb-modal-header">
         <div class="commyweb-header-user">
@@ -133,11 +133,7 @@ export class ThreadModal {
         </button>
       </div>
       <div class="commyweb-modal-body">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-          <span style="font-size: 11px; font-weight: 700; color: #71717a; white-space: nowrap;">Votre nom :</span>
-          <input type="text" id="new-comment-name-input" value="${escapeHtml(defaultName)}" placeholder="Ex: Vincent" style="flex: 1; border: 1px solid #d4d4d8; border-radius: 6px; padding: 5px 8px; font-size: 12px; font-weight: 700; outline: none; background: #fafafa;" />
-        </div>
-        <textarea class="commyweb-input" id="new-comment-input" placeholder="${t('addComment')}" rows="3" style="min-height: 60px;"></textarea>
+        <textarea class="commyweb-input" id="new-comment-input" placeholder="${t('addComment')}" rows="3" style="min-height: 70px;"></textarea>
       </div>
       <div class="commyweb-modal-footer" style="justify-content: flex-end;">
         <button class="commyweb-btn-icon" id="btn-cancel-new" style="padding: 6px 12px; font-size: 12px; font-weight: 600;">${t('cancel')}</button>
@@ -151,16 +147,14 @@ export class ThreadModal {
     const cancelBtn = this.element.querySelector('#btn-cancel-new');
     const submitBtn = this.element.querySelector('#btn-submit-new');
     const input = this.element.querySelector('#new-comment-input') as HTMLTextAreaElement;
-    const nameInput = this.element.querySelector('#new-comment-name-input') as HTMLInputElement;
 
     closeBtn?.addEventListener('click', () => this.callbacks.onClose());
     cancelBtn?.addEventListener('click', () => this.callbacks.onClose());
 
     const submitAction = () => {
       const text = input?.value.trim();
-      const authorName = nameInput?.value.trim();
       if (text) {
-        this.callbacks.onCreateNew(text, authorName || undefined);
+        this.callbacks.onCreateNew(text);
       }
     };
 
@@ -173,11 +167,7 @@ export class ThreadModal {
     });
 
     setTimeout(() => {
-      if (!defaultName) {
-        nameInput?.focus();
-      } else {
-        input?.focus();
-      }
+      input?.focus();
     }, 50);
   }
 

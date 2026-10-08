@@ -93,24 +93,58 @@ class PopupController {
     chrome.storage.local.get(['commyweb_user'], (res) => {
       const user: Author = res.commyweb_user;
       const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
+      const quickAuthorInput = document.getElementById('quick-author-name') as HTMLInputElement;
+      const quickDot = document.getElementById('quick-user-color-dot');
+
       if (user && (user.name || user.username)) {
         this.currentAuthorName = user.name || user.username;
-        if (userNameInput) userNameInput.value = this.currentAuthorName;
-        const badge = document.getElementById('user-badge');
-        const avatar = document.getElementById('user-avatar') as HTMLImageElement;
-        const name = document.getElementById('user-name');
-        if (badge && avatar && name) {
-          badge.style.display = 'flex';
-          avatar.src = user.avatarUrl || '/icons/logo.png';
-          name.textContent = `@${this.currentAuthorName}`;
-        }
-      } else if (userNameInput) {
-        userNameInput.value = this.currentAuthorName;
+      }
+
+      if (userNameInput) userNameInput.value = this.currentAuthorName;
+      if (quickAuthorInput) quickAuthorInput.value = this.currentAuthorName;
+      if (quickDot) quickDot.style.backgroundColor = getUserColor(this.currentAuthorName);
+
+      const badge = document.getElementById('user-badge');
+      const avatar = document.getElementById('user-avatar') as HTMLImageElement;
+      const name = document.getElementById('user-name');
+      if (badge && avatar && name) {
+        badge.style.display = 'flex';
+        avatar.src = (user && user.avatarUrl) ? user.avatarUrl : '/icons/logo.png';
+        name.textContent = `@${this.currentAuthorName}`;
       }
     });
   }
 
   private setupEventListeners() {
+    // Quick author name change
+    const quickAuthorInput = document.getElementById('quick-author-name') as HTMLInputElement;
+    const quickDot = document.getElementById('quick-user-color-dot');
+    const updateAuthorName = (newName: string) => {
+      const trimmed = newName.trim();
+      if (!trimmed) return;
+      this.currentAuthorName = trimmed;
+      if (quickDot) quickDot.style.backgroundColor = getUserColor(trimmed);
+      const settingsInput = document.getElementById('input-user-name') as HTMLInputElement;
+      if (settingsInput) settingsInput.value = trimmed;
+      chrome.storage.local.get(['commyweb_user'], (res) => {
+        const user: Author = res.commyweb_user || { id: 'anonymous', username: trimmed, avatarUrl: '' };
+        user.name = trimmed;
+        user.username = trimmed;
+        chrome.storage.local.set({ commyweb_user: user });
+      });
+    };
+
+    quickAuthorInput?.addEventListener('input', () => {
+      if (quickDot) quickDot.style.backgroundColor = getUserColor(quickAuthorInput.value.trim() || 'User');
+    });
+    quickAuthorInput?.addEventListener('change', () => updateAuthorName(quickAuthorInput.value));
+    quickAuthorInput?.addEventListener('blur', () => updateAuthorName(quickAuthorInput.value));
+    quickAuthorInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        quickAuthorInput.blur();
+      }
+    });
+
     const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
     chk?.addEventListener('change', () => {
       if (this.currentTabId) {
