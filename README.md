@@ -57,6 +57,21 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 3. Type your comment and hit **Send** (or <kbd>Enter</kbd>). A black Commyweb pin appears at that exact spot!
 4. Click on any pin to view the conversation, reply, or click **Resolve** once addressed.
 
+## 💾 Where Are Your Messages & Comments Stored?
+
+Commyweb uses a **Zero-Database (No-DB)** architecture designed for complete privacy and data ownership:
+
+1. **Locally in your browser (`chrome.storage.local`):**
+   - All comments are first saved directly on your local machine.
+   - They load with zero latency, work offline, and are **never lost** when restarting your browser or updating the extension.
+
+2. **In your private GitHub repository (Collaborative Team Mode):**
+   - When you link your private repository (e.g. `your-team/private-project`), every page thread is synchronized as a secure **GitHub Issue**.
+   - Pin coordinates, discussions, authors, and replies are safely preserved.
+   - Resolving a comment in the extension automatically closes the corresponding issue on GitHub.
+
+> 🔒 **Privacy Guarantee:** No third-party database, middleman server, or external SaaS ever holds your data. You retain 100% ownership of your discussions.
+
 ---
 
 ## 👥 Who Needs An Account? (Zero-Friction for Collaborators)

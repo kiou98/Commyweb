@@ -57,6 +57,21 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 3. Rédigez votre commentaire et cliquez sur **Envoyer** (ou appuyez sur <kbd>Entrée</kbd>). Une pastille noire Commyweb s'affiche à cet endroit exact !
 4. Cliquez sur n'importe quelle pastille pour consulter la discussion, répondre ou cliquer sur **Résoudre**.
 
+## 💾 Où sont enregistrés vos messages et commentaires ?
+
+Commyweb adopte une architecture **Zéro Base de Données (No-DB)** axée sur la confidentialité totale :
+
+1. **En local dans votre navigateur (`chrome.storage.local`) :**
+   - Tous vos commentaires sont d'abord enregistrés directement sur votre machine.
+   - Ils restent disponibles immédiatement, même hors ligne, et **ne sont jamais perdus** lors des redémarrages ou des mises à jour de l'extension.
+
+2. **Dans votre dépôt GitHub privé (Mode collaboratif d'équipe) :**
+   - Dès que vous liez votre dépôt privé (ex. `mon-equipe/projet-secret`), chaque discussion est synchronisée sous forme d'**Issue GitHub** sécurisée.
+   - Les coordonnées d'ancrage, le texte, l'auteur et les réponses y sont conservés.
+   - Résoudre un commentaire dans l'extension ferme automatiquement l'Issue correspondante sur GitHub.
+
+> 🔒 **Garantie de souveraineté :** Aucune base de données tierce, aucun serveur intermédiaire et aucune entreprise externe n'a accès à vos données. Vous restez 100 % propriétaire de vos échanges.
+
 ---
 
 ## 👥 Qui a besoin d'un compte ? (Zéro contrainte pour l'équipe)
