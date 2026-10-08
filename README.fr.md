@@ -59,15 +59,27 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 
 ---
 
+## 👥 Qui a besoin d'un compte ? (Zéro contrainte pour l'équipe)
+
+| Rôle | Besoin de compte GitHub ? | Besoin de compte Resend ? | Rôle dans le projet |
+| :--- | :---: | :---: | :--- |
+| **👑 Vous (Créateur du projet)** | **Oui** (1 jeton PAT pour lier votre dépôt privé) | **Optionnel** (seulement si vous voulez l'envoi auto d'invitations) | Crée le dépôt privé gratuit où sont enregistrés les commentaires de l'équipe. |
+| **🚀 Vos Invités / Collaborateurs** | ❌ **AUCUN** | ❌ **AUCUN** | Ils cliquent sur l'invitation, installent l'extension, et commentent directement comme sur Figma ! |
+
+> 🔒 **Zéro friction :** Vos clients, collègues ou partenaires n'ont **aucun compte, aucun mot de passe, ni aucune inscription à créer**.
+
+---
+
 ## 🤝 Configuration collaborative d'équipe (Backend GitHub sans BDD)
 
 Pour partager vos commentaires en équipe sans héberger de serveur :
 
-1. Créez un dépôt GitHub (ex: `kiou98/Commyweb`). Il peut être **public** ou **privé**.
+1. Créez un dépôt GitHub (ex: `mon-equipe/mon-projet-secret`). Il peut être **public** ou **privé**.
 2. Générez un [Personal Access Token (Fine-grained)](https://github.com/settings/tokens) avec la permission `Issues: Read & Write` sur ce dépôt.
 3. Ouvrez la popup Commyweb, cliquez sur **Paramètres ⚙️** et saisissez :
    - **GitHub Token :** votre jeton PAT
-   - **Dépôt de stockage :** `kiou98/Commyweb`
+   - **Dépôt de stockage :** `mon-equipe/mon-projet-secret`
+   - *(Optionnel)* **Resend API Key :** votre clé gratuite `re_...` sur [resend.com](https://resend.com) pour envoyer automatiquement les invitations par email.
 4. Cliquez sur **Enregistrer les paramètres**. Tous les commentaires de n'importe quel site se synchronisent automatiquement entre les membres de l'équipe !
 
 ---

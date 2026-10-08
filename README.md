@@ -59,15 +59,27 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 
 ---
 
+## 👥 Who Needs An Account? (Zero-Friction for Collaborators)
+
+| Role | Needs GitHub Account? | Needs Resend Account? | Responsibility |
+| :--- | :---: | :---: | :--- |
+| **👑 You (Project Admin)** | **Yes** (1 token to link your private repository) | **Optional** (only if you want 100% automated invite emails) | Hosts collaborative threads safely in a free private repo. |
+| **🚀 Your Collaborators / Clients** | ❌ **NONE** | ❌ **NONE** | They click your invite, install the extension, and comment directly like in Figma! |
+
+> 🔒 **Zero setup for your team:** Collaborators never need to create an account, password, or sign up for anything.
+
+---
+
 ## 🤝 Collaborative Setup (GitHub No-DB Backend)
 
 To share comments across your team without hosting a database:
 
-1. Create a GitHub repository (e.g. `kiou98/Commyweb`). It can be **public** or **private**.
+1. Create a GitHub repository (e.g. `your-team/your-private-repo`). It can be **private**.
 2. Generate a [GitHub Personal Access Token (Fine-grained)](https://github.com/settings/tokens) with `Issues: Read & Write` permission for that repository.
 3. Open the Commyweb extension popup, click the **Settings ⚙️** icon, and enter:
    - **GitHub Token:** your PAT
-   - **Storage Repository:** `kiou98/Commyweb`
+   - **Storage Repository:** `your-team/your-private-repo`
+   - *(Optional)* **Resend API Key:** your free key `re_...` from [resend.com](https://resend.com) for automated invite emails.
 4. Click **Save Settings**. All comments and replies on any page will now automatically sync collaboratively across your team!
 
 ---
