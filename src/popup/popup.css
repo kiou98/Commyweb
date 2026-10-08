@@ -181,6 +181,8 @@ input:checked + .slider:before {
   padding: 14px 16px;
   background: var(--bg-subtle);
   border-bottom: 1px solid var(--border);
+  max-height: 440px;
+  overflow-y: auto;
   animation: fadeIn 0.15s ease-out;
 }
 

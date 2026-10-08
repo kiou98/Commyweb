@@ -99,21 +99,36 @@
         <input type="text" class="input-text" id="input-user-name" placeholder="Ex: Vincent">
       </div>
       <div class="form-group">
-        <label for="input-github-token">GitHub Token (Fine-grained PAT)</label>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <label for="input-github-token" style="margin-bottom: 0;">GitHub Token (Fine-grained PAT)</label>
+          <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="font-size: 11px; color: #2563eb; text-decoration: underline; font-weight: 700;">Obtenir ma clé ↗</a>
+        </div>
         <input type="password" class="input-text" id="input-github-token" placeholder="github_pat_...">
+        <div style="font-size: 10.5px; color: #71717a; margin-top: 3px; line-height: 1.35;">
+          ℹ️ <em>Sur GitHub : Settings ➜ Developer settings ➜ Personal access tokens ➜ Generate token (cochez permission <strong>Issues: Read & Write</strong>).</em>
+        </div>
       </div>
       <div class="form-group">
-        <label for="input-storage-repo">Dépôt GitHub privé du projet (ex: mon-equipe/projet-secret)</label>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <label for="input-storage-repo" style="margin-bottom: 0;">Dépôt GitHub privé du projet</label>
+          <a href="https://github.com/new" target="_blank" style="font-size: 11px; color: #2563eb; text-decoration: underline; font-weight: 700;">Créer un dépôt ↗</a>
+        </div>
         <input type="text" class="input-text" id="input-storage-repo" placeholder="owner/repo-prive">
+        <div style="font-size: 10.5px; color: #71717a; margin-top: 3px; line-height: 1.35;">
+          ℹ️ <em>Format : <code>votre-compte/votre-depot</code> (peut être 100% privé pour protéger vos échanges).</em>
+        </div>
       </div>
-      <div class="form-group" style="margin-top: 14px; border-top: 1px solid #f4f4f5; padding-top: 12px;">
-        <label for="input-resend-key">Resend API Key (Envoi d'email automatique)</label>
+      <div class="form-group" style="margin-top: 14px; border-top: 1px solid #e4e4e7; padding-top: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <label for="input-resend-key" style="margin-bottom: 0;">Resend API Key (Envoi auto d'invitations)</label>
+          <a href="https://resend.com/api-keys" target="_blank" style="font-size: 11px; color: #2563eb; text-decoration: underline; font-weight: 700;">Obtenir ma clé ↗</a>
+        </div>
         <input type="password" class="input-text" id="input-resend-key" placeholder="re_...">
+        <div style="font-size: 10.5px; color: #71717a; margin-top: 3px; line-height: 1.35;">
+          ℹ️ <em>Sur <a href="https://resend.com/api-keys" target="_blank" style="color: #000000; font-weight: 700;">resend.com</a> (gratuit, 3 000 emails/mois) : Créez un compte ➜ Menu <strong>API Keys</strong> ➜ Create API Key ➜ Collez la clé <code>re_...</code> ici.</em>
+        </div>
       </div>
-      <p style="font-size: 11px; color: #71717a; margin-top: -6px; margin-bottom: 12px; line-height: 1.4;">
-        ⚡ <strong>Envoi automatique d'invitations :</strong> Clé API gratuite depuis <a href="https://resend.com" target="_blank" style="color: #000000; font-weight: 700;">resend.com</a> (3 000 emails gratuits/mois). L'invitation est envoyée instantanément sans ouvrir votre boîte mail.
-      </p>
-      <button class="btn-black" id="btn-save-settings">Save Settings</button>
+      <button class="btn-black" id="btn-save-settings" style="margin-top: 6px;">Enregistrer les paramètres</button>
     </div>
 
     <!-- Filters Tabs -->
