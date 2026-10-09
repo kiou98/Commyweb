@@ -119,6 +119,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               comment.anchor = anchor;
               comment.updatedAt = new Date().toISOString();
               await CacheManager.saveCommentsForUrl(urlHash, comments);
+              await GitHubBackend.updateCommentAnchor(settings, comment);
             }
             sendResponse({ success: true });
           } else {

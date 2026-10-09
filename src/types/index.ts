@@ -34,6 +34,8 @@ export interface WebComment {
   createdAt: string;
   updatedAt?: string;
   replies: CommentReply[];
+  issueNumber?: number;
+  issueUrl?: string;
 }
 
 export interface AnchorData {

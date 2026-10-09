@@ -56,6 +56,25 @@ class CommywebContentApp {
     this.checkMagicJoinLink();
     this.loadCurrentUser();
     this.loadComments();
+    this.setupAutoSync();
+  }
+
+  /**
+   * Automatically polls and refreshes comments from backend periodically
+   * and when the user switches back to this browser tab
+   */
+  private setupAutoSync() {
+    // Refresh when tab gains focus
+    window.addEventListener('focus', () => {
+      this.loadComments();
+    });
+
+    // Background poll every 15 seconds if comment mode is active
+    setInterval(() => {
+      if (this.isCommentModeActive && !this.activePin) {
+        this.loadComments();
+      }
+    }, 15000);
   }
 
   /**
