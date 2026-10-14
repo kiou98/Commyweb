@@ -24,11 +24,13 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 
 ## ✨ Fonctionnalités
 
-- 🖱️ **Commentaires au Clic Droit :** Faites un clic droit sur n'importe quel élément du site et sélectionnez *"💬 Ajouter un commentaire Commyweb"* pour déposer une pastille noire de commentaire.
+- 🖱️ **Commentaires au Clic Droit :** Faites un clic droit sur n'importe quel élément du site et sélectionnez *"💬 Ajouter un commentaire Commyweb"* (ou faites <kbd>Alt</kbd> + <kbd>C</kbd>) pour déposer une pastille noire de commentaire.
 - 🎯 **Ancrage spatial façon Figma :** Les pastilles restent attachées aux éléments HTML et conservent leur position relative exacte même lors du redimensionnement d'écran et du défilement (scroll).
 - 💬 **Fils de discussion imbriqués :** Échangez des réponses chronologiques avec les avatars des auteurs et l'heure relative.
 - ✅ **Résoudre & Archiver :** Nettoyez la vue en marquant les commentaires résolus. Basculez à tout moment entre les commentaires actifs et archivés.
-- ✉️ **Invitations Email & Lien Magique :** Invitez vos collaborateurs par email. Un simple clic sur le lien magique dans l'email les autorise automatiquement sur le projet.
+- ✉️ **Invitations Email Resend & Lien Magique :** Invitez vos collaborateurs par email automatiquement via l'API officielle [Resend](https://resend.com) ou copiez directement le lien d'accès autorisé.
+- 🔒 **Clés d'API Masquées (Bouton Œil) :** Vos jetons GitHub PAT et clés Resend sont masqués par défaut (`••••••••`) avec des boutons interactifs pour afficher/masquer et des badges d'état clairs (Configuré / Non configuré).
+- 🎯 **Portée Équipe restreinte (1 Projet & 1 URL) :** Verrouillage strict garantissant que les membres invités ont uniquement accès à la page et au projet concernés.
 - 🚫 **Révocation d'accès :** Tout membre autorisé du projet peut révoquer un autre collaborateur directement depuis la popup de l'extension.
 - ⚡ **Zéro base de données à gérer (No-DB) :** Fonctionne grâce à l'API GitHub (Issues / Discussions). Aucun serveur ni base de données à configurer, maintenir ou payer. Fonctionne aussi 100 % hors ligne/en local sans compte GitHub.
 - 🎨 **Direction Artistique Noir & Blanc :** Design monochrome élégant et haute lisibilité avec la typographie **Satoshi**.
@@ -40,7 +42,7 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 
 ## 🚀 Installation rapide en 30 secondes (sans coder)
 
-1. Téléchargez la dernière version [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip) (lien direct, ou voir les [Releases](https://github.com/kiou98/Commyweb/releases)).
+1. Téléchargez la dernière version [**commyweb-extension-v1.3.0.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.3.0.zip) (ou [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
 2. Décompressez le fichier zip sur votre ordinateur.
 3. Ouvrez Google Chrome (ou Brave, Edge, Opera) et accédez à `chrome://extensions/`.
 4. Activez l'interrupteur **"Mode développeur"** en haut à droite.
@@ -85,17 +87,41 @@ Commyweb adopte une architecture **Zéro Base de Données (No-DB)** axée sur la
 
 ---
 
-## 🤝 Configuration collaborative d'équipe (Backend GitHub sans BDD)
+## 🎯 Comment fonctionne le verrouillage : 1 Projet & 1 URL par Équipe
+
+Pour garantir que vos échanges restent rigoureusement cloisonnés par équipe et par site web :
+
+1. **Portée Projet globale (Dépôt GitHub) :**
+   - Dans Commyweb, **1 Projet = 1 Dépôt GitHub** (`owner/repo`).
+   - Si vous avez plusieurs projets clients distincts (ex. *Client A* et *Client B*), créez simplement un dépôt GitHub pour chacun (ex. `mon-agence/client-a` et `mon-agence/client-b`). Leurs discussions restent 100 % hermétiques.
+2. **Portée Page locale (URL ciblée) :**
+   - Chaque URL de page web est automatiquement normalisée et hachée (`urlHash`).
+   - Les codes d'accès des membres (`authCode`) et les fils de discussion sont indexés sur cette URL exacte (`commyweb_policy_<urlHash>`).
+   - Quand vous invitez un membre depuis une page, il n'a accès **qu'à cette page exacte et à ce projet**.
+
+---
+
+## 🤝 Configuration collaborative d'équipe pas-à-pas (Backend GitHub sans BDD)
 
 Pour partager vos commentaires en équipe sans héberger de serveur :
 
-1. Créez un dépôt GitHub (ex: `mon-equipe/mon-projet-secret`). Il peut être **public** ou **privé**.
-2. Générez un [Personal Access Token (Fine-grained)](https://github.com/settings/tokens) avec la permission `Issues: Read & Write` sur ce dépôt.
-3. Ouvrez la popup Commyweb, cliquez sur **Paramètres ⚙️** et saisissez :
-   - **GitHub Token :** votre jeton PAT
-   - **Dépôt de stockage :** `mon-equipe/mon-projet-secret`
-   - *(Optionnel)* **Resend API Key :** votre clé gratuite `re_...` sur [resend.com](https://resend.com) pour envoyer automatiquement les invitations par email.
-4. Cliquez sur **Enregistrer les paramètres**. Tous les commentaires de n'importe quel site se synchronisent automatiquement entre les membres de l'équipe !
+1. **Créer votre dépôt GitHub de projet :**
+   - Allez sur [github.com/new](https://github.com/new).
+   - Donnez-lui un nom (ex. `commyweb-projet-a`).
+   - Définissez-le comme **Privé** pour protéger vos retours.
+2. **Générer un Personal Access Token (PAT) :**
+   - Rendez-vous sur [GitHub Fine-grained tokens](https://github.com/settings/tokens?type=beta).
+   - *Token name :* `Commyweb Extension`
+   - *Repository access :* Sélectionnez **Only select repositories** et choisissez votre dépôt de projet.
+   - *Repository permissions :* Dans la section **Issues**, cochez **Access: Read and write** (*Metadata: Read-only* s'active automatiquement).
+   - Cliquez sur **Generate token** et copiez le jeton `github_pat_...`.
+   *(Alternative Token Classic : cochez simplement le scope `repo`)*.
+3. **Configurer l'extension Commyweb :**
+   - Ouvrez la popup, cliquez sur **Paramètres ⚙️**.
+   - Collez votre jeton dans **GitHub Token** (masqué par des ronds avec toggle œil).
+   - Renseignez le nom du dépôt dans **Dépôt de stockage** (`propriétaire/nom-du-repo`).
+   - *(Optionnel)* Renseignez votre **Clé API Resend** gratuite (`re_...` sur [resend.com/api-keys](https://resend.com/api-keys)) pour envoyer automatiquement vos emails d'invitation.
+4. **Cliquez sur "Enregistrer les paramètres" :** Vos commentaires se synchronisent immédiatement en direct avec votre équipe !
 
 ---
 

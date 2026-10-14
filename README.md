@@ -24,11 +24,13 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 
 ## ✨ Features
 
-- 🖱️ **Right-Click Commenting:** Right-click on any element on the page and select *"💬 Ajouter un commentaire Commyweb"* to place a sleek black comment pin.
+- 🖱️ **Right-Click Commenting:** Right-click on any element on the page and select *"💬 Ajouter un commentaire Commyweb"* (or <kbd>Alt</kbd> + <kbd>C</kbd>) to place a sleek black comment pin.
 - 🎯 **Figma-style Spatial Pinning:** Pins stay perfectly anchored to specific DOM elements, maintaining their exact relative position even during page resizing and scrolling.
 - 💬 **Threaded Conversations:** Reply to comments in chronological order with author avatars and timestamps.
 - ✅ **Resolve & Archive:** Clean up the view by marking discussions as resolved. Toggle between active and archived threads at any time.
-- ✉️ **Email Invites & Magic Links:** Invite team members by email. A single click on the magic link in the invitation email automatically authorizes access for that project.
+- ✉️ **Automated Resend Email Invites & Magic Links:** Invite collaborators by email automatically via the official [Resend](https://resend.com) API, or copy direct authorization links.
+- 🔒 **Masked API Keys (Eye Toggle):** Sensitive tokens (GitHub PAT & Resend API Key) are masked by default (`••••••••`) with status indicators and an eye toggle button to reveal/hide on demand.
+- 🎯 **Restricted Project & URL Scoping:** Built-in team isolation ensures invited collaborators are scoped specifically to the current project repository and the target page URL.
 - 🚫 **Member Revocation:** Any authorized project member can revoke any other collaborator directly from the popup.
 - ⚡ **Zero Database Required (No-DB):** Powered by GitHub's API (Issues/Discussions). Zero database servers to configure, maintain, or pay for. Works 100% offline/locally if no GitHub account is connected.
 - 🎨 **Art Direction Noir & Blanc:** Sleek, high-contrast monochrome design with **Satoshi** typography.
@@ -40,11 +42,11 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 
 ## 🚀 Quick Install (30 Seconds, No Coding Needed)
 
-1. Download the latest [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip) (direct download link, or visit [Releases](https://github.com/kiou98/Commyweb/releases)).
+1. Download the latest [**commyweb-extension-v1.3.0.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.3.0.zip) (or [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
 2. Unzip the file on your computer.
 3. Open Google Chrome (or Brave, Edge, Opera) and navigate to `chrome://extensions/`.
 4. Turn **ON** the **Developer mode** toggle in the top-right corner.
-5. Click the **Load unpacked** button in the top-left corner and select the unzipped `commyweb-extension` (or `dist`) folder.
+5. Click the **Load unpacked** button in the top-left corner and select the unzipped folder.
 
 *Done! The Commyweb black comment bubble icon will appear next to your address bar.*
 
@@ -85,17 +87,41 @@ Commyweb uses a **Zero-Database (No-DB)** architecture designed for complete pri
 
 ---
 
-## 🤝 Collaborative Setup (GitHub No-DB Backend)
+## 🎯 How Scoping Works: 1 Project & 1 URL per Team
+
+To ensure discussions remain strictly confined to the right team and right website:
+
+1. **Global Project Scope (GitHub Repository):**
+   - In Commyweb, **1 Project = 1 GitHub Repository** (`owner/repo`).
+   - If you manage multiple client projects (e.g. *Client A* and *Client B*), simply create a separate GitHub repo for each (e.g. `your-org/client-a` and `your-org/client-b`). Comments and issues remain completely segregated.
+2. **Local Page Scope (Target URL):**
+   - Every webpage URL is automatically hashed (`urlHash`).
+   - Member access codes (`authCode`) and comment threads are indexed by this exact URL (`commyweb_policy_<urlHash>`).
+   - When you send an invite from a page, collaborators are granted access **only to that specific page URL and project**.
+
+---
+
+## 🤝 Step-by-Step Collaborative Setup (GitHub No-DB Backend)
 
 To share comments across your team without hosting a database:
 
-1. Create a GitHub repository (e.g. `your-team/your-private-repo`). It can be **private**.
-2. Generate a [GitHub Personal Access Token (Fine-grained)](https://github.com/settings/tokens) with `Issues: Read & Write` permission for that repository.
-3. Open the Commyweb extension popup, click the **Settings ⚙️** icon, and enter:
-   - **GitHub Token:** your PAT
-   - **Storage Repository:** `your-team/your-private-repo`
-   - *(Optional)* **Resend API Key:** your free key `re_...` from [resend.com](https://resend.com) for automated invite emails.
-4. Click **Save Settings**. All comments and replies on any page will now automatically sync collaboratively across your team!
+1. **Create your project repository:**
+   - Go to [github.com/new](https://github.com/new).
+   - Enter a name (e.g. `commyweb-project-a`).
+   - Set it to **Private** to protect your discussions.
+2. **Generate a Personal Access Token (PAT):**
+   - Go to [GitHub Fine-grained tokens](https://github.com/settings/tokens?type=beta).
+   - *Token name:* `Commyweb Extension`
+   - *Repository access:* Choose **Only select repositories** and pick your project repo.
+   - *Repository permissions:* Under **Issues**, select **Access: Read and write** (*Metadata: Read-only* is selected automatically).
+   - Click **Generate token** and copy your token `github_pat_...`.
+   *(Classic token alternative: check the `repo` scope).*
+3. **Configure the Commyweb Extension:**
+   - Click the **Settings ⚙️** icon in the extension popup.
+   - Paste your token into **GitHub Token** (securely masked with eye toggle).
+   - Enter your repository in **Storage Repository** (`owner/repo`).
+   - *(Optional)* Add your free **Resend API Key** (`re_...` from [resend.com/api-keys](https://resend.com/api-keys)) to send automated invitation emails.
+4. **Click "Save Settings":** Everything is now synchronized in real-time across your team!
 
 ---
 
