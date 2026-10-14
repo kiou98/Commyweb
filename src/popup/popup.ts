@@ -140,51 +140,81 @@ class PopupController {
     }
   }
 
+  private updateConfiguredUI(settings: UserSettings) {
+    const hasRepo = Boolean(settings.storageRepo && settings.storageRepo.trim());
+    const hasToken = Boolean(settings.githubToken && settings.githubToken.trim());
+    const isConfigured = hasRepo && hasToken;
+
+    const joinCard = document.getElementById('join-project-card');
+    const collabBanner = document.getElementById('collaborator-banner');
+    const warnUnconfigured = document.getElementById('warn-admin-unconfigured');
+    const scopeRepoEl = document.getElementById('scope-repo-name');
+    const badgeGithub = document.getElementById('badge-github-status');
+
+    if (joinCard) {
+      joinCard.style.display = isConfigured ? 'none' : 'block';
+    }
+
+    if (warnUnconfigured) {
+      if (!hasRepo && !hasToken) {
+        warnUnconfigured.innerHTML = `⚠️ <strong>Configuration requise :</strong><br>Renseignez votre <strong>GitHub Token</strong> et votre <strong>Dépôt</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour inviter des collaborateurs.`;
+        warnUnconfigured.style.display = 'block';
+      } else if (!hasRepo) {
+        warnUnconfigured.innerHTML = `⚠️ <strong>Dépôt GitHub manquant :</strong><br>Indiquez le nom du <strong>Dépôt de stockage (owner/repo)</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a>.`;
+        warnUnconfigured.style.display = 'block';
+      } else if (!hasToken) {
+        warnUnconfigured.innerHTML = `⚠️ <strong>GitHub Token manquant :</strong><br>Renseignez votre <strong>GitHub Token (PAT)</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour autoriser la synchronisation.`;
+        warnUnconfigured.style.display = 'block';
+      } else {
+        warnUnconfigured.style.display = 'none';
+      }
+
+      const link = warnUnconfigured.querySelector('#link-open-settings');
+      link?.addEventListener('click', (e) => {
+        e.preventDefault();
+        const settingsDrawer = document.getElementById('settings-drawer');
+        const inviteDrawer = document.getElementById('invite-drawer');
+        settingsDrawer?.classList.add('open');
+        inviteDrawer?.classList.remove('open');
+        this.setPersistedDrawer('settings');
+      });
+    }
+
+    if (collabBanner) {
+      collabBanner.style.display = (isConfigured && settings.userRole === 'collaborator') ? 'flex' : 'none';
+    }
+
+    if (scopeRepoEl) {
+      scopeRepoEl.textContent = settings.storageRepo || 'Non configuré';
+    }
+
+    if (badgeGithub) {
+      if (hasToken) {
+        badgeGithub.textContent = '● Configuré';
+        badgeGithub.className = 'key-status-badge configured';
+      } else {
+        badgeGithub.textContent = 'Non configuré';
+        badgeGithub.className = 'key-status-badge empty';
+      }
+    }
+  }
+
   private async loadSettings() {
     const settings = await CacheManager.getSettings();
 
     const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
     const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
-    const badgeGithub = document.getElementById('badge-github-status');
-    const scopeRepoEl = document.getElementById('scope-repo-name');
-    const joinCard = document.getElementById('join-project-card');
-    const collabBanner = document.getElementById('collaborator-banner');
-    const warnUnconfigured = document.getElementById('warn-admin-unconfigured');
-
-    const hasRepo = Boolean(settings.storageRepo && settings.storageRepo.trim());
-    const hasToken = Boolean(settings.githubToken && settings.githubToken.trim());
-    const isConfigured = hasRepo && hasToken;
 
     if (tokenInput && settings.githubToken) {
       tokenInput.value = settings.githubToken;
-      if (badgeGithub) {
-        badgeGithub.textContent = '● Configuré';
-        badgeGithub.className = 'key-status-badge configured';
-      }
-    } else if (badgeGithub) {
-      badgeGithub.textContent = 'Non configuré';
-      badgeGithub.className = 'key-status-badge empty';
     }
 
-    // Do NOT pre-populate repo with any default repo
-    const userRepo = (settings.storageRepo && settings.storageRepo !== 'kiou98/Commyweb') ? settings.storageRepo : '';
+    const userRepo = settings.storageRepo || '';
     if (repoInput) {
       repoInput.value = userRepo;
     }
-    if (scopeRepoEl) {
-      scopeRepoEl.textContent = userRepo ? userRepo : 'Non configuré';
-    }
 
-    // Toggle quick join card & collaborator banner
-    if (joinCard) {
-      joinCard.style.display = isConfigured ? 'none' : 'block';
-    }
-    if (warnUnconfigured) {
-      warnUnconfigured.style.display = isConfigured ? 'none' : 'block';
-    }
-    if (collabBanner) {
-      collabBanner.style.display = (isConfigured && settings.userRole === 'collaborator') ? 'flex' : 'none';
-    }
+    this.updateConfiguredUI(settings);
 
     chrome.storage.local.get(['commyweb_user'], (res) => {
       const user: Author = res?.commyweb_user;
@@ -246,23 +276,8 @@ class PopupController {
 
     await CacheManager.saveSettings(newSettings);
 
-    // Update UI status badges immediately
-    const badgeGithub = document.getElementById('badge-github-status');
-    const scopeRepoEl = document.getElementById('scope-repo-name');
-
-    if (badgeGithub) {
-      if (newSettings.githubToken) {
-        badgeGithub.textContent = '● Configuré';
-        badgeGithub.className = 'key-status-badge configured';
-      } else {
-        badgeGithub.textContent = 'Non configuré';
-        badgeGithub.className = 'key-status-badge empty';
-      }
-    }
-
-    if (scopeRepoEl) {
-      scopeRepoEl.textContent = newSettings.storageRepo ? newSettings.storageRepo : 'Non configuré';
-    }
+    const updatedSettings = await CacheManager.getSettings();
+    this.updateConfiguredUI(updatedSettings);
 
     // Flash auto-save indicator
     const autoSaveIndicator = document.getElementById('auto-save-indicator');
@@ -516,7 +531,13 @@ class PopupController {
 
     const settings = await CacheManager.getSettings();
     if (!settings.storageRepo || !settings.githubToken) {
-      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️ avant d\'inviter.');
+      if (!settings.storageRepo && !settings.githubToken) {
+        this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
+      } else if (!settings.storageRepo) {
+        this.showToast('⚠️ Renseignez votre Dépôt de stockage (owner/repo) dans les Paramètres ⚙️.');
+      } else {
+        this.showToast('⚠️ Renseignez votre GitHub Token (PAT) dans les Paramètres ⚙️.');
+      }
       const settingsDrawer = document.getElementById('settings-drawer');
       const inviteDrawer = document.getElementById('invite-drawer');
       settingsDrawer?.classList.add('open');
@@ -610,7 +631,13 @@ class PopupController {
 
     const settings = await CacheManager.getSettings();
     if (!settings.storageRepo || !settings.githubToken) {
-      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️ avant de copier l\'invitation.');
+      if (!settings.storageRepo && !settings.githubToken) {
+        this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
+      } else if (!settings.storageRepo) {
+        this.showToast('⚠️ Renseignez votre Dépôt de stockage (owner/repo) dans les Paramètres ⚙️.');
+      } else {
+        this.showToast('⚠️ Renseignez votre GitHub Token (PAT) dans les Paramètres ⚙️.');
+      }
       const settingsDrawer = document.getElementById('settings-drawer');
       const inviteDrawer = document.getElementById('invite-drawer');
       settingsDrawer?.classList.add('open');
@@ -659,7 +686,13 @@ class PopupController {
 
     const settings = await CacheManager.getSettings();
     if (!settings.storageRepo || !settings.githubToken) {
-      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️ avant de copier l\'invitation.');
+      if (!settings.storageRepo && !settings.githubToken) {
+        this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
+      } else if (!settings.storageRepo) {
+        this.showToast('⚠️ Renseignez votre Dépôt de stockage (owner/repo) dans les Paramètres ⚙️.');
+      } else {
+        this.showToast('⚠️ Renseignez votre GitHub Token (PAT) dans les Paramètres ⚙️.');
+      }
       const settingsDrawer = document.getElementById('settings-drawer');
       const inviteDrawer = document.getElementById('invite-drawer');
       settingsDrawer?.classList.add('open');

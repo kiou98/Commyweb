@@ -42,7 +42,7 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 
 ## 🚀 Installation rapide en 30 secondes (sans coder)
 
-1. Téléchargez la dernière version [**commyweb-extension-v1.4.2.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.4.2.zip) (ou [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
+1. Téléchargez la dernière version [**commyweb-extension-v1.4.3.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.4.3.zip) (ou [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
 2. Décompressez le fichier zip sur votre ordinateur.
 3. Ouvrez Google Chrome (ou Brave, Edge, Opera) et accédez à `chrome://extensions/`.
 4. Activez l'interrupteur **"Mode développeur"** en haut à droite.
