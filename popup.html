@@ -43,11 +43,36 @@
       </label>
     </div>
 
+    <!-- Quick Author Profile Row -->
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; margin: 0 0 4px; background: #fafafa; border-bottom: 1px solid #f4f4f5; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+        <div id="quick-user-color-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #000000;"></div>
+        <span style="font-size: 11px; font-weight: 700; color: #71717a; white-space: nowrap;">Votre nom :</span>
+      </div>
+      <input type="text" id="quick-author-name" placeholder="Ex: Vincent" style="flex: 1; border: 1px solid #e4e4e7; border-radius: 6px; padding: 5px 8px; font-size: 12px; font-weight: 700; outline: none; background: #ffffff;" />
+    </div>
+
     <!-- Invite Collaborators Drawer -->
     <div class="drawer" id="invite-drawer">
       <div class="drawer-header">
         <div class="drawer-title" id="lbl-invite-title">Inviter par Email</div>
       </div>
+
+      <!-- Scope Notice (One Project & One URL) -->
+      <div class="project-scope-box">
+        <div class="scope-row">
+          <span class="scope-label">Projet :</span>
+          <span class="scope-value" id="scope-repo-name">kiou98/Commyweb</span>
+        </div>
+        <div class="scope-row">
+          <span class="scope-label">URL :</span>
+          <span class="scope-value" id="scope-page-url">https://...</span>
+        </div>
+        <div class="scope-notice">
+          🔒 <strong>Équipe restreinte :</strong> Les collaborateurs invités auront un accès exclusif à <em>cette page précise</em> et à <em>ce projet</em>.
+        </div>
+      </div>
+
       <div class="invite-input-row">
         <input type="email" class="input-text" id="input-invite-email" placeholder="collaborateur@entreprise.com">
         <button class="btn-black" id="btn-send-invite">Inviter</button>
@@ -85,6 +110,7 @@
       <div class="drawer-header">
         <div class="drawer-title">Stockage Collaboratif (No-DB)</div>
       </div>
+
       <div class="user-profile-badge" id="user-badge" style="display: none;">
         <img class="profile-avatar" id="user-avatar" src="" alt="">
         <div class="profile-text">
@@ -92,15 +118,107 @@
           <div class="profile-username" id="user-name">@username</div>
         </div>
       </div>
-      <div class="form-group">
-        <label for="input-github-token">GitHub Token (Fine-grained PAT)</label>
-        <input type="password" class="input-text" id="input-github-token" placeholder="github_pat_...">
+
+      <div style="background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.45; color: #18181b;">
+        💡 <strong>Note pour votre équipe :</strong><br>
+        Vous êtes le <strong>seul</strong> à configurer ces clés. Vos collègues et clients n'ont <strong>aucun compte</strong> à créer sur GitHub ni sur Resend !
       </div>
+
       <div class="form-group">
-        <label for="input-storage-repo">Dépôt de stockage</label>
-        <input type="text" class="input-text" id="input-storage-repo" placeholder="kiou98/Commyweb">
+        <label for="input-user-name">Votre nom d'auteur</label>
+        <input type="text" class="input-text" id="input-user-name" placeholder="Ex: Vincent">
       </div>
-      <button class="btn-black" id="btn-save-settings">Enregistrer les paramètres</button>
+
+      <!-- Step-by-Step GitHub Guide -->
+      <details class="guide-accordion">
+        <summary class="guide-summary">
+          <span>📘 Guide d'installation GitHub (Pas à pas)</span>
+          <span style="font-size: 10px; color: #71717a;">▾</span>
+        </summary>
+        <div class="guide-body">
+          <div class="guide-step">
+            <div class="guide-step-title">
+              <span class="step-num">1</span>
+              <span>Créer votre dépôt de projet</span>
+            </div>
+            <div class="guide-step-desc">
+              Rendez-vous sur <a href="https://github.com/new" target="_blank">github.com/new ↗</a>. Donnez-lui un nom (ex: <code>commyweb-projet-a</code>). Vous pouvez le mettre en <strong>Privé</strong> pour protéger vos retours.
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-title">
+              <span class="step-num">2</span>
+              <span>Générer un Personal Access Token (PAT)</span>
+            </div>
+            <div class="guide-step-desc">
+              Allez sur <a href="https://github.com/settings/tokens?type=beta" target="_blank">Fine-grained tokens ↗</a> :<br>
+              • <em>Repository access</em> : Choisissez votre dépôt.<br>
+              • <em>Repository permissions</em> : Cherchez <strong>Issues</strong> et activez <strong>Read and write</strong>.<br>
+              • Cliquez sur <em>Generate token</em> et copiez le jeton <code>github_pat_...</code>.
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-title">
+              <span class="step-num">3</span>
+              <span>Renseigner ci-dessous</span>
+            </div>
+            <div class="guide-step-desc">
+              Collez le token et indiquez votre dépôt sous la forme <code>propriétaire/nom-du-repo</code>.
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- GitHub Token (Masked with Eye Toggle) -->
+      <div class="form-group">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <label for="input-github-token">GitHub Token (PAT)</label>
+          <span class="key-status-badge empty" id="badge-github-status">Non configuré</span>
+        </div>
+        <div class="password-input-group">
+          <input type="password" class="input-text" id="input-github-token" placeholder="github_pat_..." autocomplete="off">
+          <button type="button" class="btn-toggle-eye" id="btn-toggle-github-eye" title="Afficher / Masquer la clé">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Storage Repo -->
+      <div class="form-group">
+        <label for="input-storage-repo">Dépôt GitHub du projet (owner/repo)</label>
+        <input type="text" class="input-text" id="input-storage-repo" placeholder="mon-compte/mon-projet">
+      </div>
+
+      <!-- Resend Section (Masked with Eye Toggle) -->
+      <div class="form-group" style="margin-top: 6px; border-top: 1px solid #e4e4e7; padding-top: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <label for="input-resend-key">Clé API Resend (Invitations auto)</label>
+          <span class="key-status-badge empty" id="badge-resend-status">Non configurée</span>
+        </div>
+        <div class="password-input-group">
+          <input type="password" class="input-text" id="input-resend-key" placeholder="re_..." autocomplete="off">
+          <button type="button" class="btn-toggle-eye" id="btn-toggle-resend-eye" title="Afficher / Masquer la clé">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </div>
+        <div style="font-size: 10.5px; color: #71717a; margin-top: 2px; line-height: 1.35;">
+          ℹ️ Obtenez gratuitement votre clé (3 000 emails/mois) sur <a href="https://resend.com/api-keys" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: 600;">resend.com/api-keys ↗</a>.
+        </div>
+      </div>
+
+      <!-- Optional Resend Sender -->
+      <div class="form-group">
+        <label for="input-resend-from">Email d'expédition Resend (Optionnel)</label>
+        <input type="text" class="input-text" id="input-resend-from" placeholder="Commyweb <onboarding@resend.dev>">
+      </div>
+
+      <button class="btn-black" id="btn-save-settings" style="margin-top: 4px;">Enregistrer les paramètres</button>
     </div>
 
     <!-- Filters Tabs -->

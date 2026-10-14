@@ -68,6 +68,18 @@ class PopupController {
       const normalized = normalizeUrl(tab.url);
       this.currentUrlHash = hashUrl(normalized);
 
+      // Display scoped URL
+      const scopeUrlEl = document.getElementById('scope-page-url');
+      if (scopeUrlEl) {
+        try {
+          const parsed = new URL(tab.url);
+          scopeUrlEl.textContent = `${parsed.hostname}${parsed.pathname}`;
+          scopeUrlEl.title = tab.url;
+        } catch {
+          scopeUrlEl.textContent = tab.url;
+        }
+      }
+
       try {
         chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
           if (res && typeof res.isCommentModeActive === 'boolean') {
@@ -87,10 +99,44 @@ class PopupController {
     const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
     const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
     const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
+    const resendFromInput = document.getElementById('input-resend-from') as HTMLInputElement;
 
-    if (tokenInput && settings.githubToken) tokenInput.value = settings.githubToken;
-    if (repoInput && settings.storageRepo) repoInput.value = settings.storageRepo;
-    if (resendKeyInput && settings.resendApiKey) resendKeyInput.value = settings.resendApiKey;
+    const badgeGithub = document.getElementById('badge-github-status');
+    const badgeResend = document.getElementById('badge-resend-status');
+    const scopeRepoEl = document.getElementById('scope-repo-name');
+
+    if (tokenInput && settings.githubToken) {
+      tokenInput.value = settings.githubToken;
+      if (badgeGithub) {
+        badgeGithub.textContent = '● Configuré';
+        badgeGithub.className = 'key-status-badge configured';
+      }
+    } else if (badgeGithub) {
+      badgeGithub.textContent = 'Non configuré';
+      badgeGithub.className = 'key-status-badge empty';
+    }
+
+    if (repoInput && settings.storageRepo) {
+      repoInput.value = settings.storageRepo;
+    }
+    if (scopeRepoEl) {
+      scopeRepoEl.textContent = settings.storageRepo || 'Dépôt non défini';
+    }
+
+    if (resendKeyInput && settings.resendApiKey) {
+      resendKeyInput.value = settings.resendApiKey;
+      if (badgeResend) {
+        badgeResend.textContent = '● Configurée';
+        badgeResend.className = 'key-status-badge configured';
+      }
+    } else if (badgeResend) {
+      badgeResend.textContent = 'Non configurée';
+      badgeResend.className = 'key-status-badge empty';
+    }
+
+    if (resendFromInput && settings.resendFromEmail) {
+      resendFromInput.value = settings.resendFromEmail;
+    }
 
     chrome.storage.local.get(['commyweb_user'], (res) => {
       const user: Author = res.commyweb_user;
@@ -147,6 +193,33 @@ class PopupController {
       }
     });
 
+    // Eye toggle for password visibility
+    const setupEyeToggle = (btnId: string, inputId: string) => {
+      const btn = document.getElementById(btnId);
+      const input = document.getElementById(inputId) as HTMLInputElement;
+      if (!btn || !input) return;
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+
+        // Update icon (eye vs eye-off)
+        btn.innerHTML = isPassword
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+               <line x1="1" y1="1" x2="23" y2="23"></line>
+             </svg>`
+          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+               <circle cx="12" cy="12" r="3"></circle>
+             </svg>`;
+      });
+    };
+
+    setupEyeToggle('btn-toggle-github-eye', 'input-github-token');
+    setupEyeToggle('btn-toggle-resend-eye', 'input-resend-key');
+
     const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
     chk?.addEventListener('change', () => {
       if (this.currentTabId) {
@@ -196,11 +269,13 @@ class PopupController {
       const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
       const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
       const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
+      const resendFromInput = document.getElementById('input-resend-from') as HTMLInputElement;
 
       const newSettings: Partial<UserSettings> = {
         githubToken: tokenInput?.value.trim() || undefined,
         storageRepo: repoInput?.value.trim() || undefined,
-        resendApiKey: resendKeyInput?.value.trim() || undefined
+        resendApiKey: resendKeyInput?.value.trim() || undefined,
+        resendFromEmail: resendFromInput?.value.trim() || undefined
       };
 
       const newName = userNameInput?.value.trim();
@@ -219,6 +294,7 @@ class PopupController {
       chrome.runtime.sendMessage({ type: 'USER_SETTINGS_UPDATED' }, () => {
         this.loadSettings();
         settingsDrawer?.classList.remove('open');
+        this.showToast('✓ Paramètres enregistrés avec succès !');
       });
     });
 
