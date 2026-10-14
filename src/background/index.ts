@@ -1,6 +1,7 @@
 import { CacheManager } from '../storage/cache';
 import { GitHubBackend } from '../storage/github';
-import { ExtensionMessage } from '../types';
+import { ExtensionMessage, Author, UserSettings } from '../types';
+import { normalizeUrl, hashUrl } from '../utils/security';
 
 /**
  * Commyweb Background Service Worker (Manifest V3)
@@ -196,6 +197,44 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             sendResponse({ valid });
           } else {
             sendResponse({ valid: false });
+          }
+          break;
+        }
+
+        case 'AUTO_CONFIGURE_PROJECT': {
+          const { repo, token, email, url, authCode } = message.payload || {};
+          if (repo || token || email) {
+            const updates: Partial<UserSettings> = {
+              userRole: 'collaborator'
+            };
+            if (repo) updates.storageRepo = repo;
+            if (token) updates.githubToken = token;
+            if (email) updates.userEmail = email;
+            await CacheManager.saveSettings(updates);
+
+            if (email) {
+              const displayName = email.split('@')[0];
+              const user: Author = {
+                id: email,
+                username: displayName,
+                name: displayName,
+                email: email,
+                avatarUrl: ''
+              };
+              await chrome.storage.local.set({ commyweb_user: user });
+            }
+
+            if (url && email) {
+              const urlHash = hashUrl(normalizeUrl(url));
+              await CacheManager.addOrInviteMember(urlHash, url, email, 'Admin Invite Link');
+              if (authCode) {
+                await CacheManager.validateJoinCode(urlHash, authCode, email);
+              }
+            }
+
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false });
           }
           break;
         }

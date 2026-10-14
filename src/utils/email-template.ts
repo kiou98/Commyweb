@@ -7,18 +7,57 @@
  * - Simple 2-step installation & usage instructions
  */
 
+export interface CommywebProjectConfig {
+  repo?: string;
+  token?: string;
+  email: string;
+  url: string;
+  authCode?: string;
+}
+
+export function encodeProjectConfig(config: CommywebProjectConfig): string {
+  try {
+    const json = JSON.stringify(config);
+    return btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
+  } catch {
+    return '';
+  }
+}
+
+export function decodeProjectConfig(encoded: string): CommywebProjectConfig | null {
+  try {
+    const raw = atob(encoded);
+    const json = decodeURIComponent(raw.split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 export interface EmailInviteParams {
   recipientEmail: string;
   invitedByName: string;
   pageUrl: string;
   authCode: string;
+  storageRepo?: string;
+  githubToken?: string;
 }
 
 export function generateInviteEmailHtml(params: EmailInviteParams): string {
-  const { recipientEmail, invitedByName, pageUrl, authCode } = params;
+  const { recipientEmail, invitedByName, pageUrl, authCode, storageRepo, githubToken } = params;
   
-  // Magic link: opening this URL automatically authorizes the user's extension
-  const magicLink = `${pageUrl}#commyweb_join=${authCode}&email=${encodeURIComponent(recipientEmail)}`;
+  // Auto-configuration link: opening this URL automatically configures the collaborator's extension
+  const encodedConfig = encodeProjectConfig({
+    repo: storageRepo,
+    token: githubToken,
+    email: recipientEmail,
+    url: pageUrl,
+    authCode
+  });
+  
+  const magicLink = encodedConfig
+    ? `${pageUrl}#commyweb_config=${encodedConfig}`
+    : `${pageUrl}#commyweb_join=${authCode}&email=${encodeURIComponent(recipientEmail)}`;
   const logotypeUrl = 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/logotype.png';
   const releaseZipUrl = 'https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip';
   const releasesPageUrl = 'https://github.com/kiou98/Commyweb/releases';
@@ -186,13 +225,13 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
           </div>
 
           <div style="margin-bottom: 24px; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 14px; font-size: 13px;">
-            🔑 <strong>Accès réservé pour :</strong> <code style="background: #ffffff; border: 1px solid #d4d4d8; padding: 2px 6px; border-radius: 4px; font-weight: 700;">${recipientEmail}</code><br>
-            <span style="font-size: 12px; color: #52525b;">En ouvrant la page avec votre email, vous retrouvez automatiquement tous les commentaires de l'équipe déjà présents sur le site.</span>
+            🔑 <strong>Accès validé pour :</strong> <code style="background: #ffffff; border: 1px solid #d4d4d8; padding: 2px 6px; border-radius: 4px; font-weight: 700;">${recipientEmail}</code><br>
+            <span style="font-size: 12px; color: #52525b;">Votre accès a été validé d'office par l'administrateur. En ouvrant le lien, votre extension se synchronise automatiquement.</span>
           </div>
 
           <p style="text-align: center; margin: 28px 0;">
             <a href="${magicLink}" class="cta-button" target="_blank">
-              Rejoindre le projet &amp; Voir les commentaires →
+              Ouvrir le site &amp; Voir les commentaires →
             </a>
           </p>
 
@@ -218,8 +257,8 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
               <tr>
                 <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">3.</td>
                 <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
-                  <strong>Retrouvez tous les commentaires :</strong><br>
-                  Cliquez sur le bouton noir ci-dessus pour ouvrir le site avec votre lien d'invitation lié à <code>${recipientEmail}</code>. Tous les commentaires et pastilles épinglés par l'équipe apparaissent automatiquement sur la page !
+                  <strong>Retrouvez automatiquement tous les commentaires :</strong><br>
+                  Cliquez sur le bouton noir ci-dessus pour ouvrir le site. Commyweb se configure automatiquement et affiche directement tous les commentaires de l'équipe sur la page !
                 </td>
               </tr>
               <tr>

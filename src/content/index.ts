@@ -5,6 +5,7 @@ import { ThreadModal } from './ui/thread-modal';
 import { CursorManager } from './ui/cursor';
 import { WebComment, Author, AnchorData } from '../types';
 import { normalizeUrl, hashUrl, generateId } from '../utils/security';
+import { decodeProjectConfig } from '../utils/email-template';
 
 class CommywebContentApp {
   private shadowHost: ShadowHostManager;
@@ -78,11 +79,45 @@ class CommywebContentApp {
   }
 
   /**
-   * Magic Link join handler
+   * Magic auto-configuration & invite join link handler
    */
   private checkMagicJoinLink() {
     const hash = window.location.hash;
-    if (hash && hash.includes('commyweb_join=')) {
+    if (!hash) return;
+
+    if (hash.includes('commyweb_config=')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const configStr = params.get('commyweb_config');
+      if (configStr) {
+        const config = decodeProjectConfig(configStr);
+        if (config) {
+          chrome.runtime.sendMessage({
+            type: 'AUTO_CONFIGURE_PROJECT',
+            payload: {
+              repo: config.repo,
+              token: config.token,
+              email: config.email,
+              url: window.location.href,
+              authCode: config.authCode
+            }
+          }, () => {
+            void chrome.runtime.lastError;
+            // Clean hash immediately from the browser address bar
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            this.showJoinSuccessBanner(config.email || 'Collaborateur');
+            this.loadCurrentUser();
+            // Immediately reload comments now that repo & token are auto-configured
+            setTimeout(() => {
+              this.loadComments();
+              this.setCommentMode(true);
+            }, 500);
+          });
+          return;
+        }
+      }
+    }
+
+    if (hash.includes('commyweb_join=')) {
       const params = new URLSearchParams(hash.substring(1));
       const code = params.get('commyweb_join');
       const email = params.get('email');
@@ -92,10 +127,14 @@ class CommywebContentApp {
           type: 'VALIDATE_JOIN_CODE',
           payload: { urlHash: this.currentUrlHash, code, email }
         }, (res) => {
+          void chrome.runtime.lastError;
           if (res && res.valid) {
             window.history.replaceState(null, '', window.location.pathname + window.location.search);
             this.showJoinSuccessBanner(email || 'Collaborateur');
-            setTimeout(() => this.setCommentMode(true), 800);
+            setTimeout(() => {
+              this.loadComments();
+              this.setCommentMode(true);
+            }, 600);
           }
         });
       }
@@ -244,6 +283,7 @@ class CommywebContentApp {
 
     if (active) {
       this.closeActiveModal();
+      this.loadComments();
     }
     // Only display comment pins when comment mode is active
     this.renderAllPins();

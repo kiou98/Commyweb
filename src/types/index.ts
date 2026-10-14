@@ -60,6 +60,7 @@ export interface UserSettings {
   isCommentModeActive?: boolean;
   filterStatus?: 'all' | 'open' | 'resolved';
   userEmail?: string;
+  userRole?: 'admin' | 'collaborator';
 }
 
 export interface ExtensionMessage {
@@ -78,6 +79,7 @@ export interface ExtensionMessage {
     | 'INVITE_MEMBER'
     | 'REVOKE_MEMBER'
     | 'GET_MEMBERS'
-    | 'VALIDATE_JOIN_CODE';
+    | 'VALIDATE_JOIN_CODE'
+    | 'AUTO_CONFIGURE_PROJECT';
   payload?: any;
 }

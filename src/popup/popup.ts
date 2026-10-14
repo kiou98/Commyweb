@@ -2,7 +2,7 @@ import { WebComment, UserSettings, Author, ProjectMember } from '../types';
 import { normalizeUrl, hashUrl, escapeHtml, getUserColor } from '../utils/security';
 import { formatRelativeTime, t } from '../utils/i18n';
 import { CacheManager } from '../storage/cache';
-import { generateInviteEmailHtml } from '../utils/email-template';
+import { generateInviteEmailHtml, encodeProjectConfig } from '../utils/email-template';
 
 class PopupController {
   private currentTabId?: number;
@@ -462,12 +462,16 @@ class PopupController {
           const member: ProjectMember = res.member;
           await this.loadInvitedMembers();
 
-          // Generate HTML email for this specific member
+          const settings = await CacheManager.getSettings();
+
+          // Generate HTML email for this specific member with project auto-config
           const emailHtml = generateInviteEmailHtml({
             recipientEmail: email,
             invitedByName: this.currentAuthorName,
             pageUrl: this.currentTabUrl!,
-            authCode: member.authCode
+            authCode: member.authCode,
+            storageRepo: settings.storageRepo,
+            githubToken: settings.githubToken
           });
 
           // Automatically copy formatted HTML email to clipboard for instant pasting into Gmail / Outlook
@@ -494,7 +498,7 @@ class PopupController {
           inputEmail.value = '';
 
           if (copied) {
-            this.showToast(`✓ Accès autorisé pour ${email} ! L'email complet est copié dans le presse-papier : collez-le dans Gmail ou Outlook.`);
+            this.showToast(`✓ Accès autorisé pour ${email} ! L'email complet est copié : collez-le dans Gmail ou Outlook.`);
           } else {
             this.showToast(`✓ Accès autorisé pour ${email} ! Cliquez sur "Copier Email (HTML)" pour l'envoyer.`);
           }
@@ -514,11 +518,15 @@ class PopupController {
       ? typedEmail
       : 'collaborateur@entreprise.com';
 
+    const settings = await CacheManager.getSettings();
+
     const emailHtml = generateInviteEmailHtml({
       recipientEmail,
       invitedByName: this.currentAuthorName,
       pageUrl: this.currentTabUrl,
-      authCode: 'cw_auth_join'
+      authCode: 'cw_auth_join',
+      storageRepo: settings.storageRepo,
+      githubToken: settings.githubToken
     });
 
     try {
@@ -546,18 +554,31 @@ class PopupController {
 
     const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
     const typedEmail = inputEmail?.value.trim().toLowerCase();
-    const emailMention = typedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail)
-      ? ` (lié à ${typedEmail})`
-      : '';
+    const recipientEmail = typedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail)
+      ? typedEmail
+      : 'collaborateur@domaine.com';
+
+    const settings = await CacheManager.getSettings();
+    const encodedConfig = encodeProjectConfig({
+      repo: settings.storageRepo,
+      token: settings.githubToken,
+      email: recipientEmail,
+      url: this.currentTabUrl,
+      authCode: 'cw_auth_join'
+    });
+
+    const projectLink = encodedConfig
+      ? `${this.currentTabUrl}#commyweb_config=${encodedConfig}`
+      : this.currentTabUrl;
 
     const inviteText =
       `Bonjour,\n\n` +
       `${this.currentAuthorName} vous invite à collaborer et annoter la page web suivante avec l'extension Commyweb :\n` +
-      `👉 ${this.currentTabUrl}\n\n` +
+      `👉 ${projectLink}\n\n` +
       `Procédure d'installation (30 secondes) :\n` +
       `1. Téléchargez l'extension : https://github.com/kiou98/Commyweb/releases/latest\n` +
       `2. Sur chrome://extensions/, activez "Mode développeur" et chargez le dossier décompressé.\n` +
-      `3. Ouvrez la page web et indiquez votre adresse email${emailMention} : vous retrouvez alors automatiquement tous les commentaires de l'équipe sur le site !\n` +
+      `3. Ouvrez le lien : Commyweb se configure automatiquement et affiche directement tous les commentaires de l'équipe sur la page !\n` +
       `4. Faites un clic droit (ou Alt + C) n'importe où pour commenter comme dans Figma.`;
 
     await navigator.clipboard.writeText(inviteText);
@@ -633,11 +654,14 @@ class PopupController {
           btnCopyMember?.addEventListener('click', async () => {
             const memberEmail = btnCopyMember.getAttribute('data-email') || member.email;
             const authCode = btnCopyMember.getAttribute('data-code') || member.authCode;
+            const settings = await CacheManager.getSettings();
             const html = generateInviteEmailHtml({
               recipientEmail: memberEmail,
               invitedByName: this.currentAuthorName,
               pageUrl: this.currentTabUrl!,
-              authCode
+              authCode,
+              storageRepo: settings.storageRepo,
+              githubToken: settings.githubToken
             });
             try {
               if (navigator.clipboard && window.ClipboardItem) {
