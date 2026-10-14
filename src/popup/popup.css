@@ -85,6 +85,25 @@ body {
   color: #ffffff;
 }
 
+.btn-icon-subtle {
+  background: none;
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-icon-subtle:hover {
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
+}
+
 /* Mode Banner Card */
 .mode-card {
   display: flex;

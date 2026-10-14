@@ -15,10 +15,10 @@ export class CacheManager {
       return res[this.SETTINGS_KEY] || {
         filterStatus: 'all',
         isCommentModeActive: false,
-        storageRepo: 'kiou98/Commyweb'
+        storageRepo: ''
       };
     } catch {
-      return { filterStatus: 'all', isCommentModeActive: false, storageRepo: 'kiou98/Commyweb' };
+      return { filterStatus: 'all', isCommentModeActive: false, storageRepo: '' };
     }
   }
 

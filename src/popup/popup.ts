@@ -11,6 +11,7 @@ class PopupController {
   private comments: WebComment[] = [];
   private activeFilter: 'all' | 'open' | 'resolved' = 'all';
   private currentAuthorName: string = 'Vincent';
+  private autoSaveTimer?: number;
 
   constructor() {
     this.init();
@@ -20,6 +21,7 @@ class PopupController {
     this.localizeUI();
     await this.setupCurrentTab();
     await this.loadSettings();
+    await this.restoreDrawerState();
     await this.loadInvitedMembers();
     this.setupEventListeners();
     await this.fetchComments();
@@ -80,16 +82,67 @@ class PopupController {
         }
       }
 
-      try {
-        chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
-          if (res && typeof res.isCommentModeActive === 'boolean') {
-            const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
-            if (chk) chk.checked = res.isCommentModeActive;
-          }
-        });
-      } catch {
-        // Tab might not have content script loaded
+      // Check if page is scriptable (avoid chrome://, edge://, about:, etc.)
+      const isRestrictedUrl =
+        tab.url.startsWith('chrome://') ||
+        tab.url.startsWith('chrome-extension://') ||
+        tab.url.startsWith('edge://') ||
+        tab.url.startsWith('about:') ||
+        tab.url.startsWith('devtools://');
+
+      if (!isRestrictedUrl) {
+        try {
+          chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
+            // ALWAYS consume chrome.runtime.lastError to prevent Unchecked runtime.lastError
+            const err = chrome.runtime.lastError;
+            if (err) return;
+
+            if (res && typeof res.isCommentModeActive === 'boolean') {
+              const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
+              if (chk) chk.checked = res.isCommentModeActive;
+            }
+          });
+        } catch {
+          // Tab might not have content script loaded
+        }
       }
+    }
+  }
+
+  private async restoreDrawerState() {
+    // Check URL parameter first (e.g., opened via dedicated tab)
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedDrawer = urlParams.get('drawer');
+
+    const settingsDrawer = document.getElementById('settings-drawer');
+    const inviteDrawer = document.getElementById('invite-drawer');
+
+    if (requestedDrawer === 'settings') {
+      settingsDrawer?.classList.add('open');
+      inviteDrawer?.classList.remove('open');
+      return;
+    }
+
+    // Otherwise check persisted state in chrome.storage.local
+    try {
+      const res = await chrome.storage.local.get(['commyweb_active_drawer']);
+      if (res.commyweb_active_drawer === 'settings') {
+        settingsDrawer?.classList.add('open');
+        inviteDrawer?.classList.remove('open');
+      } else if (res.commyweb_active_drawer === 'invite') {
+        inviteDrawer?.classList.add('open');
+        settingsDrawer?.classList.remove('open');
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private setPersistedDrawer(drawer: 'settings' | 'invite' | null) {
+    try {
+      chrome.storage.local.set({ commyweb_active_drawer: drawer });
+    } catch {
+      // ignore
     }
   }
 
@@ -104,6 +157,7 @@ class PopupController {
     const badgeGithub = document.getElementById('badge-github-status');
     const badgeResend = document.getElementById('badge-resend-status');
     const scopeRepoEl = document.getElementById('scope-repo-name');
+    const resendWarningBox = document.getElementById('resend-warning-box');
 
     if (tokenInput && settings.githubToken) {
       tokenInput.value = settings.githubToken;
@@ -116,11 +170,13 @@ class PopupController {
       badgeGithub.className = 'key-status-badge empty';
     }
 
-    if (repoInput && settings.storageRepo) {
-      repoInput.value = settings.storageRepo;
+    // Do NOT pre-populate repo with any default repo
+    const userRepo = (settings.storageRepo && settings.storageRepo !== 'kiou98/Commyweb') ? settings.storageRepo : '';
+    if (repoInput) {
+      repoInput.value = userRepo;
     }
     if (scopeRepoEl) {
-      scopeRepoEl.textContent = settings.storageRepo || 'Dépôt non défini';
+      scopeRepoEl.textContent = userRepo ? userRepo : 'Non configuré';
     }
 
     if (resendKeyInput && settings.resendApiKey) {
@@ -129,9 +185,13 @@ class PopupController {
         badgeResend.textContent = '● Configurée';
         badgeResend.className = 'key-status-badge configured';
       }
-    } else if (badgeResend) {
-      badgeResend.textContent = 'Non configurée';
-      badgeResend.className = 'key-status-badge empty';
+      if (resendWarningBox) resendWarningBox.style.display = 'none';
+    } else {
+      if (badgeResend) {
+        badgeResend.textContent = 'Non configurée';
+        badgeResend.className = 'key-status-badge empty';
+      }
+      if (resendWarningBox) resendWarningBox.style.display = 'block';
     }
 
     if (resendFromInput && settings.resendFromEmail) {
@@ -139,7 +199,7 @@ class PopupController {
     }
 
     chrome.storage.local.get(['commyweb_user'], (res) => {
-      const user: Author = res.commyweb_user;
+      const user: Author = res?.commyweb_user;
       const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
       const quickAuthorInput = document.getElementById('quick-author-name') as HTMLInputElement;
       const quickDot = document.getElementById('quick-user-color-dot');
@@ -163,6 +223,94 @@ class PopupController {
     });
   }
 
+  /**
+   * Auto-save settings as the user types or modifies any input field
+   */
+  private triggerAutoSave(delayMs: number = 300) {
+    if (this.autoSaveTimer) {
+      window.clearTimeout(this.autoSaveTimer);
+    }
+    this.autoSaveTimer = window.setTimeout(() => {
+      this.saveSettingsData(true);
+    }, delayMs);
+  }
+
+  private async saveSettingsData(isSilent: boolean = false) {
+    const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
+    const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
+    const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
+    const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
+    const resendFromInput = document.getElementById('input-resend-from') as HTMLInputElement;
+
+    const newSettings: Partial<UserSettings> = {
+      githubToken: tokenInput?.value.trim() || undefined,
+      storageRepo: repoInput?.value.trim() || undefined,
+      resendApiKey: resendKeyInput?.value.trim() || undefined,
+      resendFromEmail: resendFromInput?.value.trim() || undefined
+    };
+
+    const newName = userNameInput?.value.trim();
+    if (newName) {
+      this.currentAuthorName = newName;
+      chrome.storage.local.get(['commyweb_user'], (res) => {
+        const user: Author = res?.commyweb_user || { id: 'anonymous', username: newName, avatarUrl: '' };
+        user.name = newName;
+        user.username = newName;
+        chrome.storage.local.set({ commyweb_user: user });
+      });
+    }
+
+    await CacheManager.saveSettings(newSettings);
+
+    // Update UI status badges immediately
+    const badgeGithub = document.getElementById('badge-github-status');
+    const badgeResend = document.getElementById('badge-resend-status');
+    const scopeRepoEl = document.getElementById('scope-repo-name');
+    const resendWarningBox = document.getElementById('resend-warning-box');
+
+    if (badgeGithub) {
+      if (newSettings.githubToken) {
+        badgeGithub.textContent = '● Configuré';
+        badgeGithub.className = 'key-status-badge configured';
+      } else {
+        badgeGithub.textContent = 'Non configuré';
+        badgeGithub.className = 'key-status-badge empty';
+      }
+    }
+
+    if (scopeRepoEl) {
+      scopeRepoEl.textContent = newSettings.storageRepo ? newSettings.storageRepo : 'Non configuré';
+    }
+
+    if (badgeResend) {
+      if (newSettings.resendApiKey) {
+        badgeResend.textContent = '● Configurée';
+        badgeResend.className = 'key-status-badge configured';
+        if (resendWarningBox) resendWarningBox.style.display = 'none';
+      } else {
+        badgeResend.textContent = 'Non configurée';
+        badgeResend.className = 'key-status-badge empty';
+        if (resendWarningBox) resendWarningBox.style.display = 'block';
+      }
+    }
+
+    // Flash auto-save indicator
+    const autoSaveIndicator = document.getElementById('auto-save-indicator');
+    if (autoSaveIndicator) {
+      autoSaveIndicator.style.opacity = '1';
+      setTimeout(() => {
+        autoSaveIndicator.style.opacity = '0';
+      }, 1500);
+    }
+
+    chrome.runtime.sendMessage({ type: 'USER_SETTINGS_UPDATED' }, () => {
+      void chrome.runtime.lastError;
+      if (!isSilent) {
+        this.showToast('✓ Paramètres enregistrés avec succès !');
+      }
+    });
+  }
+
   private setupEventListeners() {
     // Quick author name change
     const quickAuthorInput = document.getElementById('quick-author-name') as HTMLInputElement;
@@ -175,15 +323,17 @@ class PopupController {
       const settingsInput = document.getElementById('input-user-name') as HTMLInputElement;
       if (settingsInput) settingsInput.value = trimmed;
       chrome.storage.local.get(['commyweb_user'], (res) => {
-        const user: Author = res.commyweb_user || { id: 'anonymous', username: trimmed, avatarUrl: '' };
+        const user: Author = res?.commyweb_user || { id: 'anonymous', username: trimmed, avatarUrl: '' };
         user.name = trimmed;
         user.username = trimmed;
         chrome.storage.local.set({ commyweb_user: user });
       });
+      this.triggerAutoSave(100);
     };
 
     quickAuthorInput?.addEventListener('input', () => {
       if (quickDot) quickDot.style.backgroundColor = getUserColor(quickAuthorInput.value.trim() || 'User');
+      updateAuthorName(quickAuthorInput.value);
     });
     quickAuthorInput?.addEventListener('change', () => updateAuthorName(quickAuthorInput.value));
     quickAuthorInput?.addEventListener('blur', () => updateAuthorName(quickAuthorInput.value));
@@ -204,7 +354,6 @@ class PopupController {
         const isPassword = input.type === 'password';
         input.type = isPassword ? 'text' : 'password';
 
-        // Update icon (eye vs eye-off)
         btn.innerHTML = isPassword
           ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
@@ -220,10 +369,46 @@ class PopupController {
     setupEyeToggle('btn-toggle-github-eye', 'input-github-token');
     setupEyeToggle('btn-toggle-resend-eye', 'input-resend-key');
 
+    // Auto-save listeners on all settings inputs
+    const settingsInputs = [
+      'input-github-token',
+      'input-storage-repo',
+      'input-resend-key',
+      'input-resend-from',
+      'input-user-name'
+    ];
+
+    settingsInputs.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', () => this.triggerAutoSave(300));
+        el.addEventListener('change', () => this.saveSettingsData(true));
+        el.addEventListener('blur', () => this.saveSettingsData(true));
+      }
+    });
+
+    // Toggle Comment Mode checkbox
     const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
     chk?.addEventListener('change', () => {
       if (this.currentTabId) {
-        chrome.tabs.sendMessage(this.currentTabId, { type: 'TOGGLE_COMMENT_MODE' });
+        chrome.tabs.sendMessage(this.currentTabId, { type: 'TOGGLE_COMMENT_MODE' }, () => {
+          const err = chrome.runtime.lastError;
+          if (err && this.currentTabId) {
+            // Attempt injection if tab was open before extension reload
+            chrome.scripting.executeScript(
+              {
+                target: { tabId: this.currentTabId },
+                files: ['content.js']
+              },
+              () => {
+                void chrome.runtime.lastError;
+                chrome.tabs.sendMessage(this.currentTabId!, { type: 'TOGGLE_COMMENT_MODE' }, () => {
+                  void chrome.runtime.lastError;
+                });
+              }
+            );
+          }
+        });
       }
     });
 
@@ -233,13 +418,32 @@ class PopupController {
 
     btnSettings?.addEventListener('click', () => {
       inviteDrawer?.classList.remove('open');
-      settingsDrawer?.classList.toggle('open');
+      const isOpen = settingsDrawer?.classList.toggle('open');
+      this.setPersistedDrawer(isOpen ? 'settings' : null);
     });
 
     const btnInvite = document.getElementById('btn-toggle-invite');
     btnInvite?.addEventListener('click', () => {
       settingsDrawer?.classList.remove('open');
-      inviteDrawer?.classList.toggle('open');
+      const isOpen = inviteDrawer?.classList.toggle('open');
+      this.setPersistedDrawer(isOpen ? 'invite' : null);
+    });
+
+    // Link in warning box to jump straight to Resend configuration
+    const linkResend = document.getElementById('link-open-resend-settings');
+    linkResend?.addEventListener('click', (e) => {
+      e.preventDefault();
+      inviteDrawer?.classList.remove('open');
+      settingsDrawer?.classList.add('open');
+      this.setPersistedDrawer('settings');
+      const resendInput = document.getElementById('input-resend-key');
+      resendInput?.focus();
+    });
+
+    // Open settings in dedicated browser tab so it never closes when switching tabs
+    const btnOpenTab = document.getElementById('btn-open-settings-tab');
+    btnOpenTab?.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?drawer=settings') });
     });
 
     // Send Email Invite
@@ -262,47 +466,19 @@ class PopupController {
     const btnCopyLink = document.getElementById('btn-copy-invite-link');
     btnCopyLink?.addEventListener('click', () => this.handleCopyInviteLink());
 
-    // Save Settings
+    // Save Settings button (retained as confirmation button)
     const btnSave = document.getElementById('btn-save-settings');
     btnSave?.addEventListener('click', async () => {
-      const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
-      const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
-      const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
-      const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
-      const resendFromInput = document.getElementById('input-resend-from') as HTMLInputElement;
-
-      const newSettings: Partial<UserSettings> = {
-        githubToken: tokenInput?.value.trim() || undefined,
-        storageRepo: repoInput?.value.trim() || undefined,
-        resendApiKey: resendKeyInput?.value.trim() || undefined,
-        resendFromEmail: resendFromInput?.value.trim() || undefined
-      };
-
-      const newName = userNameInput?.value.trim();
-      if (newName) {
-        this.currentAuthorName = newName;
-        chrome.storage.local.get(['commyweb_user'], (res) => {
-          const user: Author = res.commyweb_user || { id: 'anonymous', username: newName, avatarUrl: '' };
-          user.name = newName;
-          user.username = newName;
-          chrome.storage.local.set({ commyweb_user: user });
-        });
-      }
-
-      await CacheManager.saveSettings(newSettings);
-
-      chrome.runtime.sendMessage({ type: 'USER_SETTINGS_UPDATED' }, () => {
-        this.loadSettings();
-        settingsDrawer?.classList.remove('open');
-        this.showToast('✓ Paramètres enregistrés avec succès !');
-      });
+      await this.saveSettingsData(false);
+      settingsDrawer?.classList.remove('open');
+      this.setPersistedDrawer(null);
     });
 
-    // Filter Tabs
+    // Filter Tabs (does NOT close settings drawer)
     const tabs = document.querySelectorAll('.tab-btn');
-    tabs.forEach(tab => {
+    tabs.forEach((tab) => {
       tab.addEventListener('click', () => {
-        tabs.forEach(t => t.classList.remove('active'));
+        tabs.forEach((t) => t.classList.remove('active'));
         tab.classList.add('active');
         this.activeFilter = (tab.getAttribute('data-tab') as any) || 'all';
         this.renderCommentsList();
@@ -312,61 +488,71 @@ class PopupController {
 
   private async handleSendInvite() {
     const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
+    const btnSend = document.getElementById('btn-send-invite') as HTMLButtonElement;
     const email = inputEmail?.value.trim().toLowerCase();
+
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      alert('Veuillez entrer une adresse email valide.');
+      this.showToast('⚠️ Veuillez entrer une adresse email valide.');
       return;
     }
 
     if (!this.currentUrlHash || !this.currentTabUrl) return;
 
-    // Register member via background and dispatch email
-    chrome.runtime.sendMessage({
-      type: 'INVITE_MEMBER',
-      payload: {
-        urlHash: this.currentUrlHash,
-        url: this.currentTabUrl,
-        email,
-        addedBy: this.currentAuthorName
-      }
-    }, async (res) => {
-      if (res && res.member) {
-        inputEmail.value = '';
-        await this.loadInvitedMembers();
+    // Verify Resend API Key is set - NO MAILTO FALLBACK, 100% Commyweb Resend
+    const settings = await CacheManager.getSettings();
+    if (!settings.resendApiKey || !settings.resendApiKey.trim()) {
+      const resendWarning = document.getElementById('resend-warning-box');
+      if (resendWarning) resendWarning.style.display = 'block';
 
-        if (res.emailSent) {
-          this.showToast(`✓ Email d'invitation envoyé automatiquement à ${email} !`);
-          return;
+      this.showToast('⚠️ Clé Resend requise : configurez-la dans Paramètres ⚙️ pour envoyer les emails.');
+
+      // Automatically open settings drawer to guide user
+      const inviteDrawer = document.getElementById('invite-drawer');
+      const settingsDrawer = document.getElementById('settings-drawer');
+      inviteDrawer?.classList.remove('open');
+      settingsDrawer?.classList.add('open');
+      this.setPersistedDrawer('settings');
+      document.getElementById('input-resend-key')?.focus();
+      return;
+    }
+
+    if (btnSend) {
+      btnSend.disabled = true;
+      btnSend.textContent = 'Envoi...';
+    }
+
+    // Register member via background and dispatch email exclusively via Resend
+    chrome.runtime.sendMessage(
+      {
+        type: 'INVITE_MEMBER',
+        payload: {
+          urlHash: this.currentUrlHash,
+          url: this.currentTabUrl,
+          email,
+          addedBy: this.currentAuthorName
+        }
+      },
+      async (res) => {
+        void chrome.runtime.lastError;
+        if (btnSend) {
+          btnSend.disabled = false;
+          btnSend.textContent = 'Inviter';
         }
 
-        // If no API key configured, guide user or open mailto fallback
-        const member: ProjectMember = res.member;
-        const magicLink = `${this.currentTabUrl}#commyweb_join=${member.authCode}&email=${encodeURIComponent(email)}`;
-
-        const subject = encodeURIComponent(`[Commyweb] Invitation à collaborer sur : ${this.currentTabUrl}`);
-        const body = encodeURIComponent(
-          `Bonjour,\n\n` +
-          `${this.currentAuthorName} vous a invité à réviser et commenter la page web suivante avec l'extension Commyweb :\n` +
-          `👉 ${this.currentTabUrl}\n\n` +
-          `Lien d'accès autorisé :\n` +
-          `🔗 ${magicLink}\n\n` +
-          `Guide express d'installation (30 sec) :\n` +
-          `1. Téléchargez : https://github.com/kiou98/Commyweb/releases/latest\n` +
-          `2. Dans Chrome, allez sur chrome://extensions, activez "Mode développeur" et cliquez sur "Charger l'extension non empaquetée".\n` +
-          `3. Cliquez sur le lien d'accès ci-dessus. Appuyez sur Alt + C (ou clic droit) pour commenter sur le site comme dans Figma !\n\n` +
-          `Bonne collaboration !`
-        );
-
-        if (res.emailError === 'NO_API_KEY') {
-          // Open mailto fallback and explain how to configure Resend for 100% auto send
-          window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
-          this.showToast('Client mail ouvert ! (Configurez votre clé Resend dans les paramètres pour l\'envoi 100% automatique)');
+        if (res && res.member) {
+          if (res.emailSent) {
+            inputEmail.value = '';
+            await this.loadInvitedMembers();
+            this.showToast(`✓ Invitation envoyée avec succès par email à ${email} !`);
+          } else {
+            const errDetail = res.emailError || 'Erreur lors de l\'envoi';
+            this.showToast(`⚠️ Erreur Resend : ${errDetail}`);
+          }
         } else {
-          window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
-          this.showToast(`Erreur envoi auto: ${res.emailError || 'Email ouvert'}`);
+          this.showToast(`⚠️ Erreur : ${res?.error || 'Impossible d\'enregistrer le membre'}`);
         }
       }
-    });
+    );
   }
 
   private async handleCopyHtmlEmail() {
@@ -392,7 +578,7 @@ class PopupController {
       } else {
         await navigator.clipboard.writeText(emailHtml);
       }
-      this.showToast('Email HTML copié ! Prêt à coller dans Gmail / Outlook.');
+      this.showToast('Email HTML copié ! Prêt à coller dans votre client mail.');
     } catch {
       await navigator.clipboard.writeText(emailHtml);
       this.showToast('Code HTML copié !');
@@ -422,69 +608,81 @@ class PopupController {
       toast.style.display = 'block';
       setTimeout(() => {
         toast.style.display = 'none';
-      }, 3000);
+      }, 3500);
     }
   }
 
   private async loadInvitedMembers() {
     if (!this.currentUrlHash) return;
 
-    chrome.runtime.sendMessage({
-      type: 'GET_MEMBERS',
-      payload: { urlHash: this.currentUrlHash, url: this.currentTabUrl }
-    }, (res) => {
-      const members: ProjectMember[] = res?.members || [];
-      const container = document.getElementById('invited-members-list');
-      const emptyState = document.getElementById('lbl-no-members');
-      if (!container) return;
+    chrome.runtime.sendMessage(
+      {
+        type: 'GET_MEMBERS',
+        payload: { urlHash: this.currentUrlHash, url: this.currentTabUrl }
+      },
+      (res) => {
+        void chrome.runtime.lastError;
+        const members: ProjectMember[] = res?.members || [];
+        const container = document.getElementById('invited-members-list');
+        const emptyState = document.getElementById('lbl-no-members');
+        if (!container) return;
 
-      container.innerHTML = '';
+        container.innerHTML = '';
 
-      if (members.length === 0) {
-        if (emptyState) {
-          container.appendChild(emptyState);
-          emptyState.style.display = 'block';
-        }
-        return;
-      }
-
-      members.forEach(member => {
-        const chip = document.createElement('div');
-        chip.className = 'member-chip';
-
-        const isRevoked = member.status === 'revoked';
-
-        chip.innerHTML = `
-          <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span class="member-email" style="${isRevoked ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${escapeHtml(member.email)}</span>
-            <span class="member-status">${isRevoked ? '⚠️ Révoqué' : '✓ Autorisé'} • ${formatRelativeTime(member.addedAt)}</span>
-          </div>
-          <div>
-            ${!isRevoked ? `
-              <button class="btn-revoke" data-id="${member.id}" style="background: none; border: 1px solid #e4e4e7; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; cursor: pointer; color: #000000; transition: all 0.15s;">
-                Révoquer
-              </button>
-            ` : `
-              <span style="font-size: 10px; color: #a1a1aa; font-weight: 600;">Accès coupé</span>
-            `}
-          </div>
-        `;
-
-        const btnRevoke = chip.querySelector('.btn-revoke');
-        btnRevoke?.addEventListener('click', () => {
-          if (confirm(`Voulez-vous vraiment révoquer l'accès de ${member.email} ?`)) {
-            chrome.runtime.sendMessage({
-              type: 'REVOKE_MEMBER',
-              payload: { urlHash: this.currentUrlHash, memberId: member.id }
-            }, () => {
-              this.loadInvitedMembers();
-            });
+        if (members.length === 0) {
+          if (emptyState) {
+            container.appendChild(emptyState);
+            emptyState.style.display = 'block';
           }
-        });
+          return;
+        }
 
-        container.appendChild(chip);
-      });
-    });
+        members.forEach((member) => {
+          const chip = document.createElement('div');
+          chip.className = 'member-chip';
+
+          const isRevoked = member.status === 'revoked';
+
+          chip.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="member-email" style="${isRevoked ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${escapeHtml(member.email)}</span>
+              <span class="member-status">${isRevoked ? '⚠️ Révoqué' : '✓ Autorisé'} • ${formatRelativeTime(member.addedAt)}</span>
+            </div>
+            <div>
+              ${
+                !isRevoked
+                  ? `
+                <button class="btn-revoke" data-id="${member.id}" style="background: none; border: 1px solid #e4e4e7; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; cursor: pointer; color: #000000; transition: all 0.15s;">
+                  Révoquer
+                </button>
+              `
+                  : `
+                <span style="font-size: 10px; color: #a1a1aa; font-weight: 600;">Accès coupé</span>
+              `
+              }
+            </div>
+          `;
+
+          const btnRevoke = chip.querySelector('.btn-revoke');
+          btnRevoke?.addEventListener('click', () => {
+            if (confirm(`Voulez-vous vraiment révoquer l'accès de ${member.email} ?`)) {
+              chrome.runtime.sendMessage(
+                {
+                  type: 'REVOKE_MEMBER',
+                  payload: { urlHash: this.currentUrlHash, memberId: member.id }
+                },
+                () => {
+                  void chrome.runtime.lastError;
+                  this.loadInvitedMembers();
+                }
+              );
+            }
+          });
+
+          container.appendChild(chip);
+        });
+      }
+    );
   }
 
   private async fetchComments() {
@@ -493,6 +691,7 @@ class PopupController {
     chrome.runtime.sendMessage(
       { type: 'GET_PAGE_COMMENTS', payload: { urlHash: this.currentUrlHash } },
       (res) => {
+        void chrome.runtime.lastError;
         if (res && res.comments) {
           this.comments = res.comments;
           this.updateCounts();
@@ -504,8 +703,8 @@ class PopupController {
 
   private updateCounts() {
     const total = this.comments.length;
-    const open = this.comments.filter(c => c.status === 'open').length;
-    const resolved = this.comments.filter(c => c.status === 'resolved').length;
+    const open = this.comments.filter((c) => c.status === 'open').length;
+    const resolved = this.comments.filter((c) => c.status === 'resolved').length;
 
     const countAll = document.getElementById('count-all');
     const countOpen = document.getElementById('count-open');
@@ -521,7 +720,7 @@ class PopupController {
     const emptyState = document.getElementById('empty-state');
     if (!container || !emptyState) return;
 
-    const filtered = this.comments.filter(c => {
+    const filtered = this.comments.filter((c) => {
       if (this.activeFilter === 'all') return true;
       return c.status === this.activeFilter;
     });
@@ -539,7 +738,7 @@ class PopupController {
     filtered.forEach((comment, index) => {
       const card = document.createElement('div');
       card.className = `comment-card ${comment.status === 'resolved' ? 'resolved' : ''}`;
-      
+
       const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
       const userColor = getUserColor(authorId);
       const repliesCount = comment.replies?.length || 0;
@@ -564,10 +763,16 @@ class PopupController {
 
       card.addEventListener('click', () => {
         if (this.currentTabId) {
-          chrome.tabs.sendMessage(this.currentTabId, {
-            type: 'FOCUS_COMMENT',
-            payload: { commentId: comment.id }
-          });
+          chrome.tabs.sendMessage(
+            this.currentTabId,
+            {
+              type: 'FOCUS_COMMENT',
+              payload: { commentId: comment.id }
+            },
+            () => {
+              void chrome.runtime.lastError;
+            }
+          );
           window.close();
         }
       });
