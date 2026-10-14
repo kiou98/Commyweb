@@ -73,33 +73,29 @@
         </div>
       </div>
 
-      <div id="resend-warning-box" style="display: none; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; padding: 6px 8px; font-size: 10.5px; color: #92400e;">
-        ⚠️ Clé Resend non configurée : <a href="#" id="link-open-resend-settings" style="color: #000000; font-weight: 700; text-decoration: underline;">Configurer dans Paramètres ⚙️</a> pour activer l'envoi d'invitations.
+      <div style="font-size: 11.5px; color: #3f3f46; line-height: 1.45;">
+        Ajoutez l'adresse email de votre collaborateur pour autoriser son accès, puis copiez l'invitation pour l'envoyer depuis votre boîte mail (Gmail, Outlook...) ou Slack :
       </div>
 
       <div class="invite-input-row">
         <input type="email" class="input-text" id="input-invite-email" placeholder="collaborateur@entreprise.com">
-        <button class="btn-black" id="btn-send-invite">Inviter</button>
-      </div>
-
-      <div style="font-size: 11px; color: #71717a; margin-top: -4px; line-height: 1.4;">
-        📧 <em>Les emails d'invitation sont gérés et envoyés directement par Commyweb via Resend (aucune boîte de messagerie n'est ouverte).</em>
+        <button class="btn-black" id="btn-send-invite">Autoriser &amp; Préparer</button>
       </div>
 
       <div style="display: flex; gap: 6px;">
-        <button class="btn-secondary" style="flex: 1;" id="btn-copy-html-email" title="Copier l'email complet formaté en HTML">
+        <button class="btn-secondary" style="flex: 1;" id="btn-copy-html-email" title="Copier l'email complet formaté en HTML pour le coller dans Gmail ou Outlook">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
-          <span id="lbl-copy-html">Copier Email HTML</span>
+          <span id="lbl-copy-html">Copier Email (HTML)</span>
         </button>
-        <button class="btn-secondary" style="flex: 1;" id="btn-copy-invite-link" title="Copier le lien direct">
+        <button class="btn-secondary" style="flex: 1;" id="btn-copy-invite-link" title="Copier le texte d'invitation avec lien pour Slack, Teams ou WhatsApp">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
-          <span id="lbl-copy-link">Copier Lien</span>
+          <span id="lbl-copy-link">Copier Lien / Texte</span>
         </button>
       </div>
 
@@ -139,7 +135,7 @@
 
       <div style="background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.45; color: #18181b;">
         💡 <strong>Note pour votre équipe :</strong><br>
-        Vous êtes le <strong>seul</strong> à configurer ces clés. Vos collègues et clients n'ont <strong>aucun compte</strong> à créer sur GitHub ni sur Resend !
+        Vous êtes le <strong>seul</strong> à configurer ce dépôt. Vos collègues et clients n'ont <strong>aucun compte</strong> à créer sur GitHub !
       </div>
 
       <div class="form-group">
@@ -208,35 +204,6 @@
       <div class="form-group">
         <label for="input-storage-repo">Dépôt GitHub du projet (owner/repo)</label>
         <input type="text" class="input-text" id="input-storage-repo" placeholder="mon-compte/mon-projet">
-      </div>
-
-      <!-- Resend Section (Masked with Eye Toggle) -->
-      <div class="form-group" style="margin-top: 6px; border-top: 1px solid #e4e4e7; padding-top: 10px;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <label for="input-resend-key">Clé API Resend (Invitations auto)</label>
-          <span class="key-status-badge empty" id="badge-resend-status">Non configurée</span>
-        </div>
-        <div class="password-input-group">
-          <input type="password" class="input-text" id="input-resend-key" placeholder="re_..." autocomplete="off">
-          <button type="button" class="btn-toggle-eye" id="btn-toggle-resend-eye" title="Afficher / Masquer la clé">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </button>
-        </div>
-        <div style="font-size: 10.5px; color: #71717a; margin-top: 2px; line-height: 1.35;">
-          ℹ️ Obtenez gratuitement votre clé (3 000 emails/mois) sur <a href="https://resend.com/api-keys" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: 600;">resend.com/api-keys ↗</a>.
-        </div>
-      </div>
-
-      <!-- Optional Resend Sender -->
-      <div class="form-group">
-        <label for="input-resend-from">Email d'expédition Resend (Optionnel)</label>
-        <input type="text" class="input-text" id="input-resend-from" placeholder="Commyweb <onboarding@resend.dev>">
-        <div style="font-size: 10.5px; color: #71717a; margin-top: 2px; line-height: 1.35;">
-          💡 <em>Laissez vide pour utiliser l'adresse par défaut <code>onboarding@resend.dev</code>. Ne mettez <strong>pas</strong> d'adresse @gmail.com ici (les adresses publiques sont bloquées par les serveurs d'envoi). Seuls les domaines personnalisés validés sur <a href="https://resend.com/domains" target="_blank" style="color: #2563eb; text-decoration: underline;">resend.com/domains ↗</a> sont autorisés.</em>
-        </div>
       </div>
 
       <button class="btn-black" id="btn-save-settings" style="margin-top: 4px;">Enregistrer les paramètres</button>

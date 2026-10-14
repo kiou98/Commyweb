@@ -28,8 +28,8 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 - 🎯 **Ancrage spatial façon Figma :** Les pastilles restent attachées aux éléments HTML et conservent leur position relative exacte même lors du redimensionnement d'écran et du défilement (scroll).
 - 💬 **Fils de discussion imbriqués :** Échangez des réponses chronologiques avec les avatars des auteurs et l'heure relative.
 - ✅ **Résoudre & Archiver :** Nettoyez la vue en marquant les commentaires résolus. Basculez à tout moment entre les commentaires actifs et archivés.
-- ✉️ **Invitations Email Resend & Lien Magique :** Invitez vos collaborateurs par email automatiquement via l'API officielle [Resend](https://resend.com) ou copiez directement le lien d'accès autorisé.
-- 🔒 **Clés d'API Masquées (Bouton Œil) :** Vos jetons GitHub PAT et clés Resend sont masqués par défaut (`••••••••`) avec des boutons interactifs pour afficher/masquer et des badges d'état clairs (Configuré / Non configuré).
+- ✉️ **Invitations en 1 clic (Copier-Coller Email HTML & Lien Direct) :** Invitez vos collaborateurs sans configuration de serveur d'envoi. Un clic copie l'email d'invitation HTML préformaté (avec guide d'installation étape par étape) prêt à être collé dans Gmail/Outlook, ou le lien direct pour Slack/Teams.
+- 🔒 **Clés d'API Masquées (Bouton Œil) :** Votre jeton GitHub PAT est masqué par défaut (`••••••••`) avec un bouton interactif pour afficher/masquer et un badge d'état clair (Configuré / Non configuré).
 - 🎯 **Portée Équipe restreinte (1 Projet & 1 URL) :** Verrouillage strict garantissant que les membres invités ont uniquement accès à la page et au projet concernés.
 - 🚫 **Révocation d'accès :** Tout membre autorisé du projet peut révoquer un autre collaborateur directement depuis la popup de l'extension.
 - ⚡ **Zéro base de données à gérer (No-DB) :** Fonctionne grâce à l'API GitHub (Issues / Discussions). Aucun serveur ni base de données à configurer, maintenir ou payer. Fonctionne aussi 100 % hors ligne/en local sans compte GitHub.
@@ -42,7 +42,7 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 
 ## 🚀 Installation rapide en 30 secondes (sans coder)
 
-1. Téléchargez la dernière version [**commyweb-extension-v1.3.2.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.3.2.zip) (ou [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
+1. Téléchargez la dernière version [**commyweb-extension-v1.4.0.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.4.0.zip) (ou [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
 2. Décompressez le fichier zip sur votre ordinateur.
 3. Ouvrez Google Chrome (ou Brave, Edge, Opera) et accédez à `chrome://extensions/`.
 4. Activez l'interrupteur **"Mode développeur"** en haut à droite.
@@ -78,10 +78,10 @@ Commyweb adopte une architecture **Zéro Base de Données (No-DB)** axée sur la
 
 ## 👥 Qui a besoin d'un compte ? (Zéro contrainte pour l'équipe)
 
-| Rôle | Besoin de compte GitHub ? | Besoin de compte Resend ? | Rôle dans le projet |
-| :--- | :---: | :---: | :--- |
-| **👑 Vous (Créateur du projet)** | **Oui** (1 jeton PAT pour lier votre dépôt privé) | **Optionnel** (seulement si vous voulez l'envoi auto d'invitations) | Crée le dépôt privé gratuit où sont enregistrés les commentaires de l'équipe. |
-| **🚀 Vos Invités / Collaborateurs** | ❌ **AUCUN** | ❌ **AUCUN** | Ils cliquent sur l'invitation, installent l'extension, et commentent directement comme sur Figma ! |
+| Rôle | Besoin de compte GitHub ? | Rôle dans le projet |
+| :--- | :---: | :--- |
+| **👑 Vous (Créateur du projet)** | **Oui** (1 jeton PAT pour lier votre dépôt privé) | Crée le dépôt privé gratuit où sont enregistrés les commentaires de l'équipe. |
+| **🚀 Vos Invités / Collaborateurs** | ❌ **AUCUN** | Ils reçoivent votre invitation, installent l'extension, et commentent directement comme sur Figma ! |
 
 > 🔒 **Zéro friction :** Vos clients, collègues ou partenaires n'ont **aucun compte, aucun mot de passe, ni aucune inscription à créer**.
 
@@ -120,8 +120,8 @@ Pour partager vos commentaires en équipe sans héberger de serveur :
    - Ouvrez la popup, cliquez sur **Paramètres ⚙️**.
    - Collez votre jeton dans **GitHub Token** (masqué par des ronds avec toggle œil).
    - Renseignez le nom du dépôt dans **Dépôt de stockage** (`propriétaire/nom-du-repo`).
-   - *(Optionnel)* Renseignez votre **Clé API Resend** gratuite (`re_...` sur [resend.com/api-keys](https://resend.com/api-keys)) pour envoyer automatiquement vos emails d'invitation.
-4. **Cliquez sur "Enregistrer les paramètres" :** Vos commentaires se synchronisent immédiatement en direct avec votre équipe !
+   - Saisissez votre adresse email (expéditeur).
+4. **Sauvegarde automatique :** Vos paramètres se sauvegardent en temps réel et vos commentaires se synchronisent immédiatement avec votre équipe !
 
 ---
 

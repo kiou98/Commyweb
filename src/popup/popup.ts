@@ -49,9 +49,6 @@ class PopupController {
     const lblInviteTitle = document.getElementById('lbl-invite-title');
     if (lblInviteTitle) lblInviteTitle.textContent = t('inviteCollaborators');
 
-    const btnSendInvite = document.getElementById('btn-send-invite');
-    if (btnSendInvite) btnSendInvite.textContent = t('inviteByEmail');
-
     const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
     if (inputEmail) inputEmail.placeholder = t('emailPlaceholder');
 
@@ -93,7 +90,6 @@ class PopupController {
       if (!isRestrictedUrl) {
         try {
           chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
-            // ALWAYS consume chrome.runtime.lastError to prevent Unchecked runtime.lastError
             const err = chrome.runtime.lastError;
             if (err) return;
 
@@ -110,7 +106,6 @@ class PopupController {
   }
 
   private async restoreDrawerState() {
-    // Check URL parameter first (e.g., opened via dedicated tab)
     const urlParams = new URLSearchParams(window.location.search);
     const requestedDrawer = urlParams.get('drawer');
 
@@ -123,7 +118,6 @@ class PopupController {
       return;
     }
 
-    // Otherwise check persisted state in chrome.storage.local
     try {
       const res = await chrome.storage.local.get(['commyweb_active_drawer']);
       if (res.commyweb_active_drawer === 'settings') {
@@ -151,13 +145,8 @@ class PopupController {
 
     const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
     const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
-    const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
-    const resendFromInput = document.getElementById('input-resend-from') as HTMLInputElement;
-
     const badgeGithub = document.getElementById('badge-github-status');
-    const badgeResend = document.getElementById('badge-resend-status');
     const scopeRepoEl = document.getElementById('scope-repo-name');
-    const resendWarningBox = document.getElementById('resend-warning-box');
 
     if (tokenInput && settings.githubToken) {
       tokenInput.value = settings.githubToken;
@@ -177,25 +166,6 @@ class PopupController {
     }
     if (scopeRepoEl) {
       scopeRepoEl.textContent = userRepo ? userRepo : 'Non configuré';
-    }
-
-    if (resendKeyInput && settings.resendApiKey) {
-      resendKeyInput.value = settings.resendApiKey;
-      if (badgeResend) {
-        badgeResend.textContent = '● Configurée';
-        badgeResend.className = 'key-status-badge configured';
-      }
-      if (resendWarningBox) resendWarningBox.style.display = 'none';
-    } else {
-      if (badgeResend) {
-        badgeResend.textContent = 'Non configurée';
-        badgeResend.className = 'key-status-badge empty';
-      }
-      if (resendWarningBox) resendWarningBox.style.display = 'block';
-    }
-
-    if (resendFromInput && settings.resendFromEmail) {
-      resendFromInput.value = settings.resendFromEmail;
     }
 
     chrome.storage.local.get(['commyweb_user'], (res) => {
@@ -239,14 +209,10 @@ class PopupController {
     const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
     const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
     const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
-    const resendKeyInput = document.getElementById('input-resend-key') as HTMLInputElement;
-    const resendFromInput = document.getElementById('input-resend-from') as HTMLInputElement;
 
     const newSettings: Partial<UserSettings> = {
       githubToken: tokenInput?.value.trim() || undefined,
-      storageRepo: repoInput?.value.trim() || undefined,
-      resendApiKey: resendKeyInput?.value.trim() || undefined,
-      resendFromEmail: resendFromInput?.value.trim() || undefined
+      storageRepo: repoInput?.value.trim() || undefined
     };
 
     const newName = userNameInput?.value.trim();
@@ -264,9 +230,7 @@ class PopupController {
 
     // Update UI status badges immediately
     const badgeGithub = document.getElementById('badge-github-status');
-    const badgeResend = document.getElementById('badge-resend-status');
     const scopeRepoEl = document.getElementById('scope-repo-name');
-    const resendWarningBox = document.getElementById('resend-warning-box');
 
     if (badgeGithub) {
       if (newSettings.githubToken) {
@@ -280,18 +244,6 @@ class PopupController {
 
     if (scopeRepoEl) {
       scopeRepoEl.textContent = newSettings.storageRepo ? newSettings.storageRepo : 'Non configuré';
-    }
-
-    if (badgeResend) {
-      if (newSettings.resendApiKey) {
-        badgeResend.textContent = '● Configurée';
-        badgeResend.className = 'key-status-badge configured';
-        if (resendWarningBox) resendWarningBox.style.display = 'none';
-      } else {
-        badgeResend.textContent = 'Non configurée';
-        badgeResend.className = 'key-status-badge empty';
-        if (resendWarningBox) resendWarningBox.style.display = 'block';
-      }
     }
 
     // Flash auto-save indicator
@@ -367,14 +319,11 @@ class PopupController {
     };
 
     setupEyeToggle('btn-toggle-github-eye', 'input-github-token');
-    setupEyeToggle('btn-toggle-resend-eye', 'input-resend-key');
 
     // Auto-save listeners on all settings inputs
     const settingsInputs = [
       'input-github-token',
       'input-storage-repo',
-      'input-resend-key',
-      'input-resend-from',
       'input-user-name'
     ];
 
@@ -394,7 +343,6 @@ class PopupController {
         chrome.tabs.sendMessage(this.currentTabId, { type: 'TOGGLE_COMMENT_MODE' }, () => {
           const err = chrome.runtime.lastError;
           if (err && this.currentTabId) {
-            // Attempt injection if tab was open before extension reload
             chrome.scripting.executeScript(
               {
                 target: { tabId: this.currentTabId },
@@ -429,24 +377,13 @@ class PopupController {
       this.setPersistedDrawer(isOpen ? 'invite' : null);
     });
 
-    // Link in warning box to jump straight to Resend configuration
-    const linkResend = document.getElementById('link-open-resend-settings');
-    linkResend?.addEventListener('click', (e) => {
-      e.preventDefault();
-      inviteDrawer?.classList.remove('open');
-      settingsDrawer?.classList.add('open');
-      this.setPersistedDrawer('settings');
-      const resendInput = document.getElementById('input-resend-key');
-      resendInput?.focus();
-    });
-
     // Open settings in dedicated browser tab so it never closes when switching tabs
     const btnOpenTab = document.getElementById('btn-open-settings-tab');
     btnOpenTab?.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?drawer=settings') });
     });
 
-    // Send Email Invite
+    // Send Email Invite (Authorize & Prepare Email to copy)
     const btnSendInvite = document.getElementById('btn-send-invite');
     btnSendInvite?.addEventListener('click', () => this.handleSendInvite());
 
@@ -498,30 +435,12 @@ class PopupController {
 
     if (!this.currentUrlHash || !this.currentTabUrl) return;
 
-    // Verify Resend API Key is set - NO MAILTO FALLBACK, 100% Commyweb Resend
-    const settings = await CacheManager.getSettings();
-    if (!settings.resendApiKey || !settings.resendApiKey.trim()) {
-      const resendWarning = document.getElementById('resend-warning-box');
-      if (resendWarning) resendWarning.style.display = 'block';
-
-      this.showToast('⚠️ Clé Resend requise : configurez-la dans Paramètres ⚙️ pour envoyer les emails.');
-
-      // Automatically open settings drawer to guide user
-      const inviteDrawer = document.getElementById('invite-drawer');
-      const settingsDrawer = document.getElementById('settings-drawer');
-      inviteDrawer?.classList.remove('open');
-      settingsDrawer?.classList.add('open');
-      this.setPersistedDrawer('settings');
-      document.getElementById('input-resend-key')?.focus();
-      return;
-    }
-
     if (btnSend) {
       btnSend.disabled = true;
-      btnSend.textContent = 'Envoi...';
+      btnSend.textContent = 'Enregistrement...';
     }
 
-    // Register member via background and dispatch email exclusively via Resend
+    // Register member in project security policy
     chrome.runtime.sendMessage(
       {
         type: 'INVITE_MEMBER',
@@ -536,17 +455,48 @@ class PopupController {
         void chrome.runtime.lastError;
         if (btnSend) {
           btnSend.disabled = false;
-          btnSend.textContent = 'Inviter';
+          btnSend.textContent = 'Autoriser & Préparer';
         }
 
         if (res && res.member) {
-          if (res.emailSent) {
-            inputEmail.value = '';
-            await this.loadInvitedMembers();
-            this.showToast(`✓ Invitation envoyée avec succès par email à ${email} !`);
+          const member: ProjectMember = res.member;
+          await this.loadInvitedMembers();
+
+          // Generate HTML email for this specific member
+          const emailHtml = generateInviteEmailHtml({
+            recipientEmail: email,
+            invitedByName: this.currentAuthorName,
+            pageUrl: this.currentTabUrl!,
+            authCode: member.authCode
+          });
+
+          // Automatically copy formatted HTML email to clipboard for instant pasting into Gmail / Outlook
+          let copied = false;
+          try {
+            if (navigator.clipboard && window.ClipboardItem) {
+              const blobHtml = new Blob([emailHtml], { type: 'text/html' });
+              const blobText = new Blob([this.currentTabUrl!], { type: 'text/plain' });
+              await navigator.clipboard.write([
+                new ClipboardItem({
+                  'text/html': blobHtml,
+                  'text/plain': blobText
+                })
+              ]);
+              copied = true;
+            } else {
+              await navigator.clipboard.writeText(emailHtml);
+              copied = true;
+            }
+          } catch {
+            copied = false;
+          }
+
+          inputEmail.value = '';
+
+          if (copied) {
+            this.showToast(`✓ Accès autorisé pour ${email} ! L'email complet est copié dans le presse-papier : collez-le dans Gmail ou Outlook.`);
           } else {
-            const errDetail = res.emailError || 'Erreur lors de l\'envoi';
-            this.showToast(`⚠️ Erreur Resend : ${errDetail}`);
+            this.showToast(`✓ Accès autorisé pour ${email} ! Cliquez sur "Copier Email (HTML)" pour l'envoyer.`);
           }
         } else {
           this.showToast(`⚠️ Erreur : ${res?.error || 'Impossible d\'enregistrer le membre'}`);
@@ -558,8 +508,14 @@ class PopupController {
   private async handleCopyHtmlEmail() {
     if (!this.currentTabUrl || !this.currentUrlHash) return;
 
+    const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
+    const typedEmail = inputEmail?.value.trim().toLowerCase();
+    const recipientEmail = typedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail)
+      ? typedEmail
+      : 'collaborateur@entreprise.com';
+
     const emailHtml = generateInviteEmailHtml({
-      recipientEmail: 'collaborateur@entreprise.com',
+      recipientEmail,
       invitedByName: this.currentAuthorName,
       pageUrl: this.currentTabUrl,
       authCode: 'cw_auth_join'
@@ -578,15 +534,21 @@ class PopupController {
       } else {
         await navigator.clipboard.writeText(emailHtml);
       }
-      this.showToast('Email HTML copié ! Prêt à coller dans votre client mail.');
+      this.showToast('✓ Email HTML copié ! Ouvrez un nouvel email dans Gmail / Outlook et faites Ctrl+V.');
     } catch {
       await navigator.clipboard.writeText(emailHtml);
-      this.showToast('Code HTML copié !');
+      this.showToast('✓ Code de l\'email copié !');
     }
   }
 
   private async handleCopyInviteLink() {
     if (!this.currentTabUrl || !this.currentUrlHash) return;
+
+    const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
+    const typedEmail = inputEmail?.value.trim().toLowerCase();
+    const emailMention = typedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail)
+      ? ` (lié à ${typedEmail})`
+      : '';
 
     const inviteText =
       `Bonjour,\n\n` +
@@ -595,11 +557,11 @@ class PopupController {
       `Procédure d'installation (30 secondes) :\n` +
       `1. Téléchargez l'extension : https://github.com/kiou98/Commyweb/releases/latest\n` +
       `2. Sur chrome://extensions/, activez "Mode développeur" et chargez le dossier décompressé.\n` +
-      `3. Ouvrez la page web et indiquez votre adresse email : vous retrouvez alors automatiquement tous les commentaires de l'équipe sur le site !\n` +
+      `3. Ouvrez la page web et indiquez votre adresse email${emailMention} : vous retrouvez alors automatiquement tous les commentaires de l'équipe sur le site !\n` +
       `4. Faites un clic droit (ou Alt + C) n'importe où pour commenter comme dans Figma.`;
 
     await navigator.clipboard.writeText(inviteText);
-    this.showToast('Message d\'invitation copié ! Prêt à envoyer par Slack/Teams/Email.');
+    this.showToast('✓ Message et lien d\'invitation copiés pour Slack / Teams / SMS !');
   }
 
   private showToast(msg: string) {
@@ -609,7 +571,7 @@ class PopupController {
       toast.style.display = 'block';
       setTimeout(() => {
         toast.style.display = 'none';
-      }, 3500);
+      }, 4500);
     }
   }
 
@@ -649,10 +611,13 @@ class PopupController {
               <span class="member-email" style="${isRevoked ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${escapeHtml(member.email)}</span>
               <span class="member-status">${isRevoked ? '⚠️ Révoqué' : '✓ Autorisé'} • ${formatRelativeTime(member.addedAt)}</span>
             </div>
-            <div>
+            <div style="display: flex; align-items: center; gap: 4px;">
               ${
                 !isRevoked
                   ? `
+                <button class="btn-copy-member-email" data-email="${escapeHtml(member.email)}" data-code="${member.authCode}" title="Copier l'email d'invitation pour ce membre" style="background: none; border: 1px solid #e4e4e7; border-radius: 6px; padding: 3px 6px; font-size: 10px; font-weight: 700; cursor: pointer; color: #000000;">
+                  ✉️ Copier
+                </button>
                 <button class="btn-revoke" data-id="${member.id}" style="background: none; border: 1px solid #e4e4e7; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; cursor: pointer; color: #000000; transition: all 0.15s;">
                   Révoquer
                 </button>
@@ -663,6 +628,33 @@ class PopupController {
               }
             </div>
           `;
+
+          const btnCopyMember = chip.querySelector('.btn-copy-member-email') as HTMLButtonElement;
+          btnCopyMember?.addEventListener('click', async () => {
+            const memberEmail = btnCopyMember.getAttribute('data-email') || member.email;
+            const authCode = btnCopyMember.getAttribute('data-code') || member.authCode;
+            const html = generateInviteEmailHtml({
+              recipientEmail: memberEmail,
+              invitedByName: this.currentAuthorName,
+              pageUrl: this.currentTabUrl!,
+              authCode
+            });
+            try {
+              if (navigator.clipboard && window.ClipboardItem) {
+                const blobHtml = new Blob([html], { type: 'text/html' });
+                const blobText = new Blob([this.currentTabUrl!], { type: 'text/plain' });
+                await navigator.clipboard.write([
+                  new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })
+                ]);
+              } else {
+                await navigator.clipboard.writeText(html);
+              }
+              this.showToast(`✓ Email copié pour ${memberEmail} ! Collez-le dans Gmail/Outlook.`);
+            } catch {
+              await navigator.clipboard.writeText(html);
+              this.showToast(`✓ Email copié pour ${memberEmail} !`);
+            }
+          });
 
           const btnRevoke = chip.querySelector('.btn-revoke');
           btnRevoke?.addEventListener('click', () => {

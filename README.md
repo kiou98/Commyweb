@@ -28,8 +28,8 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 - 🎯 **Figma-style Spatial Pinning:** Pins stay perfectly anchored to specific DOM elements, maintaining their exact relative position even during page resizing and scrolling.
 - 💬 **Threaded Conversations:** Reply to comments in chronological order with author avatars and timestamps.
 - ✅ **Resolve & Archive:** Clean up the view by marking discussions as resolved. Toggle between active and archived threads at any time.
-- ✉️ **Automated Resend Email Invites & Magic Links:** Invite collaborators by email automatically via the official [Resend](https://resend.com) API, or copy direct authorization links.
-- 🔒 **Masked API Keys (Eye Toggle):** Sensitive tokens (GitHub PAT & Resend API Key) are masked by default (`••••••••`) with status indicators and an eye toggle button to reveal/hide on demand.
+- ✉️ **One-Click HTML Email & Magic Links:** Authorize members and copy complete, beautifully formatted invite emails (with install guide) directly into Gmail, Outlook, Slack, or Teams.
+- 🔒 **Masked GitHub Token (Eye Toggle):** Your GitHub PAT is securely masked by default (`••••••••`) with status indicators and an eye toggle button to reveal/hide on demand.
 - 🎯 **Restricted Project & URL Scoping:** Built-in team isolation ensures invited collaborators are scoped specifically to the current project repository and the target page URL.
 - 🚫 **Member Revocation:** Any authorized project member can revoke any other collaborator directly from the popup.
 - ⚡ **Zero Database Required (No-DB):** Powered by GitHub's API (Issues/Discussions). Zero database servers to configure, maintain, or pay for. Works 100% offline/locally if no GitHub account is connected.
@@ -42,7 +42,7 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 
 ## 🚀 Quick Install (30 Seconds, No Coding Needed)
 
-1. Download the latest [**commyweb-extension-v1.3.2.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.3.2.zip) (or [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
+1. Download the latest [**commyweb-extension-v1.4.0.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.4.0.zip) (or [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
 2. Unzip the file on your computer.
 3. Open Google Chrome (or Brave, Edge, Opera) and navigate to `chrome://extensions/`.
 4. Turn **ON** the **Developer mode** toggle in the top-right corner.
@@ -78,10 +78,10 @@ Commyweb uses a **Zero-Database (No-DB)** architecture designed for complete pri
 
 ## 👥 Who Needs An Account? (Zero-Friction for Collaborators)
 
-| Role | Needs GitHub Account? | Needs Resend Account? | Responsibility |
-| :--- | :---: | :---: | :--- |
-| **👑 You (Project Admin)** | **Yes** (1 token to link your private repository) | **Optional** (only if you want 100% automated invite emails) | Hosts collaborative threads safely in a free private repo. |
-| **🚀 Your Collaborators / Clients** | ❌ **NONE** | ❌ **NONE** | They click your invite, install the extension, and comment directly like in Figma! |
+| Role | Needs GitHub Account? | Responsibility |
+| :--- | :---: | :--- |
+| **👑 You (Project Admin)** | **Yes** (1 token to link your private repository) | Hosts collaborative threads safely in a free private repo. |
+| **🚀 Your Collaborators / Clients** | ❌ **NONE** | They click your invite, install the extension, and comment directly like in Figma! |
 
 > 🔒 **Zero setup for your team:** Collaborators never need to create an account, password, or sign up for anything.
 
@@ -120,7 +120,6 @@ To share comments across your team without hosting a database:
    - Click the **Settings ⚙️** icon in the extension popup.
    - Paste your token into **GitHub Token** (securely masked with eye toggle).
    - Enter your repository in **Storage Repository** (`owner/repo`).
-   - *(Optional)* Add your free **Resend API Key** (`re_...` from [resend.com/api-keys](https://resend.com/api-keys)) to send automated invitation emails.
 4. **Click "Save Settings":** Everything is now synchronized in real-time across your team!
 
 ---

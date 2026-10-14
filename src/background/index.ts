@@ -1,6 +1,5 @@
 import { CacheManager } from '../storage/cache';
 import { GitHubBackend } from '../storage/github';
-import { ResendService } from '../services/resend';
 import { ExtensionMessage } from '../types';
 
 /**
@@ -161,25 +160,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           const { urlHash, url, email, addedBy } = message.payload || {};
           if (urlHash && email) {
             const member = await CacheManager.addOrInviteMember(urlHash, url || '', email, addedBy);
-            
-            // Attempt automatic email dispatch via Resend
-            let emailSent = false;
-            let emailError: string | undefined = undefined;
-
-            if (settings.resendApiKey) {
-              const resendResult = await ResendService.sendInviteEmail(settings, {
-                recipientEmail: email,
-                invitedByName: addedBy || 'Vincent',
-                pageUrl: url || '',
-                authCode: member.authCode
-              });
-              emailSent = resendResult.success;
-              emailError = resendResult.error;
-            } else {
-              emailError = 'NO_API_KEY';
-            }
-
-            sendResponse({ success: true, member, emailSent, emailError });
+            sendResponse({ success: true, member });
           } else {
             sendResponse({ error: 'Missing email or urlHash' });
           }
