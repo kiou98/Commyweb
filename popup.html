@@ -73,6 +73,11 @@
         </div>
       </div>
 
+      <div id="warn-admin-unconfigured" style="display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 12px; font-size: 11.5px; line-height: 1.45; color: #991b1b; margin-bottom: 10px;">
+        ⚠️ <strong>Dépôt GitHub non configuré :</strong><br>
+        Renseignez d'abord votre GitHub Token et votre Dépôt dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour que vos invités soient connectés automatiquement au projet.
+      </div>
+
       <div style="font-size: 11.5px; color: #3f3f46; line-height: 1.45;">
         Ajoutez l'adresse email de votre collaborateur pour autoriser son accès, puis copiez l'invitation pour l'envoyer depuis votre boîte mail (Gmail, Outlook...) ou Slack :
       </div>
@@ -207,6 +212,26 @@
       </div>
 
       <button class="btn-black" id="btn-save-settings" style="margin-top: 4px;">Enregistrer les paramètres</button>
+    </div>
+
+    <!-- Quick Join Box for Invited Collaborators -->
+    <div id="join-project-card" style="display: none; margin: 10px 16px 6px; background: #000000; color: #ffffff; border-radius: 10px; padding: 12px 14px;">
+      <div style="font-size: 12px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+        <span>🔗 Rejoindre un projet d'équipe</span>
+      </div>
+      <div style="font-size: 11px; color: #d4d4d8; margin-bottom: 8px; line-height: 1.4;">
+        Vous avez reçu une invitation ? Collez simplement le lien d'invitation ci-dessous :
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <input type="text" class="input-text" id="input-join-link" placeholder="Collez le lien https://...#commyweb_config=..." style="flex: 1; background: #ffffff; color: #000000; font-size: 11px; padding: 6px 8px;" />
+        <button class="btn-black" id="btn-join-project" style="background: #ffffff; color: #000000; font-size: 11px; padding: 6px 12px; font-weight: 800; border: none; white-space: nowrap; cursor: pointer;">Rejoindre</button>
+      </div>
+    </div>
+
+    <!-- Collaborator Connected Banner -->
+    <div id="collaborator-banner" style="display: none; margin: 8px 16px 4px; background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 8px; padding: 8px 12px; font-size: 11.5px; display: flex; align-items: center; justify-content: space-between;">
+      <span>🚀 <strong>Mode Collaborateur :</strong> Connecté au projet</span>
+      <span class="key-status-badge configured" style="font-size: 10px;">● Connecté</span>
     </div>
 
     <!-- Filters Tabs -->

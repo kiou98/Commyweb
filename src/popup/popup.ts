@@ -2,7 +2,7 @@ import { WebComment, UserSettings, Author, ProjectMember } from '../types';
 import { normalizeUrl, hashUrl, escapeHtml, getUserColor } from '../utils/security';
 import { formatRelativeTime, t } from '../utils/i18n';
 import { CacheManager } from '../storage/cache';
-import { generateInviteEmailHtml, encodeProjectConfig } from '../utils/email-template';
+import { generateInviteEmailHtml, encodeProjectConfig, decodeProjectConfig } from '../utils/email-template';
 
 class PopupController {
   private currentTabId?: number;
@@ -147,6 +147,13 @@ class PopupController {
     const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
     const badgeGithub = document.getElementById('badge-github-status');
     const scopeRepoEl = document.getElementById('scope-repo-name');
+    const joinCard = document.getElementById('join-project-card');
+    const collabBanner = document.getElementById('collaborator-banner');
+    const warnUnconfigured = document.getElementById('warn-admin-unconfigured');
+
+    const hasRepo = Boolean(settings.storageRepo && settings.storageRepo.trim());
+    const hasToken = Boolean(settings.githubToken && settings.githubToken.trim());
+    const isConfigured = hasRepo && hasToken;
 
     if (tokenInput && settings.githubToken) {
       tokenInput.value = settings.githubToken;
@@ -166,6 +173,17 @@ class PopupController {
     }
     if (scopeRepoEl) {
       scopeRepoEl.textContent = userRepo ? userRepo : 'Non configuré';
+    }
+
+    // Toggle quick join card & collaborator banner
+    if (joinCard) {
+      joinCard.style.display = isConfigured ? 'none' : 'block';
+    }
+    if (warnUnconfigured) {
+      warnUnconfigured.style.display = isConfigured ? 'none' : 'block';
+    }
+    if (collabBanner) {
+      collabBanner.style.display = (isConfigured && settings.userRole === 'collaborator') ? 'flex' : 'none';
     }
 
     chrome.storage.local.get(['commyweb_user'], (res) => {
@@ -411,6 +429,67 @@ class PopupController {
       this.setPersistedDrawer(null);
     });
 
+    // Click on warning link in invite drawer opens settings
+    const linkOpenSettings = document.getElementById('link-open-settings');
+    linkOpenSettings?.addEventListener('click', (e) => {
+      e.preventDefault();
+      settingsDrawer?.classList.add('open');
+      inviteDrawer?.classList.remove('open');
+      this.setPersistedDrawer('settings');
+    });
+
+    // Quick Join Project handler
+    const btnJoinProject = document.getElementById('btn-join-project');
+    const inputJoinLink = document.getElementById('input-join-link') as HTMLInputElement;
+    const handleQuickJoin = async () => {
+      const raw = inputJoinLink?.value.trim();
+      if (!raw) return;
+
+      let configStr = raw;
+      if (raw.includes('commyweb_config=')) {
+        try {
+          const urlObj = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+          const hash = urlObj.hash || '';
+          const params = new URLSearchParams(hash.startsWith('#') ? hash.substring(1) : hash);
+          configStr = params.get('commyweb_config') || raw;
+        } catch {
+          const match = raw.match(/commyweb_config=([^&#\s]+)/);
+          if (match) configStr = match[1];
+        }
+      }
+
+      const config = decodeProjectConfig(configStr);
+      if (config && (config.repo || config.token)) {
+        chrome.runtime.sendMessage({
+          type: 'AUTO_CONFIGURE_PROJECT',
+          payload: {
+            repo: config.repo,
+            token: config.token,
+            email: config.email,
+            url: this.currentTabUrl,
+            authCode: config.authCode
+          }
+        }, async (res) => {
+          void chrome.runtime.lastError;
+          if (res?.success) {
+            await this.loadSettings();
+            await this.fetchComments();
+            this.showToast('✓ Connecté au projet avec succès !');
+            if (inputJoinLink) inputJoinLink.value = '';
+          } else {
+            this.showToast('⚠️ Impossible de configurer ce projet.');
+          }
+        });
+      } else {
+        this.showToast('⚠️ Lien ou code d\'invitation invalide.');
+      }
+    };
+
+    btnJoinProject?.addEventListener('click', handleQuickJoin);
+    inputJoinLink?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleQuickJoin();
+    });
+
     // Filter Tabs (does NOT close settings drawer)
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach((tab) => {
@@ -434,6 +513,17 @@ class PopupController {
     }
 
     if (!this.currentUrlHash || !this.currentTabUrl) return;
+
+    const settings = await CacheManager.getSettings();
+    if (!settings.storageRepo || !settings.githubToken) {
+      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️ avant d\'inviter.');
+      const settingsDrawer = document.getElementById('settings-drawer');
+      const inviteDrawer = document.getElementById('invite-drawer');
+      settingsDrawer?.classList.add('open');
+      inviteDrawer?.classList.remove('open');
+      this.setPersistedDrawer('settings');
+      return;
+    }
 
     if (btnSend) {
       btnSend.disabled = true;
@@ -519,6 +609,15 @@ class PopupController {
       : 'collaborateur@entreprise.com';
 
     const settings = await CacheManager.getSettings();
+    if (!settings.storageRepo || !settings.githubToken) {
+      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️ avant de copier l\'invitation.');
+      const settingsDrawer = document.getElementById('settings-drawer');
+      const inviteDrawer = document.getElementById('invite-drawer');
+      settingsDrawer?.classList.add('open');
+      inviteDrawer?.classList.remove('open');
+      this.setPersistedDrawer('settings');
+      return;
+    }
 
     const emailHtml = generateInviteEmailHtml({
       recipientEmail,
@@ -559,6 +658,16 @@ class PopupController {
       : 'collaborateur@domaine.com';
 
     const settings = await CacheManager.getSettings();
+    if (!settings.storageRepo || !settings.githubToken) {
+      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️ avant de copier l\'invitation.');
+      const settingsDrawer = document.getElementById('settings-drawer');
+      const inviteDrawer = document.getElementById('invite-drawer');
+      settingsDrawer?.classList.add('open');
+      inviteDrawer?.classList.remove('open');
+      this.setPersistedDrawer('settings');
+      return;
+    }
+
     const encodedConfig = encodeProjectConfig({
       repo: settings.storageRepo,
       token: settings.githubToken,

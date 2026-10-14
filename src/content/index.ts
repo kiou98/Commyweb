@@ -70,6 +70,11 @@ class CommywebContentApp {
       this.loadComments();
     });
 
+    // Listen to hash changes (e.g. if link is clicked or pasted on active tab)
+    window.addEventListener('hashchange', () => {
+      this.checkMagicJoinLink();
+    });
+
     // Background poll every 15 seconds if comment mode is active
     setInterval(() => {
       if (this.isCommentModeActive && !this.activePin) {
@@ -82,12 +87,19 @@ class CommywebContentApp {
    * Magic auto-configuration & invite join link handler
    */
   private checkMagicJoinLink() {
-    const hash = window.location.hash;
-    if (!hash) return;
+    const rawHash = window.location.hash || '';
+    if (!rawHash) return;
 
-    if (hash.includes('commyweb_config=')) {
-      const params = new URLSearchParams(hash.substring(1));
-      const configStr = params.get('commyweb_config');
+    if (rawHash.includes('commyweb_config=')) {
+      let configStr = '';
+      const match = rawHash.match(/commyweb_config=([^&#\s]+)/);
+      if (match) {
+        configStr = match[1];
+      } else {
+        const params = new URLSearchParams(rawHash.substring(1));
+        configStr = params.get('commyweb_config') || '';
+      }
+
       if (configStr) {
         const config = decodeProjectConfig(configStr);
         if (config) {
@@ -117,8 +129,8 @@ class CommywebContentApp {
       }
     }
 
-    if (hash.includes('commyweb_join=')) {
-      const params = new URLSearchParams(hash.substring(1));
+    if (rawHash.includes('commyweb_join=')) {
+      const params = new URLSearchParams(rawHash.substring(1));
       const code = params.get('commyweb_join');
       const email = params.get('email');
 
