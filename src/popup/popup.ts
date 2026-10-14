@@ -590,12 +590,13 @@ class PopupController {
 
     const inviteText =
       `Bonjour,\n\n` +
-      `${this.currentAuthorName} vous invite à réviser et commenter la page suivante avec l'extension Commyweb :\n` +
+      `${this.currentAuthorName} vous invite à collaborer et annoter la page web suivante avec l'extension Commyweb :\n` +
       `👉 ${this.currentTabUrl}\n\n` +
-      `Guide express (30s) :\n` +
+      `Procédure d'installation (30 secondes) :\n` +
       `1. Téléchargez l'extension : https://github.com/kiou98/Commyweb/releases/latest\n` +
       `2. Sur chrome://extensions/, activez "Mode développeur" et chargez le dossier décompressé.\n` +
-      `3. Rendez-vous sur la page web. Appuyez sur Alt + C (ou faites un clic droit) pour commenter comme dans Figma !`;
+      `3. Ouvrez la page web et indiquez votre adresse email : vous retrouvez alors automatiquement tous les commentaires de l'équipe sur le site !\n` +
+      `4. Faites un clic droit (ou Alt + C) n'importe où pour commenter comme dans Figma.`;
 
     await navigator.clipboard.writeText(inviteText);
     this.showToast('Message d\'invitation copié ! Prêt à envoyer par Slack/Teams/Email.');

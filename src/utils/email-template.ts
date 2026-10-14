@@ -179,39 +179,54 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
         <td class="content">
           <h2 class="headline">Vous avez été invité à collaborer</h2>
           <p>Bonjour,</p>
-          <p><strong>${invitedByName}</strong> vous a invité à réviser et commenter la page web suivante avec l'extension <strong>Commyweb</strong> :</p>
+          <p><strong>${invitedByName}</strong> vous invite à réviser et annoter la page web suivante avec l'extension <strong>Commyweb</strong> :</p>
           
           <div class="target-box">
-            👉 ${pageUrl}
+            👉 <a href="${magicLink}" target="_blank" style="color: #000000; text-decoration: none; font-weight: 700;">${pageUrl}</a>
           </div>
 
-          <p style="text-align: center; margin: 32px 0;">
+          <div style="margin-bottom: 24px; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 14px; font-size: 13px;">
+            🔑 <strong>Accès réservé pour :</strong> <code style="background: #ffffff; border: 1px solid #d4d4d8; padding: 2px 6px; border-radius: 4px; font-weight: 700;">${recipientEmail}</code><br>
+            <span style="font-size: 12px; color: #52525b;">En ouvrant la page avec votre email, vous retrouvez automatiquement tous les commentaires de l'équipe déjà présents sur le site.</span>
+          </div>
+
+          <p style="text-align: center; margin: 28px 0;">
             <a href="${magicLink}" class="cta-button" target="_blank">
-              Autoriser mon accès &amp; Rejoindre le projet →
+              Rejoindre le projet &amp; Voir les commentaires →
             </a>
           </p>
 
           <!-- Guide d'installation et utilisation simple -->
           <div class="steps-section">
-            <div class="step-title">Guide d'installation express (30 secondes)</div>
+            <div class="step-title">Procédure d'installation du plugin Commyweb (30 secondes)</div>
 
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 10px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
               <tr>
-                <td width="28" valign="top" style="font-weight: 800; color: #000000;">1.</td>
-                <td style="font-size: 13px; color: #18181b; padding-bottom: 12px;">
-                  <strong>Téléchargez l'extension :</strong> Cliquez sur <a href="${releaseZipUrl}" style="color: #000000; font-weight: 700; text-decoration: underline;">commyweb-extension.zip</a> et décompressez le dossier.
+                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">1.</td>
+                <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
+                  <strong>Téléchargez l'extension :</strong><br>
+                  Téléchargez <a href="${releaseZipUrl}" style="color: #000000; font-weight: 700; text-decoration: underline;">commyweb-extension.zip ↗</a> et décompressez le dossier sur votre ordinateur.
                 </td>
               </tr>
               <tr>
-                <td width="28" valign="top" style="font-weight: 800; color: #000000;">2.</td>
-                <td style="font-size: 13px; color: #18181b; padding-bottom: 12px;">
-                  <strong>Activez dans Chrome :</strong> Allez sur <code>chrome://extensions</code>, activez le <strong>Mode développeur</strong> (en haut à droite), puis cliquez sur <strong>Charger l'extension non empaquetée</strong> et choisissez le dossier.
+                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">2.</td>
+                <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
+                  <strong>Installez dans Chrome (ou Edge / Brave) :</strong><br>
+                  Rendez-vous sur <code>chrome://extensions</code> dans votre navigateur, activez le bouton <strong>"Mode développeur"</strong> (en haut à droite), puis cliquez sur <strong>"Charger l'extension non empaquetée"</strong> et choisissez le dossier décompressé.
                 </td>
               </tr>
               <tr>
-                <td width="28" valign="top" style="font-weight: 800; color: #000000;">3.</td>
-                <td style="font-size: 13px; color: #18181b;">
-                  <strong>Commentez :</strong> Cliquez sur le bouton noir ci-dessus pour ouvrir le site. Appuyez sur <span class="kbd">Alt</span> + <span class="kbd">C</span> et cliquez n'importe où pour commenter comme dans Figma !
+                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">3.</td>
+                <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
+                  <strong>Retrouvez tous les commentaires :</strong><br>
+                  Cliquez sur le bouton noir ci-dessus pour ouvrir le site avec votre lien d'invitation lié à <code>${recipientEmail}</code>. Tous les commentaires et pastilles épinglés par l'équipe apparaissent automatiquement sur la page !
+                </td>
+              </tr>
+              <tr>
+                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">4.</td>
+                <td style="font-size: 13.5px; color: #18181b; line-height: 1.5;">
+                  <strong>Commentez comme dans Figma :</strong><br>
+                  Pour ajouter vos propres retours : faites simplement un <strong>clic droit</strong> sur n'importe quel élément de la page (ou appuyez sur <span class="kbd">Alt</span> + <span class="kbd">C</span>), saisissez votre remarque et envoyez !
                 </td>
               </tr>
             </table>
