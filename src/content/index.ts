@@ -141,7 +141,7 @@ class CommywebContentApp {
             void chrome.runtime.lastError;
             // Clean hash immediately from the browser address bar
             window.history.replaceState(null, '', window.location.pathname + window.location.search);
-            this.showJoinSuccessBanner(config.email || 'Collaborateur');
+            this.showJoinSuccessBanner(config.email || 'Collaborateur', config.repo);
             this.loadCurrentUser();
             // Immediately reload comments now that repo & token are auto-configured
             setTimeout(() => {
@@ -178,7 +178,7 @@ class CommywebContentApp {
     }
   }
 
-  private showJoinSuccessBanner(userLabel: string) {
+  private showJoinSuccessBanner(userLabel: string, repoName?: string) {
     const banner = document.createElement('div');
     banner.style.cssText = `
       position: fixed;
@@ -198,12 +198,13 @@ class CommywebContentApp {
       font-family: 'Satoshi', sans-serif;
       animation: commyweb-fade-in 0.2s ease-out;
     `;
+    const repoText = repoName ? ` au projet <strong>${repoName}</strong>` : ' au projet d\'équipe';
     banner.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
         <polyline points="22 4 12 14.01 9 11.01"></polyline>
       </svg>
-      <span>✓ Accès autorisé ! Bienvenue sur le projet (${userLabel})</span>
+      <span>✓ Connecté${repoText} (${userLabel})</span>
     `;
 
     this.shadowHost.shadowRoot.appendChild(banner);

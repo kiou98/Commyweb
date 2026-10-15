@@ -219,6 +219,29 @@ class PopupController {
       scopeRepoEl.textContent = settings.storageRepo || 'Non configuré';
     }
 
+    const statusDot = document.getElementById('project-status-dot');
+    const statusRepo = document.getElementById('project-status-repo');
+    const statusTag = document.getElementById('project-status-tag');
+
+    if (statusRepo) {
+      statusRepo.textContent = settings.storageRepo || 'Non connecté';
+      statusRepo.title = settings.storageRepo ? `Projet GitHub : ${settings.storageRepo}` : 'Aucun projet connecté';
+    }
+
+    if (statusDot && statusTag) {
+      if (isConfigured) {
+        statusDot.style.background = '#16a34a';
+        statusTag.textContent = '● Synchronisé';
+        statusTag.style.background = '#dcfce7';
+        statusTag.style.color = '#15803d';
+      } else {
+        statusDot.style.background = '#dc2626';
+        statusTag.textContent = 'Non connecté';
+        statusTag.style.background = '#fee2e2';
+        statusTag.style.color = '#991b1b';
+      }
+    }
+
     if (badgeGithub) {
       if (hasToken) {
         badgeGithub.textContent = '● Configuré';
