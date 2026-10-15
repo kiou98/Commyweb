@@ -87,6 +87,21 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
+function broadcastCommentsUpdated(urlHash?: string) {
+  chrome.tabs.query({}, (tabs) => {
+    for (const tab of tabs) {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'COMMENTS_UPDATED',
+          payload: { urlHash }
+        }, () => {
+          void chrome.runtime.lastError;
+        });
+      }
+    }
+  });
+}
+
 // Central message broker
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
   (async () => {
@@ -104,8 +119,9 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         case 'ADD_COMMENT': {
           const comment = message.payload?.comment;
           if (comment) {
-            await GitHubBackend.saveComment(settings, comment);
-            sendResponse({ success: true });
+            const res = await GitHubBackend.saveComment(settings, comment);
+            broadcastCommentsUpdated(comment.urlHash);
+            sendResponse(res);
           }
           break;
         }
@@ -120,6 +136,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               comment.updatedAt = new Date().toISOString();
               await CacheManager.saveCommentsForUrl(urlHash, comments);
               await GitHubBackend.updateCommentAnchor(settings, comment);
+              broadcastCommentsUpdated(urlHash);
             }
             sendResponse({ success: true });
           } else {
@@ -132,6 +149,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           const { commentId, urlHash, reply } = message.payload || {};
           if (commentId && urlHash && reply) {
             await GitHubBackend.addReply(settings, commentId, urlHash, reply);
+            broadcastCommentsUpdated(urlHash);
             sendResponse({ success: true });
           }
           break;
@@ -141,6 +159,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           const { commentId, urlHash } = message.payload || {};
           if (commentId && urlHash) {
             const isResolved = await GitHubBackend.toggleResolve(settings, commentId, urlHash);
+            broadcastCommentsUpdated(urlHash);
             sendResponse({ success: true, isResolved });
           }
           break;
@@ -232,6 +251,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               }
             }
 
+            broadcastCommentsUpdated();
             sendResponse({ success: true });
           } else {
             sendResponse({ success: false });

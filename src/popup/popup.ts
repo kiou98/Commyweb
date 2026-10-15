@@ -12,6 +12,7 @@ class PopupController {
   private activeFilter: 'all' | 'open' | 'resolved' = 'all';
   private currentAuthorName: string = 'Vincent';
   private autoSaveTimer?: number;
+  private pollTimer?: number;
 
   constructor() {
     this.init();
@@ -25,6 +26,24 @@ class PopupController {
     await this.loadInvitedMembers();
     this.setupEventListeners();
     await this.fetchComments();
+
+    // Real-time polling while popup is open (every 2.5s)
+    this.pollTimer = window.setInterval(() => {
+      this.fetchComments();
+    }, 2500);
+
+    // Listen to background broadcast events
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'COMMENTS_UPDATED') {
+        if (!message.payload?.urlHash || message.payload.urlHash === this.currentUrlHash) {
+          this.fetchComments();
+        }
+      }
+    });
+
+    window.addEventListener('unload', () => {
+      if (this.pollTimer) clearInterval(this.pollTimer);
+    });
   }
 
   private localizeUI() {
@@ -91,11 +110,13 @@ class PopupController {
         try {
           chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
             const err = chrome.runtime.lastError;
-            if (err) return;
-
-            if (res && typeof res.isCommentModeActive === 'boolean') {
-              const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
+            const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
+            if (!err && res && typeof res.isCommentModeActive === 'boolean') {
               if (chk) chk.checked = res.isCommentModeActive;
+            } else {
+              chrome.storage.local.get(['commyweb_comment_mode'], (storageRes) => {
+                if (chk) chk.checked = typeof storageRes?.commyweb_comment_mode === 'boolean' ? storageRes.commyweb_comment_mode : true;
+              });
             }
           });
         } catch {
@@ -385,6 +406,7 @@ class PopupController {
     // Toggle Comment Mode checkbox
     const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
     chk?.addEventListener('change', () => {
+      chrome.storage.local.set({ commyweb_comment_mode: chk.checked });
       if (this.currentTabId) {
         chrome.tabs.sendMessage(this.currentTabId, { type: 'TOGGLE_COMMENT_MODE' }, () => {
           const err = chrome.runtime.lastError;

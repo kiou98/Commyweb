@@ -41,17 +41,29 @@ export class GitHubBackend {
    * Uses direct issues endpoint with labels for zero search indexing latency
    */
   static async fetchComments(settings: UserSettings, urlHash: string): Promise<WebComment[]> {
+    const cached = await CacheManager.getCommentsForUrl(urlHash);
+
     if (!settings.githubToken || !settings.storageRepo) {
-      return CacheManager.getCommentsForUrl(urlHash);
+      return cached;
     }
 
     try {
       const [owner, repo] = settings.storageRepo.split('/');
       if (!owner || !repo) {
-        return CacheManager.getCommentsForUrl(urlHash);
+        return cached;
       }
 
-      // Query direct issues API by labels (commyweb + urlHash)
+      // 1. Automatically recover and push any local comments that were not yet synced to GitHub
+      const unsynced = cached.filter(c => !c.issueNumber && c.status !== 'resolved');
+      for (const pendingComment of unsynced) {
+        try {
+          await this.saveComment(settings, pendingComment);
+        } catch {
+          // ignore individual sync failure
+        }
+      }
+
+      // 2. Query direct issues API by labels (commyweb + urlHash)
       // This is instant and does NOT suffer from search indexing delay
       let rawIssues: any[] = [];
       const directUrl = `https://api.github.com/repos/${owner}/${repo}/issues?labels=commyweb,${encodeURIComponent(urlHash)}&state=all&per_page=100`;
@@ -73,7 +85,7 @@ export class GitHubBackend {
         }
       }
 
-      const comments: WebComment[] = [];
+      const remoteComments: WebComment[] = [];
 
       for (const item of rawIssues) {
         try {
@@ -85,36 +97,52 @@ export class GitHubBackend {
             parsed.status = item.state === 'closed' ? 'resolved' : 'open';
             parsed.issueNumber = item.number;
             parsed.issueUrl = item.html_url;
-            comments.push(parsed);
+            remoteComments.push(parsed);
           }
         } catch {
           // ignore corrupted items
         }
       }
 
+      // Merge remote comments with any locally pending comments
+      const merged: WebComment[] = [...remoteComments];
+      for (const c of cached) {
+        if (!c.issueNumber && !merged.some(r => r.id === c.id)) {
+          merged.push(c);
+        }
+      }
+
+      // Sort comments chronologically
+      merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
       // Update local cache
-      await CacheManager.saveCommentsForUrl(urlHash, comments);
-      return comments;
+      await CacheManager.saveCommentsForUrl(urlHash, merged);
+      return merged;
     } catch (e) {
       console.warn('[Commyweb] Failed to fetch comments from GitHub, using cache:', e);
-      return CacheManager.getCommentsForUrl(urlHash);
+      return cached;
     }
   }
 
   /**
    * Save a new comment to GitHub and local cache
    */
-  static async saveComment(settings: UserSettings, comment: WebComment): Promise<void> {
-    // Save to local cache first for instant feedback
+  static async saveComment(settings: UserSettings, comment: WebComment): Promise<{ success: boolean; error?: string; issueNumber?: number }> {
+    // Save to local cache first for instant local feedback
     await CacheManager.addComment(comment);
 
     if (!settings.githubToken || !settings.storageRepo) {
-      return;
+      return {
+        success: false,
+        error: 'Projet GitHub non configuré : le commentaire est enregistré uniquement en local.'
+      };
     }
 
     try {
       const [owner, repo] = settings.storageRepo.split('/');
-      if (!owner || !repo) return;
+      if (!owner || !repo) {
+        return { success: false, error: 'Format de dépôt GitHub invalide (attendu: owner/repo).' };
+      }
 
       const title = `[Commyweb] ${comment.urlHash} - ${comment.author.name || comment.author.username} commented on ${comment.anchor.textSnippet || comment.url}`;
       const payload = JSON.stringify(comment, null, 2);
@@ -145,9 +173,21 @@ export class GitHubBackend {
           cachedList[idx] = comment;
           await CacheManager.saveCommentsForUrl(comment.urlHash, cachedList);
         }
+        return { success: true, issueNumber: issue.number };
+      } else {
+        const errText = await res.text();
+        console.error('[Commyweb] GitHub API error creating issue:', res.status, errText);
+        return {
+          success: false,
+          error: `Erreur GitHub (${res.status}) lors de l'enregistrement sur ${owner}/${repo}`
+        };
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('[Commyweb] Error syncing comment with GitHub:', e);
+      return {
+        success: false,
+        error: e.message || 'Erreur réseau lors de la synchronisation avec GitHub'
+      };
     }
   }
 

@@ -23,6 +23,7 @@ class CommywebContentApp {
   };
   private isCommentModeActive: boolean = false;
   private pendingNewAnchor: AnchorData | null = null;
+  private floatingIndicatorEl: HTMLElement | null = null;
 
   // Last right click position tracking
   private lastRightClickPoint = {
@@ -56,18 +57,35 @@ class CommywebContentApp {
     this.initMessageListener();
     this.checkMagicJoinLink();
     this.loadCurrentUser();
+
+    // Restore persisted comment mode preference (default: true so pins are immediately visible)
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['commyweb_comment_mode'], (res) => {
+        const mode = typeof res?.commyweb_comment_mode === 'boolean' ? res.commyweb_comment_mode : true;
+        this.setCommentMode(mode, false);
+      });
+    } else {
+      this.setCommentMode(true, false);
+    }
+
     this.loadComments();
     this.setupAutoSync();
   }
 
   /**
-   * Automatically polls and refreshes comments from backend periodically
+   * Automatically polls and refreshes comments from backend periodically (every 3s when visible)
    * and when the user switches back to this browser tab
    */
   private setupAutoSync() {
-    // Refresh when tab gains focus
+    // Refresh when tab gains focus or becomes visible
     window.addEventListener('focus', () => {
       this.loadComments();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        this.loadComments();
+      }
     });
 
     // Listen to hash changes (e.g. if link is clicked or pasted on active tab)
@@ -75,9 +93,16 @@ class CommywebContentApp {
       this.checkMagicJoinLink();
     });
 
-    // Background poll every 15 seconds if comment mode is active
+    // Real-time fast background poll (every 3 seconds when tab is active/visible)
     setInterval(() => {
-      if (this.isCommentModeActive && !this.activePin) {
+      if (!this.activePin && !document.hidden) {
+        this.loadComments();
+      }
+    }, 3000);
+
+    // Fallback poll (every 15 seconds when tab is hidden)
+    setInterval(() => {
+      if (!this.activePin && document.hidden) {
         this.loadComments();
       }
     }, 15000);
@@ -257,6 +282,12 @@ class CommywebContentApp {
         } else if (message.type === 'SYNC_COMMENTS') {
           this.loadComments();
           sendResponse({ success: true });
+        } else if (message.type === 'COMMENTS_UPDATED') {
+          const targetHash = message.payload?.urlHash;
+          if (!targetHash || targetHash === this.currentUrlHash) {
+            this.loadComments();
+          }
+          sendResponse({ success: true });
         } else if (message.type === 'FOCUS_COMMENT') {
           const commentId = message.payload?.commentId;
           if (commentId) this.focusComment(commentId);
@@ -289,15 +320,19 @@ class CommywebContentApp {
     this.threadModal.renderNewCommentBox(clickPageX, clickPageY);
   }
 
-  public setCommentMode(active: boolean) {
+  public setCommentMode(active: boolean, persist: boolean = true) {
     this.isCommentModeActive = active;
     this.cursorManager.setActive(active);
+
+    if (persist && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ commyweb_comment_mode: active });
+    }
 
     if (active) {
       this.closeActiveModal();
       this.loadComments();
     }
-    // Only display comment pins when comment mode is active
+    // Update pins and floating indicator
     this.renderAllPins();
   }
 
@@ -341,6 +376,14 @@ class CommywebContentApp {
     chrome.runtime.sendMessage({
       type: 'ADD_COMMENT',
       payload: { comment: newComment }
+    }, (res) => {
+      void chrome.runtime.lastError;
+      if (res && res.error) {
+        this.showToastBanner(`⚠️ ${res.error}`, '#991b1b');
+      } else {
+        this.showToastBanner('✓ Commentaire synchronisé sur GitHub !', '#000000');
+        this.loadComments();
+      }
     });
   }
 
@@ -395,6 +438,8 @@ class CommywebContentApp {
       this.threadModal.renderThread(comment, x, y);
     }
 
+    this.updateFloatingIndicator();
+
     chrome.runtime.sendMessage({
       type: 'RESOLVE_COMMENT',
       payload: { commentId, urlHash: this.currentUrlHash }
@@ -405,9 +450,10 @@ class CommywebContentApp {
     this.pins.forEach(p => p.element.remove());
     this.pins.clear();
 
-    // If comment mode is NOT active, do not display any comments on the site
+    // If comment mode is NOT active, do not display pins on the site
     if (!this.isCommentModeActive) {
       this.closeActiveModal();
+      this.updateFloatingIndicator();
       return;
     }
 
@@ -417,6 +463,8 @@ class CommywebContentApp {
         this.renderPin(c, i + 1);
       }
     });
+
+    this.updateFloatingIndicator();
   }
 
   private renderPin(comment: WebComment, index: number) {
@@ -539,9 +587,11 @@ class CommywebContentApp {
     chrome.runtime.sendMessage(
       { type: 'GET_PAGE_COMMENTS', payload: { urlHash: this.currentUrlHash } },
       (response) => {
+        void chrome.runtime.lastError;
         if (response && response.comments) {
           this.comments = response.comments;
           this.renderAllPins();
+          this.updateFloatingIndicator();
         }
       }
     );
@@ -561,6 +611,96 @@ class CommywebContentApp {
           this.currentUser = changes.commyweb_user.newValue;
         }
       });
+    }
+  }
+
+  private showToastBanner(message: string, bgColor: string = '#000000') {
+    const banner = document.createElement('div');
+    banner.style.cssText = `
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: ${bgColor};
+      color: #ffffff;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Satoshi', -apple-system, sans-serif;
+      animation: commyweb-fade-in 0.2s ease-out;
+    `;
+    banner.innerHTML = `<span>${message}</span>`;
+    this.shadowHost.shadowRoot.appendChild(banner);
+    setTimeout(() => {
+      banner.style.opacity = '0';
+      banner.style.transition = 'opacity 0.4s';
+      setTimeout(() => banner.remove(), 400);
+    }, 4500);
+  }
+
+  private updateFloatingIndicator() {
+    const openComments = this.comments.filter(c => c.status !== 'resolved');
+    if (openComments.length === 0) {
+      if (this.floatingIndicatorEl) {
+        this.floatingIndicatorEl.remove();
+        this.floatingIndicatorEl = null;
+      }
+      return;
+    }
+
+    if (!this.floatingIndicatorEl) {
+      this.floatingIndicatorEl = document.createElement('div');
+      this.floatingIndicatorEl.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #000000;
+        color: #ffffff;
+        padding: 9px 16px;
+        border-radius: 20px;
+        font-size: 12.5px;
+        font-weight: 800;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+        z-index: 2147483646;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-family: 'Satoshi', -apple-system, sans-serif;
+        user-select: none;
+        transition: transform 0.15s, background 0.15s;
+      `;
+      this.floatingIndicatorEl.addEventListener('mouseenter', () => {
+        if (this.floatingIndicatorEl) this.floatingIndicatorEl.style.transform = 'scale(1.05)';
+      });
+      this.floatingIndicatorEl.addEventListener('mouseleave', () => {
+        if (this.floatingIndicatorEl) this.floatingIndicatorEl.style.transform = 'scale(1)';
+      });
+      this.floatingIndicatorEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setCommentMode(!this.isCommentModeActive);
+      });
+      this.shadowHost.shadowRoot.appendChild(this.floatingIndicatorEl);
+    }
+
+    const count = openComments.length;
+    if (this.isCommentModeActive) {
+      this.floatingIndicatorEl.innerHTML = `
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e;"></span>
+        <span>${count} commentaire${count > 1 ? 's' : ''} (Alt+C pour masquer)</span>
+      `;
+      this.floatingIndicatorEl.title = 'Cliquez ou appuyez sur Alt+C pour masquer les pastilles';
+    } else {
+      this.floatingIndicatorEl.innerHTML = `
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #eab308;"></span>
+        <span>💬 ${count} commentaire${count > 1 ? 's' : ''} sur cette page • Afficher</span>
+      `;
+      this.floatingIndicatorEl.title = 'Cliquez pour afficher les commentaires de l\'équipe';
     }
   }
 }
