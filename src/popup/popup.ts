@@ -155,29 +155,39 @@ class PopupController {
       joinCard.style.display = isConfigured ? 'none' : 'block';
     }
 
+    const hasSettings = Boolean(document.getElementById('settings-drawer'));
     if (warnUnconfigured) {
-      if (!hasRepo && !hasToken) {
-        warnUnconfigured.innerHTML = `⚠️ <strong>Configuration requise :</strong><br>Renseignez votre <strong>GitHub Token</strong> et votre <strong>Dépôt</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour inviter des collaborateurs.`;
-        warnUnconfigured.style.display = 'block';
-      } else if (!hasRepo) {
-        warnUnconfigured.innerHTML = `⚠️ <strong>Dépôt GitHub manquant :</strong><br>Indiquez le nom du <strong>Dépôt de stockage (owner/repo)</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a>.`;
-        warnUnconfigured.style.display = 'block';
-      } else if (!hasToken) {
-        warnUnconfigured.innerHTML = `⚠️ <strong>GitHub Token manquant :</strong><br>Renseignez votre <strong>GitHub Token (PAT)</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour autoriser la synchronisation.`;
-        warnUnconfigured.style.display = 'block';
+      if (!hasSettings) {
+        if (!isConfigured) {
+          warnUnconfigured.innerHTML = `⚠️ <strong>Projet non connecté :</strong><br>Ouvrez le lien reçu par email ou collez-le ci-dessous pour vous connecter au projet.`;
+          warnUnconfigured.style.display = 'block';
+        } else {
+          warnUnconfigured.style.display = 'none';
+        }
       } else {
-        warnUnconfigured.style.display = 'none';
-      }
+        if (!hasRepo && !hasToken) {
+          warnUnconfigured.innerHTML = `⚠️ <strong>Configuration requise :</strong><br>Renseignez votre <strong>GitHub Token</strong> et votre <strong>Dépôt</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour inviter des collaborateurs.`;
+          warnUnconfigured.style.display = 'block';
+        } else if (!hasRepo) {
+          warnUnconfigured.innerHTML = `⚠️ <strong>Dépôt GitHub manquant :</strong><br>Indiquez le nom du <strong>Dépôt de stockage (owner/repo)</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a>.`;
+          warnUnconfigured.style.display = 'block';
+        } else if (!hasToken) {
+          warnUnconfigured.innerHTML = `⚠️ <strong>GitHub Token manquant :</strong><br>Renseignez votre <strong>GitHub Token (PAT)</strong> dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour autoriser la synchronisation.`;
+          warnUnconfigured.style.display = 'block';
+        } else {
+          warnUnconfigured.style.display = 'none';
+        }
 
-      const link = warnUnconfigured.querySelector('#link-open-settings');
-      link?.addEventListener('click', (e) => {
-        e.preventDefault();
-        const settingsDrawer = document.getElementById('settings-drawer');
-        const inviteDrawer = document.getElementById('invite-drawer');
-        settingsDrawer?.classList.add('open');
-        inviteDrawer?.classList.remove('open');
-        this.setPersistedDrawer('settings');
-      });
+        const link = warnUnconfigured.querySelector('#link-open-settings');
+        link?.addEventListener('click', (e) => {
+          e.preventDefault();
+          const settingsDrawer = document.getElementById('settings-drawer');
+          const inviteDrawer = document.getElementById('invite-drawer');
+          settingsDrawer?.classList.add('open');
+          inviteDrawer?.classList.remove('open');
+          this.setPersistedDrawer('settings');
+        });
+      }
     }
 
     if (collabBanner) {
@@ -254,14 +264,17 @@ class PopupController {
   }
 
   private async saveSettingsData(isSilent: boolean = false) {
-    const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
-    const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
-    const userNameInput = document.getElementById('input-user-name') as HTMLInputElement;
+    const tokenInput = document.getElementById('input-github-token') as HTMLInputElement | null;
+    const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement | null;
+    const userNameInput = document.getElementById('input-user-name') as HTMLInputElement | null;
 
-    const newSettings: Partial<UserSettings> = {
-      githubToken: tokenInput?.value.trim() || undefined,
-      storageRepo: repoInput?.value.trim() || undefined
-    };
+    const newSettings: Partial<UserSettings> = {};
+    if (tokenInput) {
+      newSettings.githubToken = tokenInput.value.trim() || undefined;
+    }
+    if (repoInput) {
+      newSettings.storageRepo = repoInput.value.trim() || undefined;
+    }
 
     const newName = userNameInput?.value.trim();
     if (newName) {
@@ -410,6 +423,14 @@ class PopupController {
       this.setPersistedDrawer(isOpen ? 'invite' : null);
     });
 
+    // Click on Commyweb brand logo closes any open drawer (settings or invite) and returns to main view
+    const brandLogo = document.getElementById('brand-logo') || document.querySelector('.brand');
+    brandLogo?.addEventListener('click', () => {
+      settingsDrawer?.classList.remove('open');
+      inviteDrawer?.classList.remove('open');
+      this.setPersistedDrawer(null);
+    });
+
     // Open settings in dedicated browser tab so it never closes when switching tabs
     const btnOpenTab = document.getElementById('btn-open-settings-tab');
     btnOpenTab?.addEventListener('click', () => {
@@ -530,7 +551,12 @@ class PopupController {
     if (!this.currentUrlHash || !this.currentTabUrl) return;
 
     const settings = await CacheManager.getSettings();
+    const hasSettings = Boolean(document.getElementById('settings-drawer'));
     if (!settings.storageRepo || !settings.githubToken) {
+      if (!hasSettings) {
+        this.showToast('⚠️ Vous devez d\'abord rejoindre un projet avec le lien reçu par email.');
+        return;
+      }
       if (!settings.storageRepo && !settings.githubToken) {
         this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
       } else if (!settings.storageRepo) {
@@ -630,7 +656,12 @@ class PopupController {
       : 'collaborateur@entreprise.com';
 
     const settings = await CacheManager.getSettings();
+    const hasSettings = Boolean(document.getElementById('settings-drawer'));
     if (!settings.storageRepo || !settings.githubToken) {
+      if (!hasSettings) {
+        this.showToast('⚠️ Vous devez d\'abord rejoindre un projet avec le lien reçu par email.');
+        return;
+      }
       if (!settings.storageRepo && !settings.githubToken) {
         this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
       } else if (!settings.storageRepo) {
@@ -685,7 +716,12 @@ class PopupController {
       : 'collaborateur@domaine.com';
 
     const settings = await CacheManager.getSettings();
+    const hasSettings = Boolean(document.getElementById('settings-drawer'));
     if (!settings.storageRepo || !settings.githubToken) {
+      if (!hasSettings) {
+        this.showToast('⚠️ Vous devez d\'abord rejoindre un projet avec le lien reçu par email.');
+        return;
+      }
       if (!settings.storageRepo && !settings.githubToken) {
         this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
       } else if (!settings.storageRepo) {

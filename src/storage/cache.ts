@@ -12,7 +12,25 @@ export class CacheManager {
   static async getSettings(): Promise<UserSettings> {
     try {
       const res = await chrome.storage.local.get(this.SETTINGS_KEY);
-      return res[this.SETTINGS_KEY] || {
+      let settings = res[this.SETTINGS_KEY];
+
+      // If local storage is empty or missing storageRepo/token, try to restore from chrome.storage.sync
+      if (!settings || !settings.storageRepo || !settings.githubToken) {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+            const syncRes = await chrome.storage.sync.get(this.SETTINGS_KEY);
+            if (syncRes && syncRes[this.SETTINGS_KEY]) {
+              const syncSettings = syncRes[this.SETTINGS_KEY];
+              settings = { ...syncSettings, ...(settings || {}) };
+              await chrome.storage.local.set({ [this.SETTINGS_KEY]: settings });
+            }
+          }
+        } catch {
+          // sync may not be available in incognito or testing
+        }
+      }
+
+      return settings || {
         filterStatus: 'all',
         isCommentModeActive: false,
         storageRepo: ''
@@ -24,8 +42,23 @@ export class CacheManager {
 
   static async saveSettings(settings: Partial<UserSettings>): Promise<void> {
     const current = await this.getSettings();
-    const updated = { ...current, ...settings };
+    const cleanSettings: Partial<UserSettings> = {};
+    for (const [key, val] of Object.entries(settings)) {
+      if (val !== undefined) {
+        (cleanSettings as any)[key] = val;
+      }
+    }
+    const updated = { ...current, ...cleanSettings };
     await chrome.storage.local.set({ [this.SETTINGS_KEY]: updated });
+
+    // Also persist in chrome.storage.sync so settings survive plugin reloads, updates and new folder installs
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        await chrome.storage.sync.set({ [this.SETTINGS_KEY]: updated });
+      }
+    } catch {
+      // ignore
+    }
   }
 
   static async getCommentsForUrl(urlHash: string): Promise<WebComment[]> {

@@ -59,7 +59,7 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
     ? `${pageUrl}#commyweb_config=${encodedConfig}`
     : `${pageUrl}#commyweb_join=${authCode}&email=${encodeURIComponent(recipientEmail)}`;
   const logotypeUrl = 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/logotype.png';
-  const releaseZipUrl = 'https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip';
+  const releaseZipUrl = 'https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip';
   const releasesPageUrl = 'https://github.com/kiou98/Commyweb/releases';
 
   return `<!DOCTYPE html>
@@ -244,7 +244,7 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
                 <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">1.</td>
                 <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
                   <strong>Téléchargez l'extension :</strong><br>
-                  Téléchargez <a href="${releaseZipUrl}" style="color: #000000; font-weight: 700; text-decoration: underline;">commyweb-extension.zip ↗</a> et décompressez le dossier sur votre ordinateur.
+                  Téléchargez <a href="${releaseZipUrl}" style="color: #000000; font-weight: 700; text-decoration: underline;">commyweb-user.zip ↗</a> et décompressez le dossier sur votre ordinateur.
                 </td>
               </tr>
               <tr>

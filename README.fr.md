@@ -40,9 +40,20 @@ Commyweb transforme n'importe quelle page web en un espace de travail collaborat
 
 ---
 
-## 🚀 Installation rapide en 30 secondes (sans coder)
+## 🚀 Deux versions disponibles selon votre rôle
 
-1. Téléchargez la dernière version [**commyweb-extension-v1.4.3.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.4.3.zip) (ou [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
+Commyweb propose 2 éditions optimisées pour simplifier l'expérience au maximum :
+
+| Version | Pour qui ? | Téléchargement | Fonctionnalités |
+|---|---|---|---|
+| 👑 **Commyweb Admin** | Créateur de projet, chef d'équipe | [**commyweb-admin.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-admin.zip) | Accès complet aux **Paramètres ⚙️** (GitHub Token, Dépôt) et volet d'invitation 👥 |
+| 👥 **Commyweb Collaborateur** | Invités, collègues, clients | [**commyweb-user.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip) | **Zéro réglage technique**, pas d'icône d'engrenage, invitation 👥 et synchronisation automatique en 1 clic |
+
+### Installation en 30 secondes (sans coder)
+
+1. Téléchargez la version adaptée à votre rôle :
+   - Pour l'admin : [**commyweb-admin.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-admin.zip)
+   - Pour les collaborateurs : [**commyweb-user.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip)
 2. Décompressez le fichier zip sur votre ordinateur.
 3. Ouvrez Google Chrome (ou Brave, Edge, Opera) et accédez à `chrome://extensions/`.
 4. Activez l'interrupteur **"Mode développeur"** en haut à droite.

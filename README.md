@@ -40,9 +40,20 @@ Commyweb transforms any webpage on the internet into a collaborative canvas. Rig
 
 ---
 
-## 🚀 Quick Install (30 Seconds, No Coding Needed)
+## 🚀 Dual Edition Architecture: Choose Your Role
 
-1. Download the latest [**commyweb-extension-v1.4.3.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension-v1.4.3.zip) (or [**commyweb-extension.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-extension.zip)).
+Commyweb is split into two editions to ensure maximal simplicity and security:
+
+| Edition | Audience | Download | Features |
+|---|---|---|---|
+| 👑 **Commyweb Admin** | Project creator, team lead | [**commyweb-admin.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-admin.zip) | Full access to **Settings ⚙️** (GitHub PAT token & repository) and Collaborator Invites 👥 |
+| 👥 **Commyweb Collaborator** | Teammates, clients, guests | [**commyweb-user.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip) | **Zero settings required**, no gear icon, keeps invite 👥 and 1-click magic link auto-join |
+
+### Quick Install (30 Seconds, No Coding Needed)
+
+1. Download the version suited for your role:
+   - For Admin: [**commyweb-admin.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-admin.zip)
+   - For Collaborators / Clients: [**commyweb-user.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip)
 2. Unzip the file on your computer.
 3. Open Google Chrome (or Brave, Edge, Opera) and navigate to `chrome://extensions/`.
 4. Turn **ON** the **Developer mode** toggle in the top-right corner.
