@@ -1,5 +1,6 @@
 import { WebComment, UserSettings, ProjectMember, ProjectSecurityPolicy } from '../types';
 import { generateId } from '../utils/security';
+import { parseGitHubRepo } from '../utils/github-parser';
 
 /**
  * Local cache & security policy manager using chrome.storage.local
@@ -30,6 +31,14 @@ export class CacheManager {
         }
       }
 
+      if (settings && settings.storageRepo) {
+        const parsed = parseGitHubRepo(settings.storageRepo);
+        if (parsed && settings.storageRepo !== parsed.fullName) {
+          settings.storageRepo = parsed.fullName;
+          chrome.storage.local.set({ [this.SETTINGS_KEY]: settings }).catch(() => {});
+        }
+      }
+
       return settings || {
         filterStatus: 'all',
         isCommentModeActive: false,
@@ -46,6 +55,12 @@ export class CacheManager {
     for (const [key, val] of Object.entries(settings)) {
       if (val !== undefined) {
         (cleanSettings as any)[key] = val;
+      }
+    }
+    if (cleanSettings.storageRepo) {
+      const parsed = parseGitHubRepo(cleanSettings.storageRepo);
+      if (parsed) {
+        cleanSettings.storageRepo = parsed.fullName;
       }
     }
     const updated = { ...current, ...cleanSettings };

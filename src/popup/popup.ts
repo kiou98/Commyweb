@@ -3,6 +3,7 @@ import { normalizeUrl, hashUrl, escapeHtml, getUserColor } from '../utils/securi
 import { formatRelativeTime, t } from '../utils/i18n';
 import { CacheManager } from '../storage/cache';
 import { generateInviteEmailHtml, encodeProjectConfig, decodeProjectConfig } from '../utils/email-template';
+import { parseGitHubRepo } from '../utils/github-parser';
 
 class PopupController {
   private currentTabId?: number;
@@ -265,7 +266,8 @@ class PopupController {
 
     const userRepo = settings.storageRepo || '';
     if (repoInput) {
-      repoInput.value = userRepo;
+      const parsed = parseGitHubRepo(userRepo);
+      repoInput.value = parsed ? parsed.fullName : userRepo;
     }
 
     this.updateConfiguredUI(settings);
@@ -317,7 +319,28 @@ class PopupController {
       newSettings.githubToken = tokenInput.value.trim() || undefined;
     }
     if (repoInput) {
-      newSettings.storageRepo = repoInput.value.trim() || undefined;
+      const rawVal = repoInput.value.trim();
+      if (rawVal) {
+        let fallbackOwner: string | undefined;
+        try {
+          const userRes = await chrome.storage.local.get(['commyweb_user']);
+          fallbackOwner = userRes?.commyweb_user?.username;
+        } catch {
+          // ignore
+        }
+        const parsed = parseGitHubRepo(rawVal, fallbackOwner);
+        if (parsed) {
+          newSettings.storageRepo = parsed.fullName;
+          repoInput.value = parsed.fullName;
+        } else {
+          newSettings.storageRepo = rawVal;
+          if (!isSilent) {
+            this.showToast('⚠️ Format du dépôt invalide : utilisez owner/repo ou l\'URL GitHub.');
+          }
+        }
+      } else {
+        newSettings.storageRepo = undefined;
+      }
     }
 
     const newName = userNameInput?.value.trim();

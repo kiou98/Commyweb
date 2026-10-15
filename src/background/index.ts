@@ -2,6 +2,7 @@ import { CacheManager } from '../storage/cache';
 import { GitHubBackend } from '../storage/github';
 import { ExtensionMessage, Author, UserSettings } from '../types';
 import { normalizeUrl, hashUrl } from '../utils/security';
+import { parseGitHubRepo } from '../utils/github-parser';
 
 /**
  * Commyweb Background Service Worker (Manifest V3)
@@ -226,7 +227,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             const updates: Partial<UserSettings> = {
               userRole: 'collaborator'
             };
-            if (repo) updates.storageRepo = repo;
+            if (repo) {
+              const parsed = parseGitHubRepo(repo);
+              updates.storageRepo = parsed ? parsed.fullName : repo.trim();
+            }
             if (token) updates.githubToken = token;
             if (email) updates.userEmail = email;
             await CacheManager.saveSettings(updates);

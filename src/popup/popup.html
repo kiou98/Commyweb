@@ -217,8 +217,11 @@
 
       <!-- Storage Repo -->
       <div class="form-group">
-        <label for="input-storage-repo">Dépôt GitHub du projet (owner/repo)</label>
-        <input type="text" class="input-text" id="input-storage-repo" placeholder="mon-compte/mon-projet">
+        <label for="input-storage-repo">Dépôt GitHub du projet (owner/repo ou URL)</label>
+        <input type="text" class="input-text" id="input-storage-repo" placeholder="mon-compte/mon-projet ou https://github.com/...">
+        <div style="font-size: 11px; color: #71717a; margin-top: 4px; line-height: 1.3;">
+          Collez le format <code>owner/repo</code> (ex: <code>kiou98/Commyweb</code>) ou l'URL complète de votre projet GitHub.
+        </div>
       </div>
 
       <button class="btn-black" id="btn-save-settings" style="margin-top: 4px;">Enregistrer les paramètres</button>

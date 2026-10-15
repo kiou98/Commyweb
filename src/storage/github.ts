@@ -1,5 +1,6 @@
 import { WebComment, Author, UserSettings, CommentReply } from '../types';
 import { CacheManager } from './cache';
+import { parseGitHubRepo } from '../utils/github-parser';
 
 /**
  * GitHub API client providing a zero-database backend
@@ -48,10 +49,11 @@ export class GitHubBackend {
     }
 
     try {
-      const [owner, repo] = settings.storageRepo.split('/');
-      if (!owner || !repo) {
+      const repoInfo = parseGitHubRepo(settings.storageRepo);
+      if (!repoInfo) {
         return cached;
       }
+      const { owner, repo } = repoInfo;
 
       // 1. Automatically recover and push any local comments that were not yet synced to GitHub
       const unsynced = cached.filter(c => !c.issueNumber && c.status !== 'resolved');
@@ -139,10 +141,14 @@ export class GitHubBackend {
     }
 
     try {
-      const [owner, repo] = settings.storageRepo.split('/');
-      if (!owner || !repo) {
-        return { success: false, error: 'Format de dépôt GitHub invalide (attendu: owner/repo).' };
+      const repoInfo = parseGitHubRepo(settings.storageRepo);
+      if (!repoInfo) {
+        return {
+          success: false,
+          error: `Format de dépôt GitHub invalide : "${settings.storageRepo}". Attendu: owner/repo ou URL GitHub (ex: kiou98/Commyweb).`
+        };
       }
+      const { owner, repo } = repoInfo;
 
       const title = `[Commyweb] ${comment.urlHash} - ${comment.author.name || comment.author.username} commented on ${comment.anchor.textSnippet || comment.url}`;
       const payload = JSON.stringify(comment, null, 2);
@@ -198,8 +204,9 @@ export class GitHubBackend {
     if (!settings.githubToken || !settings.storageRepo || !comment.issueNumber) return;
 
     try {
-      const [owner, repo] = settings.storageRepo.split('/');
-      if (!owner || !repo) return;
+      const repoInfo = parseGitHubRepo(settings.storageRepo);
+      if (!repoInfo) return;
+      const { owner, repo } = repoInfo;
 
       const payload = JSON.stringify(comment, null, 2);
       const body = `### Commyweb Comment on ${comment.url}\n\n` +
@@ -232,8 +239,9 @@ export class GitHubBackend {
     if (!settings.githubToken || !settings.storageRepo || !comment.issueNumber) return;
 
     try {
-      const [owner, repo] = settings.storageRepo.split('/');
-      if (!owner || !repo) return;
+      const repoInfo = parseGitHubRepo(settings.storageRepo);
+      if (!repoInfo) return;
+      const { owner, repo } = repoInfo;
 
       // 1. Post comment reply to GitHub issue discussion
       await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${comment.issueNumber}/comments`, {
@@ -274,8 +282,9 @@ export class GitHubBackend {
 
     if (settings.githubToken && settings.storageRepo && comment.issueNumber) {
       try {
-        const [owner, repo] = settings.storageRepo.split('/');
-        if (owner && repo) {
+        const repoInfo = parseGitHubRepo(settings.storageRepo);
+        if (repoInfo) {
+          const { owner, repo } = repoInfo;
           const state = comment.status === 'resolved' ? 'closed' : 'open';
           await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${comment.issueNumber}`, {
             method: 'PATCH',
