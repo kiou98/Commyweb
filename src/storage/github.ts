@@ -7,6 +7,9 @@ import { parseGitHubRepo } from '../utils/github-parser';
  * Uses GitHub Issues as collaborative thread storage
  */
 export class GitHubBackend {
+  private static savingCommentIds = new Set<string>();
+  private static etagByUrlHash = new Map<string, string>();
+
   private static async getHeaders(token: string) {
     return {
       'Accept': 'application/vnd.github.v3+json',
@@ -38,11 +41,13 @@ export class GitHubBackend {
   }
 
   /**
-   * Fetch all comments for a given URL hash from GitHub repository
-   * Uses direct issues endpoint with labels for zero search indexing latency
+   * Fetch all comments for a given URL hash (or all pages if urlHash is omitted or 'all')
+   * Uses direct issues endpoint with labels and ETag conditional GET
+   * Sorts newest comments first (Derniers commentaires en priorité)
    */
-  static async fetchComments(settings: UserSettings, urlHash: string): Promise<WebComment[]> {
-    const cached = await CacheManager.getCommentsForUrl(urlHash);
+  static async fetchComments(settings: UserSettings, urlHash?: string): Promise<WebComment[]> {
+    const isAllPages = !urlHash || urlHash === 'all';
+    const cached = isAllPages ? await CacheManager.getAllComments() : await CacheManager.getCommentsForUrl(urlHash!);
 
     if (!settings.githubToken || !settings.storageRepo) {
       return cached;
@@ -55,30 +60,42 @@ export class GitHubBackend {
       }
       const { owner, repo } = repoInfo;
 
-      // 1. Automatically recover and push any local comments that were not yet synced to GitHub
-      const unsynced = cached.filter(c => !c.issueNumber && c.status !== 'resolved');
+      // 1. Recover and push any unsynced local comments in background (non-blocking)
+      const unsynced = cached.filter(c => !c.issueNumber && c.status !== 'resolved' && !this.savingCommentIds.has(c.id));
       for (const pendingComment of unsynced) {
-        try {
-          await this.saveComment(settings, pendingComment);
-        } catch {
-          // ignore individual sync failure
-        }
+        this.saveComment(settings, pendingComment).catch(() => {});
       }
 
-      // 2. Query direct issues API by labels (commyweb + urlHash)
-      // This is instant and does NOT suffer from search indexing delay
-      let rawIssues: any[] = [];
-      const directUrl = `https://api.github.com/repos/${owner}/${repo}/issues?labels=commyweb,${encodeURIComponent(urlHash)}&state=all&per_page=100`;
-      const directRes = await fetch(directUrl, {
-        headers: await this.getHeaders(settings.githubToken)
-      });
+      // 2. Query direct issues API by labels (commyweb or commyweb + urlHash)
+      // Uses ETag for conditional GET: returns 304 in ~100ms with 0 rate limit cost when unchanged!
+      const labelQuery = isAllPages ? 'commyweb' : `commyweb,${encodeURIComponent(urlHash!)}`;
+      const directUrl = `https://api.github.com/repos/${owner}/${repo}/issues?labels=${labelQuery}&state=all&per_page=100`;
 
+      const headers: Record<string, string> = await this.getHeaders(settings.githubToken);
+      const cacheKey = urlHash || 'all';
+      const lastEtag = this.etagByUrlHash.get(cacheKey);
+      if (lastEtag) {
+        headers['If-None-Match'] = lastEtag;
+      }
+
+      const directRes = await fetch(directUrl, { headers });
+
+      if (directRes.status === 304) {
+        // 304 Not Modified: cache is 100% up to date, return immediately
+        return cached;
+      }
+
+      let rawIssues: any[] = [];
       if (directRes.ok) {
+        const newEtag = directRes.headers.get('ETag');
+        if (newEtag) {
+          this.etagByUrlHash.set(cacheKey, newEtag);
+        }
         rawIssues = await directRes.json();
       } else {
         // Fallback to Search API if direct query fails
-        const query = `repo:${owner}/${repo} label:commyweb "${urlHash}"`;
-        const searchRes = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}&per_page=100`, {
+        const searchQuery = isAllPages ? `repo:${owner}/${repo} label:commyweb` : `repo:${owner}/${repo} label:commyweb "${urlHash}"`;
+        const searchRes = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(searchQuery)}&per_page=100`, {
           headers: await this.getHeaders(settings.githubToken)
         });
         if (searchRes.ok) {
@@ -91,11 +108,9 @@ export class GitHubBackend {
 
       for (const item of rawIssues) {
         try {
-          // Commyweb embeds comment JSON inside issue body enclosed in <!-- COMMYWEB_DATA ... -->
           const match = item.body?.match(/<!-- COMMYWEB_DATA\s*([\s\S]*?)\s*-->/);
           if (match && match[1]) {
             const parsed: WebComment = JSON.parse(match[1]);
-            // Status aligned with issue state
             parsed.status = item.state === 'closed' ? 'resolved' : 'open';
             parsed.issueNumber = item.number;
             parsed.issueUrl = item.html_url;
@@ -106,19 +121,40 @@ export class GitHubBackend {
         }
       }
 
+      // Preserve local resolved state to prevent GitHub slow replication from un-resolving
+      const cachedMap = new Map(cached.map(c => [c.id, c]));
+      for (const r of remoteComments) {
+        const local = cachedMap.get(r.id);
+        if (local && local.status === 'resolved' && r.status === 'open') {
+          r.status = 'resolved';
+        }
+      }
+
       // Merge remote comments with any locally pending comments
       const merged: WebComment[] = [...remoteComments];
       for (const c of cached) {
-        if (!c.issueNumber && !merged.some(r => r.id === c.id)) {
+        if (!merged.some(r => r.id === c.id)) {
           merged.push(c);
         }
       }
 
-      // Sort comments chronologically
-      merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      // Sort comments chronologically: NEWEST FIRST (Derniers commentaires en priorité)
+      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      // Update local cache
-      await CacheManager.saveCommentsForUrl(urlHash, merged);
+      // Update local cache per urlHash
+      if (isAllPages) {
+        const byUrl = new Map<string, WebComment[]>();
+        for (const c of merged) {
+          if (!byUrl.has(c.urlHash)) byUrl.set(c.urlHash, []);
+          byUrl.get(c.urlHash)!.push(c);
+        }
+        for (const [hash, list] of byUrl.entries()) {
+          await CacheManager.saveCommentsForUrl(hash, list);
+        }
+      } else {
+        await CacheManager.saveCommentsForUrl(urlHash!, merged);
+      }
+
       return merged;
     } catch (e) {
       console.warn('[Commyweb] Failed to fetch comments from GitHub, using cache:', e);
@@ -130,10 +166,16 @@ export class GitHubBackend {
    * Save a new comment to GitHub and local cache
    */
   static async saveComment(settings: UserSettings, comment: WebComment): Promise<{ success: boolean; error?: string; issueNumber?: number }> {
+    if (this.savingCommentIds.has(comment.id)) {
+      return { success: true };
+    }
+    this.savingCommentIds.add(comment.id);
+
     // Save to local cache first for instant local feedback
     await CacheManager.addComment(comment);
 
     if (!settings.githubToken || !settings.storageRepo) {
+      this.savingCommentIds.delete(comment.id);
       return {
         success: false,
         error: 'Projet GitHub non configuré : le commentaire est enregistré uniquement en local.'
@@ -172,6 +214,10 @@ export class GitHubBackend {
         comment.issueNumber = issue.number;
         comment.issueUrl = issue.html_url;
 
+        // Invalidate ETag so next poll fetches fresh state immediately
+        this.etagByUrlHash.delete(comment.urlHash);
+        this.etagByUrlHash.delete('all');
+
         // Update cache with issue info
         const cachedList = await CacheManager.getCommentsForUrl(comment.urlHash);
         const idx = cachedList.findIndex(c => c.id === comment.id);
@@ -194,6 +240,8 @@ export class GitHubBackend {
         success: false,
         error: e.message || 'Erreur réseau lors de la synchronisation avec GitHub'
       };
+    } finally {
+      this.savingCommentIds.delete(comment.id);
     }
   }
 
@@ -235,6 +283,9 @@ export class GitHubBackend {
     if (!comment.replies) comment.replies = [];
     comment.replies.push(reply);
     await CacheManager.saveCommentsForUrl(urlHash, comments);
+
+    this.etagByUrlHash.delete(urlHash);
+    this.etagByUrlHash.delete('all');
 
     if (!settings.githubToken || !settings.storageRepo || !comment.issueNumber) return;
 
@@ -279,6 +330,9 @@ export class GitHubBackend {
 
     comment.status = comment.status === 'resolved' ? 'open' : 'resolved';
     await CacheManager.saveCommentsForUrl(urlHash, comments);
+
+    this.etagByUrlHash.delete(urlHash);
+    this.etagByUrlHash.delete('all');
 
     if (settings.githubToken && settings.storageRepo && comment.issueNumber) {
       try {

@@ -86,6 +86,28 @@ export class CacheManager {
     }
   }
 
+  static async getAllComments(): Promise<WebComment[]> {
+    try {
+      const all = await chrome.storage.local.get(null);
+      const allComments: WebComment[] = [];
+      const seenIds = new Set<string>();
+      for (const [key, val] of Object.entries(all)) {
+        if (key.startsWith(this.COMMENTS_PREFIX) && Array.isArray(val)) {
+          for (const comment of val) {
+            if (!seenIds.has(comment.id)) {
+              seenIds.add(comment.id);
+              allComments.push(comment);
+            }
+          }
+        }
+      }
+      allComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return allComments;
+    } catch {
+      return [];
+    }
+  }
+
   static async saveCommentsForUrl(urlHash: string, comments: WebComment[]): Promise<void> {
     const key = `${this.COMMENTS_PREFIX}${urlHash}`;
     await chrome.storage.local.set({ [key]: comments });

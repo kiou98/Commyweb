@@ -13,6 +13,7 @@ class CommywebContentApp {
   private threadModal: ThreadModal;
   private pins: Map<string, PinElement> = new Map();
   private comments: WebComment[] = [];
+  private resolvedCommentIds: Set<string> = new Set();
   private activePin: PinElement | null = null;
   private currentUrl: string;
   private currentUrlHash: string;
@@ -93,27 +94,48 @@ class CommywebContentApp {
       this.checkMagicJoinLink();
     });
 
-    // Real-time fast background poll (every 3 seconds when tab is active/visible)
+    // Real-time fast background poll (every 1.5 seconds when tab is active/visible)
     setInterval(() => {
-      if (!this.activePin && !document.hidden) {
+      if (!this.threadModal.isCreatingNew && !document.hidden) {
         this.loadComments();
       }
-    }, 3000);
+    }, 1500);
 
-    // Fallback poll (every 15 seconds when tab is hidden)
+    // Fallback poll (every 10 seconds when tab is hidden)
     setInterval(() => {
-      if (!this.activePin && document.hidden) {
+      if (!this.threadModal.isCreatingNew && document.hidden) {
         this.loadComments();
       }
-    }, 15000);
+    }, 10000);
   }
 
   /**
-   * Magic auto-configuration & invite join link handler
+   * Magic auto-configuration, focus link, and invite join link handler
    */
   private checkMagicJoinLink() {
     const rawHash = window.location.hash || '';
     if (!rawHash) return;
+
+    if (rawHash.includes('commyweb_focus=')) {
+      const match = rawHash.match(/commyweb_focus=([^&#\s]+)/);
+      const commentId = match ? match[1] : '';
+      if (commentId) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        this.setCommentMode(true);
+        let retries = 0;
+        const tryFocus = () => {
+          retries++;
+          const found = this.comments.some(c => c.id === commentId);
+          if (found) {
+            this.focusComment(commentId);
+          } else if (retries < 15) {
+            setTimeout(tryFocus, 200);
+          }
+        };
+        setTimeout(tryFocus, 150);
+        return;
+      }
+    }
 
     if (rawHash.includes('commyweb_config=')) {
       let configStr = '';
@@ -365,12 +387,16 @@ class CommywebContentApp {
       replies: []
     };
 
+    // 1. Immediately keep in local memory - NEVER DISAPPEARS!
     this.comments.push(newComment);
-    if (!this.isCommentModeActive) {
-      this.setCommentMode(true);
-    } else {
-      this.renderPin(newComment, this.comments.length);
-    }
+    this.isCommentModeActive = true;
+    this.cursorManager.setActive(true);
+    chrome.storage.local.set({ commyweb_comment_mode: true });
+
+    // 2. Render pin immediately on screen
+    this.renderPin(newComment, this.comments.length);
+    this.updateFloatingIndicator();
+
     this.closeActiveModal();
     this.pendingNewAnchor = null;
 
@@ -383,7 +409,9 @@ class CommywebContentApp {
         this.showToastBanner(`⚠️ ${res.error}`, '#991b1b');
       } else {
         this.showToastBanner('✓ Commentaire synchronisé sur GitHub !', '#000000');
-        this.loadComments();
+        if (res && res.issueNumber) {
+          newComment.issueNumber = res.issueNumber;
+        }
       }
     });
   }
@@ -420,26 +448,26 @@ class CommywebContentApp {
     const comment = this.comments.find(c => c.id === commentId);
     if (!comment) return;
 
-    comment.status = comment.status === 'resolved' ? 'open' : 'resolved';
-    
-    // When resolved, hide pin from the page
-    if (comment.status === 'resolved') {
+    const isNowResolved = comment.status !== 'resolved';
+    comment.status = isNowResolved ? 'resolved' : 'open';
+
+    if (isNowResolved) {
+      // Add to resolved set so delayed network responses can NEVER revive it
+      this.resolvedCommentIds.add(commentId);
+
+      // DISPARAÎT IMMÉDIATEMENT : remove pin from DOM
       const pin = this.pins.get(commentId);
       if (pin) {
         pin.element.remove();
         this.pins.delete(commentId);
       }
       this.closeActiveModal();
+      this.updateFloatingIndicator();
     } else {
-      // Reopened
-      this.renderPin(comment, this.comments.indexOf(comment) + 1);
-      const coords = AnchorEngine.resolveCoordinates(comment.anchor);
-      const x = coords ? coords.x : 100;
-      const y = coords ? coords.y : 100;
-      this.threadModal.renderThread(comment, x, y);
+      this.resolvedCommentIds.delete(commentId);
+      this.updatePinsDiff();
+      this.updateFloatingIndicator();
     }
-
-    this.updateFloatingIndicator();
 
     chrome.runtime.sendMessage({
       type: 'RESOLVE_COMMENT',
@@ -448,20 +476,40 @@ class CommywebContentApp {
   }
 
   private renderAllPins() {
-    this.pins.forEach(p => p.element.remove());
-    this.pins.clear();
+    this.updatePinsDiff();
+  }
 
-    // If comment mode is NOT active, do not display pins on the site
+  private updatePinsDiff() {
     if (!this.isCommentModeActive) {
+      this.pins.forEach(p => p.element.remove());
+      this.pins.clear();
       this.closeActiveModal();
       this.updateFloatingIndicator();
       return;
     }
 
-    // When comment mode is active, display all open comments
-    this.comments.forEach((c, i) => {
-      if (c.status !== 'resolved') {
-        this.renderPin(c, i + 1);
+    const activeComments = this.comments.filter(c => c.status !== 'resolved' && !this.resolvedCommentIds.has(c.id));
+    const activeCommentIds = new Set(activeComments.map(c => c.id));
+
+    // 1. Remove pins that are no longer active (e.g. resolved or deleted)
+    this.pins.forEach((pin, id) => {
+      if (!activeCommentIds.has(id)) {
+        pin.element.remove();
+        this.pins.delete(id);
+      }
+    });
+
+    // 2. Add or update active pins smoothly without recreating untouched DOM
+    activeComments.forEach((comment, index) => {
+      const existingPin = this.pins.get(comment.id);
+      if (existingPin) {
+        existingPin.updateComment(comment);
+        const coords = AnchorEngine.resolveCoordinates(comment.anchor);
+        if (coords) {
+          existingPin.setPosition(coords.x, coords.y);
+        }
+      } else {
+        this.renderPin(comment, index + 1);
       }
     });
 
@@ -590,9 +638,31 @@ class CommywebContentApp {
       (response) => {
         void chrome.runtime.lastError;
         if (response && response.comments) {
-          this.comments = response.comments;
-          this.renderAllPins();
+          const incoming: WebComment[] = response.comments;
+
+          // Preserve locally created comments that haven't been confirmed by GitHub yet
+          const incomingIds = new Set(incoming.map(c => c.id));
+          const pendingLocals = this.comments.filter(c => !incomingIds.has(c.id) && !c.issueNumber);
+
+          // Merge and strictly respect locally resolved items so network delay never revives them
+          const updated = [...incoming, ...pendingLocals].map(c => {
+            if (this.resolvedCommentIds.has(c.id)) {
+              return { ...c, status: 'resolved' as const };
+            }
+            return c;
+          });
+
+          this.comments = updated;
+          this.updatePinsDiff();
           this.updateFloatingIndicator();
+
+          // Live-update replies in open thread modal if any
+          if (this.threadModal.currentCommentId) {
+            const openComment = this.comments.find(c => c.id === this.threadModal.currentCommentId);
+            if (openComment) {
+              this.threadModal.updateRepliesIfActive(openComment);
+            }
+          }
         }
       }
     );
@@ -645,7 +715,17 @@ class CommywebContentApp {
   }
 
   private updateFloatingIndicator() {
-    const openComments = this.comments.filter(c => c.status !== 'resolved');
+    // ONLY display if comment mode is ON!
+    // If comment mode is OFF, remove indicator completely as requested!
+    if (!this.isCommentModeActive) {
+      if (this.floatingIndicatorEl) {
+        this.floatingIndicatorEl.remove();
+        this.floatingIndicatorEl = null;
+      }
+      return;
+    }
+
+    const openComments = this.comments.filter(c => c.status !== 'resolved' && !this.resolvedCommentIds.has(c.id));
     if (openComments.length === 0) {
       if (this.floatingIndicatorEl) {
         this.floatingIndicatorEl.remove();
@@ -690,19 +770,11 @@ class CommywebContentApp {
     }
 
     const count = openComments.length;
-    if (this.isCommentModeActive) {
-      this.floatingIndicatorEl.innerHTML = `
-        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e;"></span>
-        <span>${count} commentaire${count > 1 ? 's' : ''} (Alt+C pour masquer)</span>
-      `;
-      this.floatingIndicatorEl.title = 'Cliquez ou appuyez sur Alt+C pour masquer les pastilles';
-    } else {
-      this.floatingIndicatorEl.innerHTML = `
-        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #eab308;"></span>
-        <span>💬 ${count} commentaire${count > 1 ? 's' : ''} sur cette page • Afficher</span>
-      `;
-      this.floatingIndicatorEl.title = 'Cliquez pour afficher les commentaires de l\'équipe';
-    }
+    this.floatingIndicatorEl.innerHTML = `
+      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e;"></span>
+      <span>${count} commentaire${count > 1 ? 's' : ''} (Alt+C pour masquer)</span>
+    `;
+    this.floatingIndicatorEl.title = 'Cliquez ou appuyez sur Alt+C pour masquer les pastilles';
   }
 }
 

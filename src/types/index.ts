@@ -74,6 +74,7 @@ export interface ExtensionMessage {
     | 'RESOLVE_COMMENT'
     | 'REOPEN_COMMENT'
     | 'FOCUS_COMMENT'
+    | 'NAVIGATE_OR_FOCUS_COMMENT'
     | 'SYNC_COMMENTS'
     | 'USER_SETTINGS_UPDATED'
     | 'INVITE_MEMBER'

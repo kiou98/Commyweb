@@ -255,6 +255,34 @@
       <span class="key-status-badge configured" style="font-size: 10px;">● Connecté</span>
     </div>
 
+    <!-- Prominent Update Banner when a new release is available -->
+    <div id="update-banner" style="display: none; margin: 8px 16px 4px; background: #000000; color: #ffffff; border-radius: 10px; padding: 10px 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+        <div>
+          <div style="font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
+            <span>🚀 Mise à jour disponible :</span>
+            <span id="update-version-tag" style="background: #22c55e; color: #000000; font-size: 10px; padding: 1px 6px; border-radius: 6px; font-weight: 800;">v1.5.5</span>
+          </div>
+          <div style="font-size: 10.5px; color: #a1a1aa; margin-top: 2px;">
+            Cliquez pour actualiser le plugin sans perdre vos données
+          </div>
+        </div>
+        <button id="btn-do-update" style="background: #22c55e; color: #000000; border: none; border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap;">
+          Mettre à jour
+        </button>
+      </div>
+    </div>
+
+    <!-- Scope Selector: Current Page vs Whole Project Website -->
+    <div style="display: flex; gap: 6px; margin: 6px 16px 2px; background: #f4f4f5; padding: 3px; border-radius: 8px;">
+      <button class="scope-btn active" id="btn-scope-page" style="flex: 1; border: none; background: #ffffff; color: #000000; font-weight: 700; font-size: 11px; padding: 5px 8px; border-radius: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        📄 Cette page
+      </button>
+      <button class="scope-btn" id="btn-scope-all" style="flex: 1; border: none; background: transparent; color: #71717a; font-weight: 700; font-size: 11px; padding: 5px 8px; border-radius: 6px; cursor: pointer;">
+        🌐 Tout le site
+      </button>
+    </div>
+
     <!-- Filters Tabs -->
     <div class="tabs-container">
       <button class="tab-btn active" data-tab="all" id="tab-all">Tous (<span id="count-all">0</span>)</button>

@@ -12,6 +12,8 @@ export interface ThreadModalCallbacks {
 
 export class ThreadModal {
   public element: HTMLDivElement;
+  public currentCommentId: string | null = null;
+  public isCreatingNew: boolean = false;
   private callbacks: ThreadModalCallbacks;
 
   constructor(callbacks: ThreadModalCallbacks) {
@@ -36,6 +38,8 @@ export class ThreadModal {
    * Render existing comment thread in pure Black & White DA
    */
   public renderThread(comment: WebComment, pinX: number, pinY: number) {
+    this.currentCommentId = comment.id;
+    this.isCreatingNew = false;
     const isResolved = comment.status === 'resolved';
     const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
     const userColor = getUserColor(authorId);
@@ -117,6 +121,8 @@ export class ThreadModal {
    * Render creation box for a new comment
    */
   public renderNewCommentBox(x: number, y: number) {
+    this.currentCommentId = null;
+    this.isCreatingNew = true;
     this.element.innerHTML = `
       <div class="commyweb-modal-header">
         <div class="commyweb-header-user">
@@ -216,5 +222,13 @@ export class ThreadModal {
 
     this.element.style.left = `${Math.round(targetX)}px`;
     this.element.style.top = `${Math.round(targetY)}px`;
+  }
+
+  public updateRepliesIfActive(comment: WebComment) {
+    if (this.currentCommentId !== comment.id) return;
+    const repliesContainer = this.element.querySelector('#replies-container');
+    if (repliesContainer) {
+      repliesContainer.innerHTML = (comment.replies || []).map(r => this.renderReplyHtml(r)).join('');
+    }
   }
 }

@@ -9,6 +9,7 @@ class PopupController {
   private currentTabId?: number;
   private currentTabUrl?: string;
   private currentUrlHash?: string;
+  private currentScope: 'page' | 'all' = 'page';
   private comments: WebComment[] = [];
   private activeFilter: 'all' | 'open' | 'resolved' = 'all';
   private currentAuthorName: string = 'Vincent';
@@ -27,16 +28,17 @@ class PopupController {
     await this.loadInvitedMembers();
     this.setupEventListeners();
     await this.fetchComments();
+    this.checkForUpdates();
 
-    // Real-time polling while popup is open (every 2.5s)
+    // Real-time polling while popup is open (every 2s)
     this.pollTimer = window.setInterval(() => {
       this.fetchComments();
-    }, 2500);
+    }, 2000);
 
     // Listen to background broadcast events
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'COMMENTS_UPDATED') {
-        if (!message.payload?.urlHash || message.payload.urlHash === this.currentUrlHash) {
+        if (this.currentScope === 'all' || !message.payload?.urlHash || message.payload.urlHash === this.currentUrlHash) {
           this.fetchComments();
         }
       }
@@ -594,6 +596,62 @@ class PopupController {
       if (e.key === 'Enter') handleQuickJoin();
     });
 
+    // Scope selector: Current page vs Whole site
+    const btnScopePage = document.getElementById('btn-scope-page');
+    const btnScopeAll = document.getElementById('btn-scope-all');
+
+    const setScope = (scope: 'page' | 'all') => {
+      this.currentScope = scope;
+      if (scope === 'page') {
+        btnScopePage?.classList.add('active');
+        btnScopeAll?.classList.remove('active');
+        if (btnScopePage) {
+          btnScopePage.style.background = '#ffffff';
+          btnScopePage.style.color = '#000000';
+          btnScopePage.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        }
+        if (btnScopeAll) {
+          btnScopeAll.style.background = 'transparent';
+          btnScopeAll.style.color = '#71717a';
+          btnScopeAll.style.boxShadow = 'none';
+        }
+      } else {
+        btnScopeAll?.classList.add('active');
+        btnScopePage?.classList.remove('active');
+        if (btnScopeAll) {
+          btnScopeAll.style.background = '#ffffff';
+          btnScopeAll.style.color = '#000000';
+          btnScopeAll.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        }
+        if (btnScopePage) {
+          btnScopePage.style.background = 'transparent';
+          btnScopePage.style.color = '#71717a';
+          btnScopePage.style.boxShadow = 'none';
+        }
+      }
+
+      const lblNoComments = document.getElementById('lbl-no-comments');
+      if (lblNoComments) {
+        lblNoComments.textContent =
+          scope === 'page'
+            ? "Aucun commentaire sur cette page. Activez le Mode commentaire et cliquez n'importe où pour commencer !"
+            : "Aucun commentaire trouvé sur l'ensemble du site / projet.";
+      }
+
+      this.fetchComments();
+    };
+
+    btnScopePage?.addEventListener('click', () => setScope('page'));
+    btnScopeAll?.addEventListener('click', () => setScope('all'));
+
+    // Update Plugin Button in Banner
+    const btnDoUpdate = document.getElementById('btn-do-update');
+    btnDoUpdate?.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://github.com/kiou98/Commyweb/releases/latest' });
+      // Chrome extension reload (preserves chrome.storage.local/sync 100%)
+      chrome.runtime.reload();
+    });
+
     // Filter Tabs (does NOT close settings drawer)
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach((tab) => {
@@ -955,10 +1013,11 @@ class PopupController {
   }
 
   private async fetchComments() {
-    if (!this.currentUrlHash) return;
+    const targetHash = this.currentScope === 'all' ? 'all' : this.currentUrlHash;
+    if (!targetHash && this.currentScope !== 'all') return;
 
     chrome.runtime.sendMessage(
-      { type: 'GET_PAGE_COMMENTS', payload: { urlHash: this.currentUrlHash } },
+      { type: 'GET_PAGE_COMMENTS', payload: { urlHash: targetHash } },
       (res) => {
         void chrome.runtime.lastError;
         if (res && res.comments) {
@@ -972,8 +1031,8 @@ class PopupController {
 
   private updateCounts() {
     const total = this.comments.length;
-    const open = this.comments.filter((c) => c.status === 'open').length;
     const resolved = this.comments.filter((c) => c.status === 'resolved').length;
+    const open = Math.max(0, total - resolved);
 
     const countAll = document.getElementById('count-all');
     const countOpen = document.getElementById('count-open');
@@ -989,9 +1048,18 @@ class PopupController {
     const emptyState = document.getElementById('empty-state');
     if (!container || !emptyState) return;
 
-    const filtered = this.comments.filter((c) => {
+    // Sort newest comments first (priority to most recent comments)
+    const sorted = [...this.comments].sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return timeB - timeA;
+    });
+
+    const filtered = sorted.filter((c) => {
       if (this.activeFilter === 'all') return true;
-      return c.status === this.activeFilter;
+      if (this.activeFilter === 'resolved') return c.status === 'resolved';
+      if (this.activeFilter === 'open') return c.status !== 'resolved';
+      return true;
     });
 
     container.innerHTML = '';
@@ -1006,48 +1074,125 @@ class PopupController {
 
     filtered.forEach((comment, index) => {
       const card = document.createElement('div');
-      card.className = `comment-card ${comment.status === 'resolved' ? 'resolved' : ''}`;
+      const isResolved = comment.status === 'resolved';
+      card.className = `comment-card ${isResolved ? 'resolved' : ''}`;
 
       const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
       const userColor = getUserColor(authorId);
       const repliesCount = comment.replies?.length || 0;
       const repliesText = repliesCount > 0 ? `${repliesCount} ${t('reply')}` : '';
 
+      let pageBadgeHtml = '';
+      try {
+        const parsed = new URL(comment.url);
+        const pathname = parsed.pathname === '' ? '/' : parsed.pathname;
+        pageBadgeHtml = `<span title="${escapeHtml(comment.url)}" style="font-size: 10px; font-family: monospace; background: #f4f4f5; color: #52525b; padding: 2px 5px; border-radius: 4px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📄 ${escapeHtml(pathname)}</span>`;
+      } catch {
+        pageBadgeHtml = '';
+      }
+
       card.innerHTML = `
         <div class="card-header">
           <div class="card-author" style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${userColor}; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
             <span class="card-name" style="font-weight: 700;">${escapeHtml(comment.author.name || comment.author.username)}</span>
+            ${pageBadgeHtml}
           </div>
           <span class="card-time">${formatRelativeTime(comment.createdAt)}</span>
         </div>
         <div class="card-text">${escapeHtml(comment.content)}</div>
         <div class="card-footer">
-          <span class="badge-tag ${comment.status === 'resolved' ? 'badge-resolved' : 'badge-open'}" style="${comment.status !== 'resolved' ? `border-color: ${userColor}; color: ${userColor};` : ''}">
-            ${comment.status === 'resolved' ? t('resolved') : t('active')} #${index + 1}
-          </span>
-          <span>${repliesText}</span>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="badge-tag ${isResolved ? 'badge-resolved' : 'badge-open'}" style="${!isResolved ? `border-color: ${userColor}; color: ${userColor};` : ''}">
+              ${isResolved ? t('resolved') : t('active')} #${index + 1}
+            </span>
+            ${repliesText ? `<span>${repliesText}</span>` : ''}
+          </div>
+          <button class="btn-quick-resolve" data-id="${comment.id}" data-hash="${comment.urlHash}" title="${isResolved ? 'Rouvrir le commentaire' : 'Marquer comme résolu'}" style="border: 1px solid ${isResolved ? '#bbf7d0' : '#e4e4e7'}; background: ${isResolved ? '#dcfce7' : '#ffffff'}; color: ${isResolved ? '#15803d' : '#71717a'}; border-radius: 6px; padding: 2px 7px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.15s;">
+            ${isResolved ? '✓ Résolu' : 'Résoudre'}
+          </button>
         </div>
       `;
 
+      // Quick resolve toggle without navigating
+      const btnResolve = card.querySelector('.btn-quick-resolve') as HTMLButtonElement;
+      btnResolve?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        chrome.runtime.sendMessage(
+          {
+            type: 'RESOLVE_COMMENT',
+            payload: { commentId: comment.id, urlHash: comment.urlHash }
+          },
+          (res) => {
+            void chrome.runtime.lastError;
+            comment.status = res?.isResolved ? 'resolved' : 'open';
+            this.updateCounts();
+            this.renderCommentsList();
+          }
+        );
+      });
+
+      // Clicking anywhere on card navigates/focuses comment
       card.addEventListener('click', () => {
-        if (this.currentTabId) {
-          chrome.tabs.sendMessage(
-            this.currentTabId,
-            {
-              type: 'FOCUS_COMMENT',
-              payload: { commentId: comment.id }
-            },
-            () => {
-              void chrome.runtime.lastError;
+        chrome.runtime.sendMessage(
+          {
+            type: 'NAVIGATE_OR_FOCUS_COMMENT',
+            payload: {
+              commentId: comment.id,
+              targetUrl: comment.url,
+              tabId: this.currentTabId
             }
-          );
-          window.close();
-        }
+          },
+          () => {
+            void chrome.runtime.lastError;
+            window.close();
+          }
+        );
       });
 
       container.appendChild(card);
     });
+  }
+
+  private async checkForUpdates() {
+    try {
+      const manifest = chrome.runtime.getManifest();
+      const currentVersion = manifest.version; // e.g. "1.5.4"
+
+      const settings = await CacheManager.getSettings();
+      const headers: Record<string, string> = {
+        Accept: 'application/vnd.github.v3+json'
+      };
+      if (settings.githubToken) {
+        headers['Authorization'] = `token ${settings.githubToken}`;
+      }
+
+      const res = await fetch('https://api.github.com/repos/kiou98/Commyweb/releases/latest', { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      const latestTag = (data.tag_name || '').replace(/^v/, '').trim();
+
+      if (latestTag && this.isNewerVersion(latestTag, currentVersion)) {
+        const banner = document.getElementById('update-banner');
+        const tagEl = document.getElementById('update-version-tag');
+        if (banner) banner.style.display = 'block';
+        if (tagEl) tagEl.textContent = `v${latestTag}`;
+      }
+    } catch {
+      // offline / quiet
+    }
+  }
+
+  private isNewerVersion(remote: string, current: string): boolean {
+    const remoteParts = remote.split('.').map((n) => parseInt(n, 10) || 0);
+    const currentParts = current.split('.').map((n) => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(remoteParts.length, currentParts.length); i++) {
+      const r = remoteParts[i] || 0;
+      const c = currentParts[i] || 0;
+      if (r > c) return true;
+      if (r < c) return false;
+    }
+    return false;
   }
 }
 

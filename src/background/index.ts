@@ -146,6 +146,36 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           break;
         }
 
+        case 'NAVIGATE_OR_FOCUS_COMMENT': {
+          const { commentId, targetUrl, tabId } = message.payload || {};
+          let destTabId = tabId;
+          if (!destTabId) {
+            const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            destTabId = activeTab?.id;
+          }
+          if (destTabId && targetUrl && commentId) {
+            const currentTab = await chrome.tabs.get(destTabId);
+            const currentNorm = normalizeUrl(currentTab.url || '');
+            const targetNorm = normalizeUrl(targetUrl);
+
+            if (currentNorm === targetNorm) {
+              chrome.tabs.sendMessage(destTabId, {
+                type: 'FOCUS_COMMENT',
+                payload: { commentId }
+              }).catch(() => {});
+            } else {
+              const targetWithHash = targetUrl.includes('#')
+                ? targetUrl.replace(/#.*$/, `#commyweb_focus=${commentId}`)
+                : `${targetUrl}#commyweb_focus=${commentId}`;
+              await chrome.tabs.update(destTabId, { url: targetWithHash });
+            }
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false });
+          }
+          break;
+        }
+
         case 'ADD_REPLY': {
           const { commentId, urlHash, reply } = message.payload || {};
           if (commentId && urlHash && reply) {
