@@ -4,7 +4,7 @@
  * - Typography: Satoshi & sans-serif
  * - Includes official Commyweb logo
  * - Magic authorization link
- * - Simple 2-step installation & usage instructions
+ * - Ultra-clear 2-step procedure for collaborators
  */
 
 export interface CommywebProjectConfig {
@@ -61,6 +61,7 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
   const logotypeUrl = 'https://raw.githubusercontent.com/kiou98/Commyweb/main/icons/logotype.png';
   const releaseZipUrl = 'https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip';
   const releasesPageUrl = 'https://github.com/kiou98/Commyweb/releases';
+  const displayRepo = storageRepo || 'Projet d\'équipe';
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -91,7 +92,7 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
       width: 100%;
       table-layout: fixed;
       background-color: #f4f4f5;
-      padding: 40px 16px;
+      padding: 32px 16px;
     }
     .main-table {
       max-width: 580px;
@@ -103,29 +104,16 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
     }
     .header {
-      padding: 36px 36px 24px;
+      padding: 32px 32px 20px;
       text-align: center;
       background-color: #ffffff;
       border-bottom: 1px solid #e4e4e7;
     }
-    .logo {
-      width: 54px;
-      height: 54px;
-      display: inline-block;
-      margin-bottom: 12px;
-    }
-    .brand-title {
-      font-size: 20px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      color: #000000;
-      margin: 0;
-    }
     .content {
-      padding: 36px;
+      padding: 32px;
       color: #18181b;
       line-height: 1.6;
-      font-size: 15px;
+      font-size: 14.5px;
     }
     .headline {
       font-size: 22px;
@@ -133,19 +121,63 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
       letter-spacing: -0.5px;
       color: #000000;
       margin-top: 0;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       line-height: 1.3;
     }
-    .target-box {
-      background-color: #f4f4f5;
+    .summary-card {
+      background-color: #fafafa;
       border: 1px solid #e4e4e7;
       border-radius: 10px;
       padding: 14px 18px;
-      margin: 20px 0 28px;
-      word-break: break-all;
+      margin: 16px 0 24px;
       font-size: 13px;
+      line-height: 1.6;
+    }
+    .summary-row {
+      margin-bottom: 4px;
+    }
+    .summary-label {
+      color: #71717a;
       font-weight: 600;
+    }
+    .summary-value {
       color: #000000;
+      font-weight: 800;
+    }
+    .step-box {
+      background-color: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .step-badge {
+      display: inline-block;
+      background-color: #000000;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-right: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .step-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #000000;
+      margin: 0;
+    }
+    .step-body {
+      font-size: 13.5px;
+      color: #27272a;
+      line-height: 1.55;
     }
     .cta-button {
       display: inline-block;
@@ -154,47 +186,36 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
       text-decoration: none;
       font-weight: 800;
       font-size: 14px;
-      padding: 16px 32px;
-      border-radius: 10px;
+      padding: 14px 28px;
+      border-radius: 8px;
       text-align: center;
       letter-spacing: -0.2px;
+      margin-top: 10px;
     }
-    .steps-section {
-      margin-top: 36px;
-      padding-top: 28px;
-      border-top: 1px solid #e4e4e7;
-    }
-    .step-title {
-      font-size: 13px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #000000;
-      margin-bottom: 16px;
-    }
-    .step-item {
-      display: flex;
-      margin-bottom: 14px;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-    .step-number {
-      font-weight: 800;
-      margin-right: 10px;
-      color: #000000;
-      min-width: 20px;
-    }
-    .kbd {
-      background: #000000;
-      color: #ffffff;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
+    .btn-download {
       display: inline-block;
+      background-color: #f4f4f5;
+      color: #000000 !important;
+      border: 1px solid #000000;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 12.5px;
+      padding: 7px 14px;
+      border-radius: 6px;
+      margin: 6px 0;
+    }
+    .fallback-box {
+      background: #fafafa;
+      border: 1px dashed #d4d4d8;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 11.5px;
+      color: #52525b;
+      word-break: break-all;
+      margin-top: 14px;
     }
     .footer {
-      padding: 24px 36px;
+      padding: 20px 32px;
       background-color: #fafafa;
       border-top: 1px solid #e4e4e7;
       text-align: center;
@@ -208,68 +229,90 @@ export function generateInviteEmailHtml(params: EmailInviteParams): string {
     <table class="main-table" width="100%" cellpadding="0" cellspacing="0">
       <!-- En-tête -->
       <tr>
-        <td class="header" style="text-align: center; padding: 36px 36px 24px;">
-          <img src="${logotypeUrl}" alt="Commyweb" style="height: 36px; max-width: 220px; display: inline-block; object-fit: contain;" />
+        <td class="header" style="text-align: center; padding: 32px 32px 20px;">
+          <img src="${logotypeUrl}" alt="Commyweb" style="height: 32px; max-width: 200px; display: inline-block; object-fit: contain;" />
         </td>
       </tr>
 
       <!-- Corps du message -->
       <tr>
         <td class="content">
-          <h2 class="headline">Vous avez été invité à collaborer</h2>
-          <p>Bonjour,</p>
-          <p><strong>${invitedByName}</strong> vous invite à réviser et annoter la page web suivante avec l'extension <strong>Commyweb</strong> :</p>
-          
-          <div class="target-box">
-            👉 <a href="${magicLink}" target="_blank" style="color: #000000; text-decoration: none; font-weight: 700;">${pageUrl}</a>
-          </div>
-
-          <div style="margin-bottom: 24px; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 14px; font-size: 13px;">
-            🔑 <strong>Accès validé pour :</strong> <code style="background: #ffffff; border: 1px solid #d4d4d8; padding: 2px 6px; border-radius: 4px; font-weight: 700;">${recipientEmail}</code><br>
-            <span style="font-size: 12px; color: #52525b;">Votre accès a été validé d'office par l'administrateur. En ouvrant le lien, votre extension se synchronise automatiquement.</span>
-          </div>
-
-          <p style="text-align: center; margin: 28px 0;">
-            <a href="${magicLink}" class="cta-button" target="_blank">
-              Ouvrir le site &amp; Voir les commentaires →
-            </a>
+          <h2 class="headline">Invitation à réviser et commenter</h2>
+          <p style="margin: 0 0 14px;">Bonjour,</p>
+          <p style="margin: 0 0 14px;">
+            <strong>${invitedByName}</strong> vous invite à collaborer et annoter une page web directement dans votre navigateur grâce à l'extension <strong>Commyweb</strong> (aucun compte GitHub requis).
           </p>
-
-          <!-- Guide d'installation et utilisation simple -->
-          <div class="steps-section">
-            <div class="step-title">Procédure d'installation du plugin Commyweb (30 secondes)</div>
-
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
-              <tr>
-                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">1.</td>
-                <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
-                  <strong>Téléchargez l'extension :</strong><br>
-                  Téléchargez <a href="${releaseZipUrl}" style="color: #000000; font-weight: 700; text-decoration: underline;">commyweb-user.zip ↗</a> et décompressez le dossier sur votre ordinateur.
-                </td>
-              </tr>
-              <tr>
-                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">2.</td>
-                <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
-                  <strong>Installez dans Chrome (ou Edge / Brave) :</strong><br>
-                  Rendez-vous sur <code>chrome://extensions</code> dans votre navigateur, activez le bouton <strong>"Mode développeur"</strong> (en haut à droite), puis cliquez sur <strong>"Charger l'extension non empaquetée"</strong> et choisissez le dossier décompressé.
-                </td>
-              </tr>
-              <tr>
-                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">3.</td>
-                <td style="font-size: 13.5px; color: #18181b; padding-bottom: 14px; line-height: 1.5;">
-                  <strong>Retrouvez automatiquement tous les commentaires :</strong><br>
-                  Cliquez sur le bouton noir ci-dessus pour ouvrir le site. Commyweb se configure automatiquement et affiche directement tous les commentaires de l'équipe sur la page !
-                </td>
-              </tr>
-              <tr>
-                <td width="28" valign="top" style="font-weight: 800; color: #000000; font-size: 14px;">4.</td>
-                <td style="font-size: 13.5px; color: #18181b; line-height: 1.5;">
-                  <strong>Commentez comme dans Figma :</strong><br>
-                  Pour ajouter vos propres retours : faites simplement un <strong>clic droit</strong> sur n'importe quel élément de la page (ou appuyez sur <span class="kbd">Alt</span> + <span class="kbd">C</span>), saisissez votre remarque et envoyez !
-                </td>
-              </tr>
-            </table>
+          
+          <!-- Récapitulatif du Projet -->
+          <div class="summary-card">
+            <div class="summary-row">
+              <span class="summary-label">📁 Projet :</span>
+              <span class="summary-value">${displayRepo}</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">🌐 Page à réviser :</span>
+              <span class="summary-value" style="word-break: break-all;">${pageUrl}</span>
+            </div>
+            <div class="summary-row" style="margin-bottom: 0;">
+              <span class="summary-label">🔑 Accès autorisé :</span>
+              <span class="summary-value">${recipientEmail} (validé)</span>
+            </div>
           </div>
+
+          <div style="font-size: 14px; font-weight: 800; color: #000000; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+            Procédure simple en 2 étapes :
+          </div>
+
+          <!-- ÉTAPE 1 -->
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">Étape 1</span>
+              <span class="step-title">Installer l'extension Collaborateur (30 sec)</span>
+            </div>
+            <div class="step-body">
+              <em>(Si vous avez déjà l'extension installée, passez directement à l'étape 2)</em><br><br>
+              <strong>1.</strong> Téléchargez le plugin :<br>
+              <a href="${releaseZipUrl}" class="btn-download" target="_blank">⬇️ Télécharger commyweb-user.zip ↗</a><br>
+              <em>Décompressez le fichier zip sur votre ordinateur.</em><br><br>
+              <strong>2.</strong> Dans Chrome (ou Edge / Brave) :<br>
+              Rendez-vous sur <code>chrome://extensions</code>, activez le bouton <strong>"Mode développeur"</strong> (en haut à droite), cliquez sur <strong>"Charger l'extension non empaquetée"</strong> et sélectionnez le dossier décompressé.
+            </div>
+          </div>
+
+          <!-- ÉTAPE 2 -->
+          <div class="step-box" style="border: 2px solid #000000; background: #ffffff;">
+            <div class="step-header">
+              <span class="step-badge" style="background: #16a34a;">Étape 2</span>
+              <span class="step-title">Ouvrir la page &amp; Rejoindre le projet</span>
+            </div>
+            <div class="step-body">
+              Cliquez sur le bouton ci-dessous pour ouvrir la page :<br>
+              Votre extension se connecte <strong>automatiquement</strong> au projet <strong>${displayRepo}</strong> et affiche immédiatement tous les commentaires de l'équipe sur votre écran !
+              
+              <div style="text-align: center; margin: 18px 0 6px;">
+                <a href="${magicLink}" class="cta-button" target="_blank">
+                  👉 Ouvrir la page &amp; Voir les commentaires →
+                </a>
+              </div>
+
+              <div class="fallback-box">
+                <strong>Lien direct de secours :</strong> Si le bouton ne s'ouvre pas, collez ce lien dans votre navigateur :<br>
+                <a href="${magicLink}" target="_blank" style="color: #000000; text-decoration: underline;">${magicLink}</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- ÉTAPE 3 -->
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">Astuce</span>
+              <span class="step-title">Commenter comme dans Figma</span>
+            </div>
+            <div class="step-body">
+              Pour ajouter vos remarques sur le site : faites simplement un <strong>clic droit</strong> sur n'importe quel élément de la page (ou appuyez sur les touches <kbd style="background: #000; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700;">Alt</kbd> + <kbd style="background: #000; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700;">C</kbd>), écrivez votre message et validez. Vos collègues le verront instantanément !
+            </div>
+          </div>
+
         </td>
       </tr>
 

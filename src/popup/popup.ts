@@ -796,13 +796,19 @@ class PopupController {
 
     const inviteText =
       `Bonjour,\n\n` +
-      `${this.currentAuthorName} vous invite à collaborer et annoter la page web suivante avec l'extension Commyweb :\n` +
-      `👉 ${projectLink}\n\n` +
-      `Procédure d'installation (30 secondes) :\n` +
-      `1. Téléchargez l'extension : https://github.com/kiou98/Commyweb/releases/latest\n` +
-      `2. Sur chrome://extensions/, activez "Mode développeur" et chargez le dossier décompressé.\n` +
-      `3. Ouvrez le lien : Commyweb se configure automatiquement et affiche directement tous les commentaires de l'équipe sur la page !\n` +
-      `4. Faites un clic droit (ou Alt + C) n'importe où pour commenter comme dans Figma.`;
+      `${this.currentAuthorName} vous invite à collaborer et annoter une page web avec Commyweb.\n\n` +
+      `📁 Projet : ${settings.storageRepo || 'Commyweb'}\n` +
+      `🌐 Page : ${this.currentTabUrl}\n\n` +
+      `PROCÉDURE SIMPLE EN 2 ÉTAPES (30 secondes) :\n\n` +
+      `1️⃣ INSTALLER L'EXTENSION (si pas encore fait) :\n` +
+      `   • Téléchargez : https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip\n` +
+      `   • Décompressez le dossier zip sur votre ordinateur.\n` +
+      `   • Dans Chrome, allez sur chrome://extensions, activez "Mode développeur" et cliquez sur "Charger l'extension non empaquetée".\n\n` +
+      `2️⃣ REJOINDRE LE PROJET :\n` +
+      `   • Ouvrez simplement ce lien dans votre navigateur :\n` +
+      `   👉 ${projectLink}\n\n` +
+      `L'extension se configure automatiquement et affiche directement tous les commentaires de l'équipe !\n` +
+      `Pour commenter : faites un clic droit n'importe où (ou Alt + C).`;
 
     await navigator.clipboard.writeText(inviteText);
     this.showToast('✓ Message et lien d\'invitation copiés pour Slack / Teams / SMS !');
