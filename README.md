@@ -124,7 +124,9 @@ To share comments across your team without hosting a database:
    - Go to [GitHub Fine-grained tokens](https://github.com/settings/tokens?type=beta).
    - *Token name:* `Commyweb Extension`
    - *Repository access:* Choose **Only select repositories** and pick your project repo.
-   - *Repository permissions:* Under **Issues**, select **Access: Read and write** (*Metadata: Read-only* is selected automatically).
+   - *Repository permissions :*
+      - 🟢 **Issues** : choisir **Read and write** (Lecture et Écriture).
+      - *(Metadata : Read-only est inclus automatiquement par GitHub)*.
    - Click **Generate token** and copy your token `github_pat_...`.
    *(Classic token alternative: check the `repo` scope).*
 3. **Configure the Commyweb Extension:**

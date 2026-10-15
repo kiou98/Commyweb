@@ -124,7 +124,9 @@ Pour partager vos commentaires en équipe sans héberger de serveur :
    - Rendez-vous sur [GitHub Fine-grained tokens](https://github.com/settings/tokens?type=beta).
    - *Token name :* `Commyweb Extension`
    - *Repository access :* Sélectionnez **Only select repositories** et choisissez votre dépôt de projet.
-   - *Repository permissions :* Dans la section **Issues**, cochez **Access: Read and write** (*Metadata: Read-only* s'active automatiquement).
+   - *Repository permissions :*
+      - 🟢 **Issues** : choisir **Read and write** (Lecture et Écriture).
+      - *(Metadata : Read-only est inclus automatiquement par GitHub)*.
    - Cliquez sur **Generate token** et copiez le jeton `github_pat_...`.
    *(Alternative Token Classic : cochez simplement le scope `repo`)*.
 3. **Configurer l'extension Commyweb :**
