@@ -1,5 +1,5 @@
-import { WebComment, UserSettings, ProjectMember, ProjectSecurityPolicy } from '../types';
-import { generateId } from '../utils/security';
+import { WebComment, UserSettings, ProjectMember, ProjectSecurityPolicy, SiteProject } from '../types';
+import { generateId, extractDomain } from '../utils/security';
 import { parseGitHubRepo } from '../utils/github-parser';
 
 /**
@@ -10,10 +10,10 @@ export class CacheManager {
   private static readonly COMMENTS_PREFIX = 'commyweb_comments_';
   private static readonly POLICY_PREFIX = 'commyweb_policy_';
 
-  static async getSettings(): Promise<UserSettings> {
+  static async getSettings(urlOrDomain?: string): Promise<UserSettings> {
     try {
       const res = await chrome.storage.local.get(this.SETTINGS_KEY);
-      let settings = res[this.SETTINGS_KEY];
+      let settings: UserSettings = res[this.SETTINGS_KEY];
 
       // If local storage is empty or missing storageRepo/token, try to restore from chrome.storage.sync
       if (!settings || !settings.storageRepo || !settings.githubToken) {
@@ -31,7 +31,34 @@ export class CacheManager {
         }
       }
 
-      if (settings && settings.storageRepo) {
+      if (!settings) {
+        settings = {
+          filterStatus: 'all',
+          isCommentModeActive: false,
+          storageRepo: '',
+          projectsByDomain: {}
+        };
+      }
+
+      if (!settings.projectsByDomain) {
+        settings.projectsByDomain = {};
+      }
+
+      // If a specific URL or domain is provided, resolve the project mapped to this website!
+      if (urlOrDomain) {
+        const domain = extractDomain(urlOrDomain);
+        if (domain && settings.projectsByDomain[domain]) {
+          const siteProj = settings.projectsByDomain[domain];
+          if (siteProj.repo) {
+            settings.storageRepo = siteProj.repo;
+          }
+          if (siteProj.token) {
+            settings.githubToken = siteProj.token;
+          }
+        }
+      }
+
+      if (settings.storageRepo) {
         const parsed = parseGitHubRepo(settings.storageRepo);
         if (parsed && settings.storageRepo !== parsed.fullName) {
           settings.storageRepo = parsed.fullName;
@@ -39,13 +66,9 @@ export class CacheManager {
         }
       }
 
-      return settings || {
-        filterStatus: 'all',
-        isCommentModeActive: false,
-        storageRepo: ''
-      };
+      return settings;
     } catch {
-      return { filterStatus: 'all', isCommentModeActive: false, storageRepo: '' };
+      return { filterStatus: 'all', isCommentModeActive: false, storageRepo: '', projectsByDomain: {} };
     }
   }
 
@@ -74,6 +97,67 @@ export class CacheManager {
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * Get project associated with a specific website domain
+   */
+  static async getSiteProject(domain: string): Promise<SiteProject | undefined> {
+    const settings = await this.getSettings();
+    const cleanDomain = extractDomain(domain);
+    return settings.projectsByDomain?.[cleanDomain];
+  }
+
+  /**
+   * Save or link a GitHub project repo to a specific website domain
+   */
+  static async saveSiteProject(project: SiteProject): Promise<void> {
+    const cleanDomain = extractDomain(project.domain);
+    if (!cleanDomain) return;
+
+    const settings = await this.getSettings();
+    if (!settings.projectsByDomain) {
+      settings.projectsByDomain = {};
+    }
+
+    const parsed = parseGitHubRepo(project.repo);
+    const cleanRepo = parsed ? parsed.fullName : project.repo.trim();
+
+    settings.projectsByDomain[cleanDomain] = {
+      domain: cleanDomain,
+      repo: cleanRepo,
+      name: project.name?.trim() || cleanDomain,
+      token: project.token?.trim() || undefined,
+      updatedAt: new Date().toISOString()
+    };
+
+    // If default storageRepo is empty, set this repo as default too
+    if (!settings.storageRepo) {
+      settings.storageRepo = cleanRepo;
+    }
+
+    await this.saveSettings(settings);
+  }
+
+  /**
+   * Remove project association for a specific website domain
+   */
+  static async removeSiteProject(domain: string): Promise<void> {
+    const cleanDomain = extractDomain(domain);
+    const settings = await this.getSettings();
+    if (settings.projectsByDomain && settings.projectsByDomain[cleanDomain]) {
+      delete settings.projectsByDomain[cleanDomain];
+      await this.saveSettings(settings);
+    }
+  }
+
+  /**
+   * Retrieve all website projects
+   */
+  static async getAllSiteProjects(): Promise<SiteProject[]> {
+    const settings = await this.getSettings();
+    if (!settings.projectsByDomain) return [];
+    return Object.values(settings.projectsByDomain);
   }
 
   static async getCommentsForUrl(urlHash: string): Promise<WebComment[]> {

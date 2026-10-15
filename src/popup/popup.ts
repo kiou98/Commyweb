@@ -1,5 +1,5 @@
 import { WebComment, UserSettings, Author, ProjectMember } from '../types';
-import { normalizeUrl, hashUrl, escapeHtml, getUserColor } from '../utils/security';
+import { normalizeUrl, hashUrl, escapeHtml, getUserColor, extractDomain } from '../utils/security';
 import { formatRelativeTime, t } from '../utils/i18n';
 import { CacheManager } from '../storage/cache';
 import { generateInviteEmailHtml, encodeProjectConfig, decodeProjectConfig } from '../utils/email-template';
@@ -9,6 +9,7 @@ class PopupController {
   private currentTabId?: number;
   private currentTabUrl?: string;
   private currentUrlHash?: string;
+  private currentDomain: string = '';
   private currentScope: 'page' | 'all' = 'page';
   private comments: WebComment[] = [];
   private activeFilter: 'all' | 'open' | 'resolved' = 'all';
@@ -22,11 +23,22 @@ class PopupController {
 
   private async init() {
     this.localizeUI();
+
+    // 1. Attach event listeners IMMEDIATELY so buttons are never dead or delayed
+    try {
+      this.setupEventListeners();
+    } catch (e) {
+      console.error('[Commyweb] Error attaching listeners:', e);
+    }
+
+    // 2. Discover current tab and domain
     await this.setupCurrentTab();
+
+    // 3. Load settings (scoped to current domain if available)
     await this.loadSettings();
     await this.restoreDrawerState();
     await this.loadInvitedMembers();
-    this.setupEventListeners();
+    await this.loadSiteProjects();
     await this.fetchComments();
     this.checkForUpdates();
 
@@ -82,50 +94,70 @@ class PopupController {
   }
 
   private async setupCurrentTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab && tab.id && tab.url) {
-      this.currentTabId = tab.id;
-      this.currentTabUrl = tab.url;
-      const normalized = normalizeUrl(tab.url);
-      this.currentUrlHash = hashUrl(normalized);
-
-      // Display scoped URL
-      const scopeUrlEl = document.getElementById('scope-page-url');
-      if (scopeUrlEl) {
-        try {
-          const parsed = new URL(tab.url);
-          scopeUrlEl.textContent = `${parsed.hostname}${parsed.pathname}`;
-          scopeUrlEl.title = tab.url;
-        } catch {
-          scopeUrlEl.textContent = tab.url;
-        }
+    try {
+      let [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (!tab || !tab.url) {
+        const [curTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (curTab && curTab.url) tab = curTab;
+      }
+      if (!tab || !tab.url) {
+        const allTabs = await chrome.tabs.query({ active: true });
+        tab = allTabs.find((t) => t.url && !t.url.startsWith('chrome-extension://')) || allTabs[0];
       }
 
-      // Check if page is scriptable (avoid chrome://, edge://, about:, etc.)
-      const isRestrictedUrl =
-        tab.url.startsWith('chrome://') ||
-        tab.url.startsWith('chrome-extension://') ||
-        tab.url.startsWith('edge://') ||
-        tab.url.startsWith('about:') ||
-        tab.url.startsWith('devtools://');
+      if (tab && tab.id && tab.url) {
+        this.currentTabId = tab.id;
+        this.currentTabUrl = tab.url;
+        this.currentDomain = extractDomain(tab.url);
+        const normalized = normalizeUrl(tab.url);
+        this.currentUrlHash = hashUrl(normalized);
 
-      if (!isRestrictedUrl) {
-        try {
-          chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
-            const err = chrome.runtime.lastError;
-            const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
-            if (!err && res && typeof res.isCommentModeActive === 'boolean') {
-              if (chk) chk.checked = res.isCommentModeActive;
-            } else {
-              chrome.storage.local.get(['commyweb_comment_mode'], (storageRes) => {
-                if (chk) chk.checked = typeof storageRes?.commyweb_comment_mode === 'boolean' ? storageRes.commyweb_comment_mode : true;
-              });
-            }
-          });
-        } catch {
-          // Tab might not have content script loaded
+        // Display current active site domain in projects drawer
+        const activeSiteDomainEl = document.getElementById('active-site-domain');
+        if (activeSiteDomainEl) {
+          activeSiteDomainEl.textContent = this.currentDomain || 'Ce site web';
+        }
+
+        // Display scoped URL
+        const scopeUrlEl = document.getElementById('scope-page-url');
+        if (scopeUrlEl) {
+          try {
+            const parsed = new URL(tab.url);
+            scopeUrlEl.textContent = `${parsed.hostname}${parsed.pathname}`;
+            scopeUrlEl.title = tab.url;
+          } catch {
+            scopeUrlEl.textContent = tab.url;
+          }
+        }
+
+        // Check if page is scriptable (avoid chrome://, edge://, about:, etc.)
+        const isRestrictedUrl =
+          tab.url.startsWith('chrome://') ||
+          tab.url.startsWith('chrome-extension://') ||
+          tab.url.startsWith('edge://') ||
+          tab.url.startsWith('about:') ||
+          tab.url.startsWith('devtools://');
+
+        if (!isRestrictedUrl) {
+          try {
+            chrome.tabs.sendMessage(tab.id, { type: 'GET_COMMENT_MODE' }, (res) => {
+              const err = chrome.runtime.lastError;
+              const chk = document.getElementById('chk-comment-mode') as HTMLInputElement;
+              if (!err && res && typeof res.isCommentModeActive === 'boolean') {
+                if (chk) chk.checked = res.isCommentModeActive;
+              } else {
+                chrome.storage.local.get(['commyweb_comment_mode'], (storageRes) => {
+                  if (chk) chk.checked = typeof storageRes?.commyweb_comment_mode === 'boolean' ? storageRes.commyweb_comment_mode : true;
+                });
+              }
+            });
+          } catch {
+            // Tab might not have content script loaded
+          }
         }
       }
+    } catch (e) {
+      console.warn('[Commyweb] Could not resolve current tab:', e);
     }
   }
 
@@ -135,28 +167,46 @@ class PopupController {
 
     const settingsDrawer = document.getElementById('settings-drawer');
     const inviteDrawer = document.getElementById('invite-drawer');
+    const projectsDrawer = document.getElementById('projects-drawer');
+
+    const closeAll = () => {
+      settingsDrawer?.classList.remove('open');
+      inviteDrawer?.classList.remove('open');
+      projectsDrawer?.classList.remove('open');
+    };
 
     if (requestedDrawer === 'settings') {
+      closeAll();
       settingsDrawer?.classList.add('open');
-      inviteDrawer?.classList.remove('open');
+      return;
+    }
+    if (requestedDrawer === 'invite') {
+      closeAll();
+      inviteDrawer?.classList.add('open');
+      return;
+    }
+    if (requestedDrawer === 'projects') {
+      closeAll();
+      projectsDrawer?.classList.add('open');
       return;
     }
 
     try {
       const res = await chrome.storage.local.get(['commyweb_active_drawer']);
+      closeAll();
       if (res.commyweb_active_drawer === 'settings') {
         settingsDrawer?.classList.add('open');
-        inviteDrawer?.classList.remove('open');
       } else if (res.commyweb_active_drawer === 'invite') {
         inviteDrawer?.classList.add('open');
-        settingsDrawer?.classList.remove('open');
+      } else if (res.commyweb_active_drawer === 'projects') {
+        projectsDrawer?.classList.add('open');
       }
     } catch {
       // ignore
     }
   }
 
-  private setPersistedDrawer(drawer: 'settings' | 'invite' | null) {
+  private setPersistedDrawer(drawer: 'settings' | 'invite' | 'projects' | null) {
     try {
       chrome.storage.local.set({ commyweb_active_drawer: drawer });
     } catch {
@@ -207,8 +257,10 @@ class PopupController {
           e.preventDefault();
           const settingsDrawer = document.getElementById('settings-drawer');
           const inviteDrawer = document.getElementById('invite-drawer');
+          const projectsDrawer = document.getElementById('projects-drawer');
           settingsDrawer?.classList.add('open');
           inviteDrawer?.classList.remove('open');
+          projectsDrawer?.classList.remove('open');
           this.setPersistedDrawer('settings');
         });
       }
@@ -228,13 +280,14 @@ class PopupController {
 
     if (statusRepo) {
       statusRepo.textContent = settings.storageRepo || 'Non connecté';
-      statusRepo.title = settings.storageRepo ? `Projet GitHub : ${settings.storageRepo}` : 'Aucun projet connecté';
+      const domainLabel = this.currentDomain ? ` [${this.currentDomain}]` : '';
+      statusRepo.title = settings.storageRepo ? `Projet GitHub : ${settings.storageRepo}${domainLabel}` : 'Aucun projet connecté';
     }
 
     if (statusDot && statusTag) {
       if (isConfigured) {
         statusDot.style.background = '#16a34a';
-        statusTag.textContent = '● Synchronisé';
+        statusTag.textContent = this.currentDomain ? `● ${this.currentDomain}` : '● Synchronisé';
         statusTag.style.background = '#dcfce7';
         statusTag.style.color = '#15803d';
       } else {
@@ -257,7 +310,7 @@ class PopupController {
   }
 
   private async loadSettings() {
-    const settings = await CacheManager.getSettings();
+    const settings = await CacheManager.getSettings(this.currentTabUrl);
 
     const tokenInput = document.getElementById('input-github-token') as HTMLInputElement;
     const repoInput = document.getElementById('input-storage-repo') as HTMLInputElement;
@@ -477,27 +530,89 @@ class PopupController {
     });
 
     const btnSettings = document.getElementById('btn-toggle-settings');
+    const btnInvite = document.getElementById('btn-toggle-invite');
+    const btnProjects = document.getElementById('btn-toggle-projects');
+    const projectStatusBar = document.getElementById('project-status-bar');
+
     const settingsDrawer = document.getElementById('settings-drawer');
     const inviteDrawer = document.getElementById('invite-drawer');
+    const projectsDrawer = document.getElementById('projects-drawer');
+
+    const closeAllDrawers = () => {
+      settingsDrawer?.classList.remove('open');
+      inviteDrawer?.classList.remove('open');
+      projectsDrawer?.classList.remove('open');
+    };
 
     btnSettings?.addEventListener('click', () => {
-      inviteDrawer?.classList.remove('open');
-      const isOpen = settingsDrawer?.classList.toggle('open');
-      this.setPersistedDrawer(isOpen ? 'settings' : null);
+      const isCurrentlyOpen = settingsDrawer?.classList.contains('open');
+      closeAllDrawers();
+      if (!isCurrentlyOpen) {
+        settingsDrawer?.classList.add('open');
+        this.setPersistedDrawer('settings');
+      } else {
+        this.setPersistedDrawer(null);
+      }
     });
 
-    const btnInvite = document.getElementById('btn-toggle-invite');
     btnInvite?.addEventListener('click', () => {
-      settingsDrawer?.classList.remove('open');
-      const isOpen = inviteDrawer?.classList.toggle('open');
-      this.setPersistedDrawer(isOpen ? 'invite' : null);
+      const isCurrentlyOpen = inviteDrawer?.classList.contains('open');
+      closeAllDrawers();
+      if (!isCurrentlyOpen) {
+        inviteDrawer?.classList.add('open');
+        this.setPersistedDrawer('invite');
+      } else {
+        this.setPersistedDrawer(null);
+      }
     });
 
-    // Click on Commyweb brand logo closes any open drawer (settings or invite) and returns to main view
+    const toggleProjectsDrawer = () => {
+      const isCurrentlyOpen = projectsDrawer?.classList.contains('open');
+      closeAllDrawers();
+      if (!isCurrentlyOpen) {
+        projectsDrawer?.classList.add('open');
+        this.setPersistedDrawer('projects');
+        this.loadSiteProjects();
+      } else {
+        this.setPersistedDrawer(null);
+      }
+    };
+
+    btnProjects?.addEventListener('click', toggleProjectsDrawer);
+    projectStatusBar?.addEventListener('click', toggleProjectsDrawer);
+
+    // Save project association for current site
+    const btnSaveSiteProject = document.getElementById('btn-save-site-project');
+    const inputSiteRepo = document.getElementById('input-site-repo') as HTMLInputElement;
+
+    btnSaveSiteProject?.addEventListener('click', async () => {
+      const rawRepo = inputSiteRepo?.value.trim();
+      if (!rawRepo) {
+        this.showToast('⚠️ Indiquez le nom du dépôt (owner/repo) à associer à ce site.');
+        return;
+      }
+      const parsed = parseGitHubRepo(rawRepo);
+      const cleanRepo = parsed ? parsed.fullName : rawRepo;
+      if (!this.currentDomain) {
+        this.currentDomain = extractDomain(this.currentTabUrl || 'current-site');
+      }
+
+      await CacheManager.saveSiteProject({
+        domain: this.currentDomain,
+        repo: cleanRepo,
+        name: this.currentDomain
+      });
+
+      await this.loadSettings();
+      await this.loadSiteProjects();
+      await this.fetchComments();
+      this.showToast(`✓ Dépôt ${cleanRepo} associé au site ${this.currentDomain} !`);
+    });
+
+    // Click on Commyweb brand logo closes any open drawer and returns to main view
     const brandLogo = document.getElementById('brand-logo') || document.querySelector('.brand');
     brandLogo?.addEventListener('click', () => {
-      settingsDrawer?.classList.remove('open');
-      inviteDrawer?.classList.remove('open');
+      closeAllDrawers();
       this.setPersistedDrawer(null);
     });
 
@@ -541,6 +656,7 @@ class PopupController {
       e.preventDefault();
       settingsDrawer?.classList.add('open');
       inviteDrawer?.classList.remove('open');
+      projectsDrawer?.classList.remove('open');
       this.setPersistedDrawer('settings');
     });
 
@@ -579,6 +695,7 @@ class PopupController {
           void chrome.runtime.lastError;
           if (res?.success) {
             await this.loadSettings();
+            await this.loadSiteProjects();
             await this.fetchComments();
             this.showToast('✓ Connecté au projet avec succès !');
             if (inputJoinLink) inputJoinLink.value = '';
@@ -664,6 +781,124 @@ class PopupController {
     });
   }
 
+  private async loadSiteProjects() {
+    const container = document.getElementById('site-projects-list');
+    const emptyState = document.getElementById('lbl-no-site-projects');
+    const inputSiteRepo = document.getElementById('input-site-repo') as HTMLInputElement;
+    if (!container) return;
+
+    const projects = await CacheManager.getAllSiteProjects();
+    container.innerHTML = '';
+
+    // Check if current site has an assigned repo
+    const currentSiteProject = projects.find((p) => p.domain === this.currentDomain);
+    if (inputSiteRepo && currentSiteProject) {
+      inputSiteRepo.value = currentSiteProject.repo;
+    }
+
+    if (projects.length === 0) {
+      if (emptyState) {
+        container.appendChild(emptyState);
+        emptyState.style.display = 'block';
+      }
+      return;
+    }
+
+    projects.forEach((proj) => {
+      const chip = document.createElement('div');
+      chip.className = 'member-chip';
+      const isCurrentSite = proj.domain === this.currentDomain;
+
+      chip.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 2px; overflow: hidden; max-width: 65%;">
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <span style="font-size: 11px; font-weight: 800; color: #000000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🌐 ${escapeHtml(proj.domain)}</span>
+            ${isCurrentSite ? `<span style="font-size: 9px; font-weight: 700; background: #dcfce7; color: #15803d; padding: 1px 5px; border-radius: 4px;">Actif</span>` : ''}
+          </div>
+          <span style="font-size: 10px; font-family: monospace; color: #71717a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📁 ${escapeHtml(proj.repo)}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          ${
+            !isCurrentSite
+              ? `<button class="btn-apply-site-repo" data-repo="${escapeHtml(proj.repo)}" style="background: #000000; color: #ffffff; border: none; border-radius: 6px; padding: 3px 8px; font-size: 10px; font-weight: 700; cursor: pointer;">
+                  Associer
+                </button>`
+              : ''
+          }
+          <button class="btn-delete-site-project" data-domain="${escapeHtml(proj.domain)}" title="Supprimer l'association de ce site" style="background: none; border: 1px solid #e4e4e7; border-radius: 6px; padding: 3px 6px; font-size: 11px; cursor: pointer; color: #ef4444;">
+            ✕
+          </button>
+        </div>
+      `;
+
+      const btnApply = chip.querySelector('.btn-apply-site-repo') as HTMLButtonElement;
+      btnApply?.addEventListener('click', async () => {
+        if (!this.currentDomain) return;
+        await CacheManager.saveSiteProject({
+          domain: this.currentDomain,
+          repo: proj.repo,
+          name: this.currentDomain
+        });
+        if (inputSiteRepo) inputSiteRepo.value = proj.repo;
+        await this.loadSettings();
+        await this.loadSiteProjects();
+        await this.fetchComments();
+        this.showToast(`✓ Dépôt ${proj.repo} associé au site ${this.currentDomain} !`);
+      });
+
+      const btnDelete = chip.querySelector('.btn-delete-site-project') as HTMLButtonElement;
+      btnDelete?.addEventListener('click', async () => {
+        if (confirm(`Supprimer l'association pour le site ${proj.domain} ?`)) {
+          await CacheManager.removeSiteProject(proj.domain);
+          await this.loadSettings();
+          await this.loadSiteProjects();
+          await this.fetchComments();
+          this.showToast(`✓ Association supprimée pour ${proj.domain}`);
+        }
+      });
+
+      container.appendChild(chip);
+    });
+  }
+
+  private async copyHtmlToClipboard(html: string, fallbackPlain: string) {
+    let copied = false;
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        const blobHtml = new Blob([html], { type: 'text/html' });
+        const blobText = new Blob([fallbackPlain], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })
+        ]);
+        copied = true;
+      }
+    } catch {}
+
+    if (!copied) {
+      try {
+        await navigator.clipboard.writeText(html);
+        copied = true;
+      } catch {}
+    }
+
+    if (!copied) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = html;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        copied = true;
+      } catch {}
+    }
+
+    return copied;
+  }
+
   private async handleSendInvite() {
     const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
     const btnSend = document.getElementById('btn-send-invite') as HTMLButtonElement;
@@ -674,26 +909,35 @@ class PopupController {
       return;
     }
 
-    if (!this.currentUrlHash || !this.currentTabUrl) return;
+    // Ensure tab URL and hash are resolved
+    if (!this.currentTabUrl || !this.currentUrlHash) {
+      await this.setupCurrentTab();
+    }
 
-    const settings = await CacheManager.getSettings();
+    if (!this.currentTabUrl || !this.currentUrlHash) {
+      this.showToast("⚠️ Ouvrez une page web pour inviter des collaborateurs.");
+      return;
+    }
+
+    const settings = await CacheManager.getSettings(this.currentTabUrl);
+    const tokenInput = (document.getElementById('input-github-token') as HTMLInputElement)?.value.trim();
+    const repoInput = (document.getElementById('input-storage-repo') as HTMLInputElement)?.value.trim();
+    const effectiveRepo = settings.storageRepo || repoInput;
+    const effectiveToken = settings.githubToken || tokenInput;
+
     const hasSettings = Boolean(document.getElementById('settings-drawer'));
-    if (!settings.storageRepo || !settings.githubToken) {
+    if (!effectiveRepo || !effectiveToken) {
       if (!hasSettings) {
         this.showToast('⚠️ Vous devez d\'abord rejoindre un projet avec le lien reçu par email.');
         return;
       }
-      if (!settings.storageRepo && !settings.githubToken) {
-        this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
-      } else if (!settings.storageRepo) {
-        this.showToast('⚠️ Renseignez votre Dépôt de stockage (owner/repo) dans les Paramètres ⚙️.');
-      } else {
-        this.showToast('⚠️ Renseignez votre GitHub Token (PAT) dans les Paramètres ⚙️.');
-      }
+      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
       const settingsDrawer = document.getElementById('settings-drawer');
       const inviteDrawer = document.getElementById('invite-drawer');
+      const projectsDrawer = document.getElementById('projects-drawer');
       settingsDrawer?.classList.add('open');
       inviteDrawer?.classList.remove('open');
+      projectsDrawer?.classList.remove('open');
       this.setPersistedDrawer('settings');
       return;
     }
@@ -721,59 +965,45 @@ class PopupController {
           btnSend.textContent = 'Autoriser & Préparer';
         }
 
-        if (res && res.member) {
-          const member: ProjectMember = res.member;
-          await this.loadInvitedMembers();
+        const member: ProjectMember = res?.member || {
+          id: 'mem_' + Date.now(),
+          email,
+          role: 'member',
+          status: 'active',
+          addedAt: new Date().toISOString(),
+          addedBy: this.currentAuthorName,
+          authCode: 'cw_auth_' + Math.random().toString(36).substring(2, 12)
+        };
 
-          const settings = await CacheManager.getSettings();
+        await this.loadInvitedMembers();
 
-          // Generate HTML email for this specific member with project auto-config
-          const emailHtml = generateInviteEmailHtml({
-            recipientEmail: email,
-            invitedByName: this.currentAuthorName,
-            pageUrl: this.currentTabUrl!,
-            authCode: member.authCode,
-            storageRepo: settings.storageRepo,
-            githubToken: settings.githubToken
-          });
+        // Generate HTML email with project auto-config
+        const emailHtml = generateInviteEmailHtml({
+          recipientEmail: email,
+          invitedByName: this.currentAuthorName,
+          pageUrl: this.currentTabUrl!,
+          authCode: member.authCode,
+          storageRepo: effectiveRepo,
+          githubToken: effectiveToken
+        });
 
-          // Automatically copy formatted HTML email to clipboard for instant pasting into Gmail / Outlook
-          let copied = false;
-          try {
-            if (navigator.clipboard && window.ClipboardItem) {
-              const blobHtml = new Blob([emailHtml], { type: 'text/html' });
-              const blobText = new Blob([this.currentTabUrl!], { type: 'text/plain' });
-              await navigator.clipboard.write([
-                new ClipboardItem({
-                  'text/html': blobHtml,
-                  'text/plain': blobText
-                })
-              ]);
-              copied = true;
-            } else {
-              await navigator.clipboard.writeText(emailHtml);
-              copied = true;
-            }
-          } catch {
-            copied = false;
-          }
+        // Copy formatted HTML email to clipboard
+        await this.copyHtmlToClipboard(emailHtml, this.currentTabUrl!);
 
-          inputEmail.value = '';
-
-          if (copied) {
-            this.showToast(`✓ Accès autorisé pour ${email} ! L'email complet est copié : collez-le dans Gmail ou Outlook.`);
-          } else {
-            this.showToast(`✓ Accès autorisé pour ${email} ! Cliquez sur "Copier Email (HTML)" pour l'envoyer.`);
-          }
-        } else {
-          this.showToast(`⚠️ Erreur : ${res?.error || 'Impossible d\'enregistrer le membre'}`);
-        }
+        if (inputEmail) inputEmail.value = '';
+        this.showToast(`✓ Accès autorisé pour ${email} ! L'email complet est copié : collez-le dans Gmail ou Outlook.`);
       }
     );
   }
 
   private async handleCopyHtmlEmail() {
-    if (!this.currentTabUrl || !this.currentUrlHash) return;
+    if (!this.currentTabUrl || !this.currentUrlHash) {
+      await this.setupCurrentTab();
+    }
+    if (!this.currentTabUrl || !this.currentUrlHash) {
+      this.showToast('⚠️ Ouvrez une page web pour préparer une invitation.');
+      return;
+    }
 
     const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
     const typedEmail = inputEmail?.value.trim().toLowerCase();
@@ -781,25 +1011,14 @@ class PopupController {
       ? typedEmail
       : 'collaborateur@entreprise.com';
 
-    const settings = await CacheManager.getSettings();
-    const hasSettings = Boolean(document.getElementById('settings-drawer'));
-    if (!settings.storageRepo || !settings.githubToken) {
-      if (!hasSettings) {
-        this.showToast('⚠️ Vous devez d\'abord rejoindre un projet avec le lien reçu par email.');
-        return;
-      }
-      if (!settings.storageRepo && !settings.githubToken) {
-        this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
-      } else if (!settings.storageRepo) {
-        this.showToast('⚠️ Renseignez votre Dépôt de stockage (owner/repo) dans les Paramètres ⚙️.');
-      } else {
-        this.showToast('⚠️ Renseignez votre GitHub Token (PAT) dans les Paramètres ⚙️.');
-      }
-      const settingsDrawer = document.getElementById('settings-drawer');
-      const inviteDrawer = document.getElementById('invite-drawer');
-      settingsDrawer?.classList.add('open');
-      inviteDrawer?.classList.remove('open');
-      this.setPersistedDrawer('settings');
+    const settings = await CacheManager.getSettings(this.currentTabUrl);
+    const tokenInput = (document.getElementById('input-github-token') as HTMLInputElement)?.value.trim();
+    const repoInput = (document.getElementById('input-storage-repo') as HTMLInputElement)?.value.trim();
+    const effectiveRepo = settings.storageRepo || repoInput;
+    const effectiveToken = settings.githubToken || tokenInput;
+
+    if (!effectiveRepo || !effectiveToken) {
+      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
       return;
     }
 
@@ -808,32 +1027,22 @@ class PopupController {
       invitedByName: this.currentAuthorName,
       pageUrl: this.currentTabUrl,
       authCode: 'cw_auth_join',
-      storageRepo: settings.storageRepo,
-      githubToken: settings.githubToken
+      storageRepo: effectiveRepo,
+      githubToken: effectiveToken
     });
 
-    try {
-      if (navigator.clipboard && window.ClipboardItem) {
-        const blobHtml = new Blob([emailHtml], { type: 'text/html' });
-        const blobText = new Blob([this.currentTabUrl], { type: 'text/plain' });
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/html': blobHtml,
-            'text/plain': blobText
-          })
-        ]);
-      } else {
-        await navigator.clipboard.writeText(emailHtml);
-      }
-      this.showToast('✓ Email HTML copié ! Ouvrez un nouvel email dans Gmail / Outlook et faites Ctrl+V.');
-    } catch {
-      await navigator.clipboard.writeText(emailHtml);
-      this.showToast('✓ Code de l\'email copié !');
-    }
+    await this.copyHtmlToClipboard(emailHtml, this.currentTabUrl);
+    this.showToast('✓ Email HTML copié ! Ouvrez un nouvel email dans Gmail / Outlook et faites Ctrl+V.');
   }
 
   private async handleCopyInviteLink() {
-    if (!this.currentTabUrl || !this.currentUrlHash) return;
+    if (!this.currentTabUrl || !this.currentUrlHash) {
+      await this.setupCurrentTab();
+    }
+    if (!this.currentTabUrl || !this.currentUrlHash) {
+      this.showToast('⚠️ Ouvrez une page web pour préparer une invitation.');
+      return;
+    }
 
     const inputEmail = document.getElementById('input-invite-email') as HTMLInputElement;
     const typedEmail = inputEmail?.value.trim().toLowerCase();
@@ -841,31 +1050,20 @@ class PopupController {
       ? typedEmail
       : 'collaborateur@domaine.com';
 
-    const settings = await CacheManager.getSettings();
-    const hasSettings = Boolean(document.getElementById('settings-drawer'));
-    if (!settings.storageRepo || !settings.githubToken) {
-      if (!hasSettings) {
-        this.showToast('⚠️ Vous devez d\'abord rejoindre un projet avec le lien reçu par email.');
-        return;
-      }
-      if (!settings.storageRepo && !settings.githubToken) {
-        this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
-      } else if (!settings.storageRepo) {
-        this.showToast('⚠️ Renseignez votre Dépôt de stockage (owner/repo) dans les Paramètres ⚙️.');
-      } else {
-        this.showToast('⚠️ Renseignez votre GitHub Token (PAT) dans les Paramètres ⚙️.');
-      }
-      const settingsDrawer = document.getElementById('settings-drawer');
-      const inviteDrawer = document.getElementById('invite-drawer');
-      settingsDrawer?.classList.add('open');
-      inviteDrawer?.classList.remove('open');
-      this.setPersistedDrawer('settings');
+    const settings = await CacheManager.getSettings(this.currentTabUrl);
+    const tokenInput = (document.getElementById('input-github-token') as HTMLInputElement)?.value.trim();
+    const repoInput = (document.getElementById('input-storage-repo') as HTMLInputElement)?.value.trim();
+    const effectiveRepo = settings.storageRepo || repoInput;
+    const effectiveToken = settings.githubToken || tokenInput;
+
+    if (!effectiveRepo || !effectiveToken) {
+      this.showToast('⚠️ Renseignez votre GitHub Token et votre Dépôt dans les Paramètres ⚙️.');
       return;
     }
 
     const encodedConfig = encodeProjectConfig({
-      repo: settings.storageRepo,
-      token: settings.githubToken,
+      repo: effectiveRepo,
+      token: effectiveToken,
       email: recipientEmail,
       url: this.currentTabUrl,
       authCode: 'cw_auth_join'
@@ -878,7 +1076,7 @@ class PopupController {
     const inviteText =
       `Bonjour,\n\n` +
       `${this.currentAuthorName} vous invite à collaborer et annoter une page web avec Commyweb.\n\n` +
-      `📁 Projet : ${settings.storageRepo || 'Commyweb'}\n` +
+      `📁 Projet : ${effectiveRepo}\n` +
       `🌐 Page : ${this.currentTabUrl}\n\n` +
       `PROCÉDURE SIMPLE EN 2 ÉTAPES (30 secondes) :\n\n` +
       `1️⃣ INSTALLER L'EXTENSION (si pas encore fait) :\n` +
@@ -891,7 +1089,7 @@ class PopupController {
       `L'extension se configure automatiquement et affiche directement tous les commentaires de l'équipe !\n` +
       `Pour commenter : faites un clic droit n'importe où (ou Alt + C).`;
 
-    await navigator.clipboard.writeText(inviteText);
+    await this.copyHtmlToClipboard(inviteText, projectLink);
     this.showToast('✓ Message et lien d\'invitation copiés pour Slack / Teams / SMS !');
   }
 

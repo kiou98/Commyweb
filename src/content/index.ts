@@ -440,7 +440,7 @@ class CommywebContentApp {
 
     chrome.runtime.sendMessage({
       type: 'ADD_REPLY',
-      payload: { commentId, urlHash: this.currentUrlHash, reply }
+      payload: { commentId, urlHash: this.currentUrlHash, url: this.currentUrl, reply }
     });
   }
 
@@ -471,7 +471,7 @@ class CommywebContentApp {
 
     chrome.runtime.sendMessage({
       type: 'RESOLVE_COMMENT',
-      payload: { commentId, urlHash: this.currentUrlHash }
+      payload: { commentId, urlHash: this.currentUrlHash, url: this.currentUrl }
     });
   }
 
@@ -634,7 +634,7 @@ class CommywebContentApp {
 
   private async loadComments() {
     chrome.runtime.sendMessage(
-      { type: 'GET_PAGE_COMMENTS', payload: { urlHash: this.currentUrlHash } },
+      { type: 'GET_PAGE_COMMENTS', payload: { urlHash: this.currentUrlHash, url: this.currentUrl } },
       (response) => {
         void chrome.runtime.lastError;
         if (response && response.comments) {

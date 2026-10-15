@@ -54,6 +54,14 @@ export interface CommentReply {
   createdAt: string;
 }
 
+export interface SiteProject {
+  domain: string;
+  repo: string;
+  name?: string;
+  token?: string;
+  updatedAt?: string;
+}
+
 export interface UserSettings {
   githubToken?: string;
   storageRepo?: string;
@@ -61,6 +69,7 @@ export interface UserSettings {
   filterStatus?: 'all' | 'open' | 'resolved';
   userEmail?: string;
   userRole?: 'admin' | 'collaborator';
+  projectsByDomain?: Record<string, SiteProject>;
 }
 
 export interface ExtensionMessage {
@@ -81,6 +90,9 @@ export interface ExtensionMessage {
     | 'REVOKE_MEMBER'
     | 'GET_MEMBERS'
     | 'VALIDATE_JOIN_CODE'
-    | 'AUTO_CONFIGURE_PROJECT';
+    | 'AUTO_CONFIGURE_PROJECT'
+    | 'GET_SITE_PROJECTS'
+    | 'SAVE_SITE_PROJECT'
+    | 'DELETE_SITE_PROJECT';
   payload?: any;
 }

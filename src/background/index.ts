@@ -1,7 +1,7 @@
 import { CacheManager } from '../storage/cache';
 import { GitHubBackend } from '../storage/github';
 import { ExtensionMessage, Author, UserSettings } from '../types';
-import { normalizeUrl, hashUrl } from '../utils/security';
+import { normalizeUrl, hashUrl, extractDomain } from '../utils/security';
 import { parseGitHubRepo } from '../utils/github-parser';
 
 /**
@@ -107,7 +107,12 @@ function broadcastCommentsUpdated(urlHash?: string) {
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
   (async () => {
     try {
-      const settings = await CacheManager.getSettings();
+      const urlOrDomain =
+        message.payload?.url ||
+        message.payload?.comment?.url ||
+        message.payload?.targetUrl ||
+        _sender.tab?.url;
+      const settings = await CacheManager.getSettings(urlOrDomain);
 
       switch (message.type) {
         case 'GET_PAGE_COMMENTS': {
@@ -285,10 +290,53 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               }
             }
 
+            if (url && repo) {
+              const domain = extractDomain(url);
+              if (domain) {
+                const parsed = parseGitHubRepo(repo);
+                await CacheManager.saveSiteProject({
+                  domain,
+                  repo: parsed ? parsed.fullName : repo.trim(),
+                  token,
+                  name: domain
+                });
+              }
+            }
+
             broadcastCommentsUpdated();
             sendResponse({ success: true });
           } else {
             sendResponse({ success: false });
+          }
+          break;
+        }
+
+        case 'GET_SITE_PROJECTS': {
+          const projects = await CacheManager.getAllSiteProjects();
+          sendResponse({ projects });
+          break;
+        }
+
+        case 'SAVE_SITE_PROJECT': {
+          const { project } = message.payload || {};
+          if (project && project.domain && project.repo) {
+            await CacheManager.saveSiteProject(project);
+            broadcastCommentsUpdated();
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: 'Missing domain or repo' });
+          }
+          break;
+        }
+
+        case 'DELETE_SITE_PROJECT': {
+          const { domain } = message.payload || {};
+          if (domain) {
+            await CacheManager.removeSiteProject(domain);
+            broadcastCommentsUpdated();
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: 'Missing domain' });
           }
           break;
         }

@@ -97,3 +97,18 @@ export function getUserColor(identifier: string): string {
   return palette[index];
 }
 
+/**
+ * Extracts and normalizes the website domain/host from any URL
+ * e.g. "https://client-abc.com/page?id=1" -> "client-abc.com"
+ * e.g. "http://localhost:3000/app" -> "localhost:3000"
+ */
+export function extractDomain(rawUrl: string): string {
+  if (!rawUrl) return '';
+  try {
+    const url = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+    return url.host.toLowerCase();
+  } catch {
+    return rawUrl.toLowerCase().replace(/^[a-z]+:\/\//, '').split('/')[0].split('?')[0].split('#')[0].trim();
+  }
+}
+

@@ -14,6 +14,11 @@
         <img class="brand-logotype-img" src="/icons/logotype.png" alt="Commyweb" style="height: 22px; width: auto; object-fit: contain;">
       </div>
       <div class="header-actions">
+        <button class="icon-btn" id="btn-toggle-projects" title="Gérer les projets par site web">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
         <button class="icon-btn" id="btn-toggle-invite" title="Invite Collaborators">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -43,14 +48,51 @@
       </label>
     </div>
 
-    <!-- Project Status Bar -->
-    <div id="project-status-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 16px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7; font-size: 11px;">
-      <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; max-width: 70%;">
+    <!-- Project Status Bar (Click to open Projects Drawer) -->
+    <div id="project-status-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 7px 16px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7; font-size: 11px; cursor: pointer; transition: background 0.15s;" title="Cliquer pour gérer ou associer un projet à ce site web">
+      <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; max-width: 72%;">
         <span id="project-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #dc2626; flex-shrink: 0;"></span>
         <span style="color: #71717a; font-weight: 600; white-space: nowrap;">Projet :</span>
         <span id="project-status-repo" style="font-weight: 800; color: #000000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Dépôt GitHub du projet">Non configuré</span>
       </div>
-      <span id="project-status-tag" style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px; background: #fee2e2; color: #991b1b; white-space: nowrap;">Déconnecté</span>
+      <div style="display: flex; align-items: center; gap: 5px;">
+        <span id="project-status-tag" style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px; background: #fee2e2; color: #991b1b; white-space: nowrap;">Déconnecté</span>
+        <span style="font-size: 9px; color: #71717a;">▼</span>
+      </div>
+    </div>
+
+    <!-- Projects Manager Drawer (Multiple Projects per Website) -->
+    <div class="drawer" id="projects-drawer">
+      <div class="drawer-header">
+        <div class="drawer-title">📁 Projets par site web</div>
+      </div>
+
+      <!-- Current Site Binding Box -->
+      <div style="background: #ffffff; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #71717a;">Site actuel :</span>
+          <span id="active-site-domain" style="font-size: 11px; font-family: monospace; font-weight: 800; background: #f4f4f5; padding: 2px 6px; border-radius: 4px; color: #000000;">...</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 700; color: #18181b;">Dépôt GitHub de ce site (owner/repo)</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" class="input-text" id="input-site-repo" placeholder="ex: mon-compte/mon-projet" style="flex: 1;" />
+            <button class="btn-black" id="btn-save-site-project" style="padding: 6px 12px; font-size: 11px;">Associer</button>
+          </div>
+          <div style="font-size: 10.5px; color: #71717a; margin-top: 2px;">
+            Chaque site web peut avoir son propre dépôt GitHub distinct.
+          </div>
+        </div>
+      </div>
+
+      <!-- All Configured Projects List -->
+      <div class="drawer-header" style="margin-top: 4px;">
+        <div class="drawer-title" style="font-size: 10px; color: #71717a;">Tous vos sites &amp; dépôts enregistrés</div>
+      </div>
+      <div class="members-list" id="site-projects-list" style="max-height: 160px; overflow-y: auto;">
+        <div class="empty-state" id="lbl-no-site-projects" style="padding: 10px; font-size: 11px;">Aucun projet par site pour le moment.</div>
+      </div>
     </div>
 
     <!-- Quick Author Profile Row -->
