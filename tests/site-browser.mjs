@@ -33,7 +33,7 @@ try {
   await expect(page.getByRole('heading', { name: /Commentez vos pages web/ })).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
   await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /commentaires/);
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://commyweb.netlify.app/');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://commyweb.neonea.nc/');
   await expect(page.locator('a[href="https://neonea.nc/#contact"]')).toHaveCount(3);
   const social = await page.request.get(`${origin}/social-card.png`);
   assert.ok(social.ok());

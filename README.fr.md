@@ -4,7 +4,7 @@ Des retours précis, directement sur les pages web. Extension Chrome / Edge / Br
 
 [English](README.md) · [Architecture](ARCHITECTURE.md) · [Bilan des changements](AUDIT.md)
 
-La présentation et le téléchargement sont disponibles sur [commyweb.netlify.app](https://commyweb.netlify.app). Les invitations ouvrent directement la page à commenter avec le projet déjà sélectionné. Toute la configuration du projet se fait dans la modale de l’extension ; seule la création du jeton passe par GitHub. Les anciens liens `/join.html` restent lisibles.
+La présentation et le téléchargement sont disponibles sur [commyweb.neonea.nc](https://commyweb.neonea.nc). L’adresse Netlify historique reste disponible pour les anciens liens. Les invitations ouvrent directement la page à commenter avec le projet déjà sélectionné. Toute la configuration du projet se fait dans la modale de l’extension ; seule la création du jeton passe par GitHub. Les anciens liens `/join.html` restent lisibles.
 
 ## Commencer
 
@@ -81,7 +81,9 @@ Les archives se trouvent dans `release/`. Il existe une seule édition ; les nom
 
 ## Guide public sur Netlify
 
-Le projet Netlify `commyweb` suit actuellement la branche `codex/simplify-experience`. Chaque push sur cette branche déclenche une publication sur `https://commyweb.netlify.app`.
+Le projet Netlify `commyweb` suit actuellement la branche `codex/simplify-experience`. Chaque push sur cette branche déclenche une publication sur `https://commyweb.neonea.nc` (également accessible via `https://commyweb.netlify.app`).
+
+Le sous-domaine est rattaché à ce projet Netlify. Dans la zone DNS Cloudflare de `neonea.nc`, le CNAME `commyweb` pointe vers `commyweb.netlify.app`, en mode DNS uniquement. Netlify gère le certificat HTTPS. Les URL canoniques, les métadonnées de partage et le sitemap utilisent le sous-domaine Néonéa.
 
 Le fichier `netlify.toml` compile le guide via `npm run build:site` et publie `site-dist`, avec l’archive de l’extension dans `/downloads/`. Le dossier `dist` est une extension de navigateur et ne doit pas servir de site web public. `npm run test:site` vérifie le téléchargement, les invitations, l’affichage mobile et les liens invalides.
 
