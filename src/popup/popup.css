@@ -88,4 +88,8 @@ a.secondary { text-decoration:none; }
 #invite-form { margin-top:12px; }
 #realtime-settings input { margin-top:7px; }
 @media (min-width:600px) { body { margin:30px auto; } .popup-container { border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 12px 40px #00000008; } }
+body.side-panel { width:100%; margin:0; }
+.side-panel .popup-container { border:0; border-radius:0; box-shadow:none; }
+.side-panel.settings-open :is(#btn-add-comment,#mode-hint,.identity,.list-toolbar,.filters,.comments-list,footer) { display:none; }
+.side-panel.settings-open #page-path { margin-bottom:0; }
 @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }

@@ -127,12 +127,48 @@ try {
   await expect(popup.locator('#btn-open-setup')).toHaveCount(0);
   await expect(popup.getByRole('button', { name: 'Inviter un collaborateur par email', exact: true }).locator('svg')).toBeVisible();
   await popup.locator('#input-storage-repo').fill('team/draft-project');
+  await popup.locator('#input-github-token').fill('draft-token-not-verified');
+  await popup.locator('#quick-author-name').fill('Camille en cours');
+  await popup.locator('#realtime-settings summary').click();
+  await popup.locator('#input-realtime-endpoint').fill('');
+  await expect.poll(() => first.worker.evaluate(async domain => (await chrome.storage.local.get(`commyweb_setup_draft:${domain}`))[`commyweb_setup_draft:${domain}`]?.token, new URL(origin).host)).toBe('draft-token-not-verified');
+  await first.worker.evaluate(() => chrome.storage.session.clear());
+  // Reopen without a drawer override: the admin view and unverified inputs must survive.
+  const reopenUrl = `chrome-extension://${new URL(first.worker.url()).host}/popup.html?tabId=${first.tabId}`;
+  await popup.goto(reopenUrl);
+  await expect(popup.locator('#settings-drawer')).toBeVisible();
+  await expect(popup.locator('#input-storage-repo')).toHaveValue('team/draft-project');
+  await expect(popup.locator('#input-github-token')).toHaveValue('draft-token-not-verified');
+  await expect(popup.locator('#input-github-token')).toHaveAttribute('type', 'password');
+  await expect(popup.locator('#quick-author-name')).toHaveValue('Camille en cours');
+  await expect(popup.locator('#input-realtime-endpoint')).toHaveValue('');
+  await expect(popup.locator('#realtime-settings')).toHaveAttribute('open', '');
+  const unchanged = await first.worker.evaluate(async domain => ({ local: (await chrome.storage.local.get('commyweb_settings')).commyweb_settings.projectsByDomain[domain], sync: await chrome.storage.sync.get(null) }), new URL(origin).host);
+  assert.equal(unchanged.local.repo, 'team/project');
+  assert.equal(unchanged.local.token, 'test-only-Camille');
+  assert.ok(!JSON.stringify(unchanged.sync).includes('draft-token-not-verified'));
+  await popup.locator('#btn-toggle-invite').click();
+  await popup.locator('#input-invite-email').fill('draft@example.test');
+  await popup.locator('#join-details summary').click();
+  await popup.locator('#input-join-link').fill('https://example.test/invitation');
+  await popup.reload();
+  await expect(popup.locator('#invite-drawer')).toBeVisible();
+  await expect(popup.locator('#input-invite-email')).toHaveValue('draft@example.test');
+  await expect(popup.locator('#input-join-link')).toHaveValue('https://example.test/invitation');
+  await popup.locator('#invite-drawer [data-close]').click();
+  await popup.reload();
+  await expect(popup.locator('#settings-drawer')).toBeHidden();
+  await expect(popup.locator('#invite-drawer')).toBeHidden();
+  await popup.locator('#btn-toggle-settings').click();
+  console.log('PASS: admin view, token, empty fields and invitation drafts survive reopening without connecting unverified values or syncing tokens');
   await popup.evaluate(() => { chrome.tabs.create = async options => { window.openedTokenUrl = options.url; return { id: 999, ...options }; }; });
   await popup.locator('#link-create-token').click();
   await expect.poll(() => popup.evaluate(() => window.openedTokenUrl)).toMatch(/^https:\/\/github.com\/settings\/personal-access-tokens\/new/);
   await popup.reload();
   await expect(popup.locator('#input-storage-repo')).toHaveValue('team/draft-project');
   await popup.locator('#input-storage-repo').fill('team/project');
+  await popup.locator('#input-github-token').fill('test-only-Camille');
+  await popup.locator('#input-realtime-endpoint').fill(config.endpoint);
   await expect(popup.locator('#link-create-token')).toHaveAttribute('href', /target_name=team/);
   await expect(popup.locator('#token-project-hint')).toContainText('project');
   await popup.locator('#btn-load-repositories').click();
@@ -141,6 +177,7 @@ try {
   await popup.locator('#btn-save-settings').click();
   await expect(popup.locator('#toast')).toContainText('lecture GitHub vérifiée');
   await expect(popup.locator('#realtime-status')).toContainText('Temps réel actif');
+  assert.equal(await first.worker.evaluate(async domain => (await chrome.storage.local.get(`commyweb_setup_draft:${domain}`))[`commyweb_setup_draft:${domain}`], new URL(origin).host), undefined);
   await popup.screenshot({ path: join(output, 'setup-realtime.png'), fullPage: true });
   if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
     await mkdir('site/screenshots', { recursive: true });
@@ -173,6 +210,39 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log('PASS: invitation opens an explicit email draft without sending or sharing tokens');
+
+  await popup.locator('#btn-toggle-settings').click();
+  await expect(popup.locator('#btn-keep-open')).toBeEnabled();
+  // Keep the test tab available for assertions; the native panel API is not mocked.
+  await popup.evaluate(() => { window.close = () => { window.popupClosed = true; }; });
+  await popup.locator('#btn-keep-open').click();
+  await expect.poll(() => popup.evaluate(() => window.popupClosed)).toBe(true);
+  const panelContexts = () => first.worker.evaluate(() => chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] }));
+  await expect.poll(async () => (await panelContexts()).filter(context => context.documentUrl && new URL(context.documentUrl).searchParams.get('page') === targetUrl).length).toBe(1);
+  const panel = (await panelContexts())[0];
+  const panelUrl = new URL(panel.documentUrl);
+  assert.equal(panelUrl.searchParams.get('page'), targetUrl);
+  assert.equal(panelUrl.searchParams.get('tabId'), String(first.tabId));
+  const otherTab = await first.context.newPage();
+  await otherTab.goto('about:blank');
+  await otherTab.bringToFront();
+  assert.equal((await panelContexts())[0].documentId, panel.documentId);
+  // Also open the exact panel resource as a test tab to inspect its DOM.
+  const panelView = await first.context.newPage();
+  await panelView.setViewportSize({ width: 360, height: 900 });
+  await panelView.goto(panel.documentUrl);
+  await expect(panelView.locator('#settings-drawer')).toBeVisible();
+  await expect(panelView.locator('#active-site-domain')).toHaveText(new URL(origin).host);
+  await expect(panelView.locator('#btn-keep-open')).toBeHidden();
+  await expect(panelView.locator('body')).toHaveClass('side-panel settings-open');
+  await expect(panelView.locator('#btn-add-comment')).toBeHidden();
+  await expect(panelView.locator('#input-storage-repo')).toHaveValue('team/project');
+  assert.equal(await panelView.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await panelView.screenshot({ path: join(output, 'persistent-configuration.png'), fullPage: true });
+  await panelView.locator('#settings-drawer [data-close]').click();
+  await expect(panelView.locator('#btn-add-comment')).toBeVisible();
+  console.log('PASS: native side panel opens on a user click and survives tab switching while keeping the original website');
+  assert.deepEqual(errors, []);
 } catch (error) {
   console.error(error);
   for (let i = 0; i < contexts.length; i++) for (const [index, page] of contexts[i].pages().entries()) {

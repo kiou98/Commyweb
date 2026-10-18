@@ -30,7 +30,7 @@ Local mode works without an account or setup. To load a development build, selec
 ## GitHub collaboration
 
 1. Create a private GitHub repository and grant collaborators appropriate access in GitHub.
-2. Open Commyweb settings, then open the persistent setup guide in its own tab.
+2. Open Commyweb settings. Choose **Garder la configuration ouverte** to keep the extension in the browser's side panel while visiting GitHub. It stays associated with the original website when switching tabs. Inputs and the current settings/invitation view are saved locally as you type, including unfinished setup; connection still requires **Vérifier et connecter**.
 3. Enter the repository URL and choose **Créer mon jeton GitHub**. The owner and Issues permissions are prefilled; select **Only select repositories**, choose the named project and generate your personal token.
 4. Paste the token. The picker lists projects accessible with that token. Choose **Vérifier et connecter** to verify repository and Issues read access without creating test data. Commenting also requires write access.
 5. Choose **✉ Inviter**, enter the recipient's email address and prepare the invitation. It opens an email draft: **review it and press Send in your email client**. If no mail client opens, copy the full email instead. Commyweb does not send email automatically.

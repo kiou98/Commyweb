@@ -20,6 +20,9 @@ class PopupController {
   private toastTimer?: number;
   private signature = '';
   private refreshRequested = false;
+  private restoring = true;
+  private panel = new URLSearchParams(location.search).get('panel') === '1';
+  private windowId?: number;
 
   constructor() { void this.init().catch(error => this.toast(error.message)); }
 
@@ -31,12 +34,15 @@ class PopupController {
 
   private async init() {
     const params = new URLSearchParams(location.search);
+    document.body.classList.toggle('side-panel', this.panel);
     this.setupEvents();
     const target = Number(new URLSearchParams(location.search).get('tabId'));
-    const tab = target ? await chrome.tabs.get(target) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-    if (tab?.id && tab.url && /^https?:\/\//.test(tab.url)) {
-      this.tabId = tab.id;
-      this.url = normalizeUrl(tab.url);
+    const tab = target ? await chrome.tabs.get(target).catch(() => undefined) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    const targetUrl = this.panel ? params.get('page') || tab?.url : tab?.url;
+    this.windowId = tab?.windowId;
+    if (targetUrl && /^https?:\/\//.test(targetUrl)) {
+      this.tabId = tab?.id;
+      this.url = normalizeUrl(targetUrl);
       this.domain = new URL(this.url).host;
       element('active-site-domain').textContent = this.domain;
       element('page-path').textContent = new URL(this.url).pathname;
@@ -46,11 +52,16 @@ class PopupController {
       element('mode-hint').textContent = 'Ouvrez une page web pour laisser un commentaire.';
     }
     await this.loadSettings();
+    const stored = await chrome.storage.local.get('commyweb_user');
+    input('quick-author-name').value = stored.commyweb_user?.name || stored.commyweb_user?.username || '';
     await this.restoreSetupDraft();
     const requestedRepo = parseGitHubRepo(params.get('repo'));
     if (requestedRepo) { input('input-storage-repo').value = requestedRepo.fullName; this.updateSetupLinks(); }
-    const stored = await chrome.storage.local.get('commyweb_user');
-    input('quick-author-name').value = stored.commyweb_user?.name || stored.commyweb_user?.username || '';
+    this.restoring = false;
+    const keepOpen = element<HTMLButtonElement>('btn-keep-open');
+    keepOpen.hidden = this.panel || !chrome.sidePanel?.open || !this.url || this.windowId === undefined;
+    keepOpen.disabled = false;
+    if (this.panel) element('setup-persistence-hint').textContent = 'Ce panneau reste ouvert sur ce site pendant vos recherches sur GitHub. Vos saisies sont conservées sur cet appareil.';
     await this.refresh();
     const timer = window.setInterval(() => { if (!document.hidden) void this.refresh(); }, 15000);
     window.addEventListener('unload', () => clearInterval(timer));
@@ -62,12 +73,14 @@ class PopupController {
   }
 
   private openDrawer(drawer?: string) {
+    document.body.classList.toggle('settings-open', drawer === 'settings');
     for (const name of ['settings', 'invite']) {
       element(`${name}-drawer`).hidden = name !== drawer;
       element(`btn-toggle-${name}`).setAttribute('aria-expanded', String(name === drawer));
     }
     if (drawer === 'settings') this.updateSetupLinks();
     if (drawer === 'invite') void this.updateInvitation();
+    this.saveViewState();
   }
 
   private setupEvents() {
@@ -79,6 +92,16 @@ class PopupController {
     element('project-status-bar').addEventListener('click', () => this.openDrawer('settings'));
     element('btn-refresh').addEventListener('click', () => void this.refresh());
     element('btn-add-comment').addEventListener('click', () => void this.startComment());
+    element('btn-keep-open').addEventListener('click', () => {
+      const params = new URLSearchParams({ panel: '1', drawer: 'settings', page: this.url });
+      if (this.tabId) params.set('tabId', String(this.tabId));
+      // Start both calls directly in the click handler to preserve the user gesture.
+      // Only this explicit action can change the site of an already-open panel.
+      const options = chrome.sidePanel.setOptions({ path: `popup.html?${params}`, enabled: true });
+      const opening = chrome.sidePanel.open({ windowId: this.windowId! });
+      void Promise.all([options, opening]).then(() => window.close())
+        .catch(() => this.toast('Ouverture du panneau impossible. Vos saisies sont conservées ; rouvrez Commyweb pour continuer.'));
+    });
     element('btn-toggle-github-eye').addEventListener('click', () => {
       const field = input('input-github-token');
       const show = field.type === 'password';
@@ -87,7 +110,7 @@ class PopupController {
       element('btn-toggle-github-eye').setAttribute('aria-label', show ? 'Masquer le jeton' : 'Afficher le jeton');
       element('btn-toggle-github-eye').setAttribute('aria-pressed', String(show));
     });
-    input('quick-author-name').addEventListener('change', () => void this.saveName());
+    input('quick-author-name').addEventListener('input', () => { this.saveViewState(); void this.saveName(); });
     input('quick-author-name').addEventListener('keydown', event => {
       if (event.key === 'Enter') input('quick-author-name').blur();
     });
@@ -98,6 +121,9 @@ class PopupController {
     element('invite-form').addEventListener('submit', event => { event.preventDefault(); void this.prepareEmail(); });
     input('input-storage-repo').addEventListener('input', () => { this.updateSetupLinks(); void this.saveSetupDraft(); });
     input('input-realtime-endpoint').addEventListener('input', () => void this.saveSetupDraft());
+    input('input-github-token').addEventListener('input', () => void this.saveSetupDraft());
+    for (const id of ['input-invite-email', 'input-join-link']) input(id).addEventListener('input', () => this.saveViewState());
+    for (const id of ['realtime-settings', 'join-details']) element(id).addEventListener('toggle', () => this.saveViewState());
     element('btn-load-repositories').addEventListener('click', () => void this.loadRepositories());
     element<HTMLSelectElement>('select-github-repo').addEventListener('change', () => {
       const value = element<HTMLSelectElement>('select-github-repo').value;
@@ -171,20 +197,44 @@ class PopupController {
   }
 
   private async saveSetupDraft() {
-    if (!this.domain) return;
-    await chrome.storage.session.set({ [`commyweb_setup_draft:${this.domain}`]: {
-      repo: input('input-storage-repo').value, endpoint: input('input-realtime-endpoint').value
+    if (!this.domain || this.restoring) return;
+    await chrome.storage.local.set({ [`commyweb_setup_draft:${this.domain}`]: {
+      repo: input('input-storage-repo').value, token: input('input-github-token').value,
+      endpoint: input('input-realtime-endpoint').value
+    } });
+  }
+
+  private saveViewState() {
+    if (!this.domain || this.restoring) return;
+    void chrome.storage.local.set({ [`commyweb_popup_state:${this.domain}`]: {
+      drawer: !element('settings-drawer').hidden ? 'settings' : !element('invite-drawer').hidden ? 'invite' : '',
+      name: input('quick-author-name').value,
+      email: input('input-invite-email').value, link: input('input-join-link').value,
+      realtimeOpen: element<HTMLDetailsElement>('realtime-settings').open,
+      joinOpen: element<HTMLDetailsElement>('join-details').open
     } });
   }
 
   private async restoreSetupDraft() {
     if (!this.domain) return;
     const key = `commyweb_setup_draft:${this.domain}`;
-    const draft = (await chrome.storage.session.get(key))[key];
-    if (!draft) return;
-    input('input-storage-repo').value = draft.repo || '';
-    input('input-realtime-endpoint').value = draft.endpoint || '';
-    this.openDrawer('settings');
+    const stateKey = `commyweb_popup_state:${this.domain}`;
+    const stored = await chrome.storage.local.get([key, stateKey]);
+    const draft = stored[key] || (await chrome.storage.session.get(key))[key];
+    if (draft) {
+      input('input-storage-repo').value = draft.repo ?? '';
+      input('input-realtime-endpoint').value = draft.endpoint ?? '';
+      if (typeof draft.token === 'string') input('input-github-token').value = draft.token;
+      this.openDrawer('settings');
+    }
+    const state = stored[stateKey];
+    if (!state) return;
+    input('quick-author-name').value = state.name ?? input('quick-author-name').value;
+    input('input-invite-email').value = state.email ?? '';
+    input('input-join-link').value = state.link ?? '';
+    element<HTMLDetailsElement>('realtime-settings').open = !!state.realtimeOpen;
+    element<HTMLDetailsElement>('join-details').open = !!state.joinOpen;
+    this.openDrawer(state.drawer);
   }
 
   private async openTokenPage() {
@@ -232,7 +282,7 @@ class PopupController {
       button.textContent = 'Vérification de l’accès…';
       await this.message('VERIFY_GITHUB_PROJECT', { repo: repo.fullName, token });
       await this.message('SAVE_SITE_PROJECT', { project: { domain: this.domain, repo: repo.fullName, token, realtime } });
-      await chrome.storage.session.remove(`commyweb_setup_draft:${this.domain}`);
+      await this.clearSetupDraft();
       await this.loadSettings();
       this.signature = '';
       await this.refresh();
@@ -245,13 +295,19 @@ class PopupController {
     if (!this.domain) return;
     try {
       await this.message('SAVE_SITE_PROJECT', { project: { domain: this.domain, repo: '', token: '', realtime: null } });
-      await chrome.storage.session.remove(`commyweb_setup_draft:${this.domain}`);
+      await this.clearSetupDraft();
       await this.loadSettings();
       this.signature = '';
       await this.refresh();
       this.openDrawer();
       this.toast('Mode local activé. Les commentaires du projet restent conservés.');
     } catch (error) { this.toast((error as Error).message); }
+  }
+
+  private async clearSetupDraft() {
+    const key = `commyweb_setup_draft:${this.domain}`;
+    await chrome.storage.local.remove(key);
+    await chrome.storage.session.remove(key);
   }
 
   private async copyLink() {

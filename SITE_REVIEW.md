@@ -15,7 +15,7 @@ Le guide présente trois étapes avec des captures de l’extension : configurat
 - Contrôle des débordements à 320, 375, 768 et 1280 pixels ; invitation historique également vérifiée sur mobile.
 - Description, URL canonique, métadonnées de partage avec image 1200 × 630, favicon, sitemap et robots.txt. L’invitation reste en `noindex`.
 - Téléchargement de l’archive réellement testé ; aucune saisie de jeton ou de projet sur le site public.
-- Invitations dirigées vers la page à commenter. Configuration dans la modale de l’extension, lien vers GitHub pour générer le jeton, brouillon du nom du projet conservé pendant cet aller-retour. Icône d’invitation « personne + » d’origine restaurée.
+- Invitations dirigées vers la page à commenter. Configuration dans la modale de l’extension, avec un panneau latéral facultatif qui reste ouvert pendant les recherches sur GitHub. Les champs et la vue ouverte sont conservés localement, y compris le jeton en cours de saisie ; seul le bouton de vérification connecte le projet. Icône d’invitation « personne + » d’origine restaurée.
 
 ## Limites explicites
 

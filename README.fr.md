@@ -32,7 +32,7 @@ Les annotations sont associées à l’URL de la page. Les paramètres de suivi 
 ## Travailler en équipe
 
 1. Créez un dépôt GitHub privé et donnez aux collaborateurs les droits nécessaires dans GitHub.
-2. Sur le site concerné, ouvrez les réglages dans la modale Commyweb. Collez l’URL du projet GitHub.
+2. Sur le site concerné, ouvrez les réglages dans la modale Commyweb. Cliquez sur **Garder la configuration ouverte** pour utiliser le panneau latéral pendant vos recherches sur GitHub : il reste associé au site de départ, même si vous changez d’onglet. Collez l’URL du projet GitHub. Les saisies et la vue ouverte sont conservées sur cet appareil à chaque modification ; un brouillon ne connecte pas encore le projet.
 3. Cliquez sur **Créer mon jeton GitHub** : le propriétaire et les permissions **Issues : Read and write** sont préremplis. Dans GitHub, choisissez **Only select repositories**, sélectionnez précisément le projet indiqué et générez le jeton.
 4. Collez votre jeton dans Commyweb. **Choisir parmi mes projets GitHub** permet de retrouver les dépôts accessibles sans recopier leur nom. Cliquez sur **Vérifier et connecter** : la lecture du projet et des Issues est contrôlée sans créer de données de test. Les droits d’écriture seront nécessaires pour commenter.
 5. Cliquez sur l’icône **Inviter un collaborateur** (personne avec un signe +), saisissez l’email du collaborateur puis **Préparer l’email d’invitation**. Un brouillon s’ouvre dans votre messagerie : **vérifiez-le puis cliquez sur Envoyer**. Si votre messagerie ne s’ouvre pas, utilisez **Copier l’email complet**. Aucun email ne part automatiquement.

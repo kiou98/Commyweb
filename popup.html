@@ -34,7 +34,8 @@
     <section class="drawer" id="settings-drawer" aria-labelledby="settings-title" hidden>
       <div class="drawer-heading"><h2 id="settings-title">Connecter votre équipe</h2><button class="text-button" data-close>Fermer</button></div>
       <p class="muted">Trois étapes, une seule fois pour ce site.</p>
-      <p class="helper">Configurez votre projet ici. Après la création du jeton sur GitHub, revenez sur ce site et rouvrez Commyweb pour le coller.</p>
+      <button type="button" class="secondary" id="btn-keep-open" hidden disabled>Garder la configuration ouverte</button>
+      <p class="helper" id="setup-persistence-hint">Gardez ce panneau ouvert pendant vos recherches sur GitHub. Même si vous fermez Commyweb, vos saisies sont conservées sur cet appareil.</p>
       <form id="settings-form">
         <label for="input-storage-repo"><span class="step-number">1</span> Choisir le projet GitHub</label>
         <input id="input-storage-repo" placeholder="propriétaire/projet ou URL GitHub" autocomplete="off">
