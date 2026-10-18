@@ -212,3 +212,31 @@ test('legacy invite validation requires the exact code and email pair', async ()
   assert.equal(await cache.validateJoinCode('cw_page', member.authCode, 'other@example.test'), false);
   assert.equal(await cache.validateJoinCode('cw_page', member.authCode, member.email), true);
 });
+
+test('repository picker reads all pages and omits archived projects and disabled Issues', async () => {
+  let calls = 0;
+  globalThis.fetch = async url => {
+    assert.ok(url.includes('/user/repos?'));
+    calls++;
+    return response(calls === 1 ? [
+      { full_name: 'team/active', has_issues: true, private: true },
+      { full_name: 'team/archived', has_issues: true, archived: true },
+      { full_name: 'team/no-issues', has_issues: false }
+    ] : [{ full_name: 'team/second', has_issues: true, private: false }], 200,
+    calls === 1 ? { Link: '<https://api.github.com/user/repos?page=2>; rel="next"' } : {});
+  };
+  assert.deepEqual(await github.listRepositories('fake-token'), [{ fullName: 'team/active', private: true }, { fullName: 'team/second', private: false }]);
+});
+
+test('connection checks repository and Issues access without creating any GitHub data', async () => {
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push([url, options.method]);
+    return response(url.includes('/issues?') ? [] : { has_issues: true });
+  };
+  await github.verifyProject(settings);
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every(([, method]) => method === 'GET'));
+  globalThis.fetch = async () => response({}, 404);
+  await assert.rejects(github.verifyProject(settings), /404/);
+});

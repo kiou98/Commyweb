@@ -1,6 +1,7 @@
 import { WebComment, UserSettings, ProjectMember, ProjectSecurityPolicy, SiteProject } from '../types';
 import { generateId, extractDomain } from '../utils/security';
 import { parseGitHubRepo } from '../utils/github-parser';
+import { normalizeRealtime } from '../utils/realtime';
 
 /**
  * Local cache & security policy manager using chrome.storage.local
@@ -66,6 +67,7 @@ export class CacheManager {
           const siteProj = settings.projectsByDomain[domain];
           settings.storageRepo = siteProj.repo;
           settings.githubToken = siteProj.token ?? settings.githubToken;
+          settings.realtime = normalizeRealtime(siteProj.realtime) || undefined;
         }
       }
 
@@ -141,6 +143,8 @@ export class CacheManager {
       repo: cleanRepo,
       name: project.name?.trim() || cleanDomain,
       token: project.token === undefined ? settings.projectsByDomain[cleanDomain]?.token : project.token.trim(),
+      realtime: project.realtime === undefined && settings.projectsByDomain[cleanDomain]?.repo.toLowerCase() === cleanRepo.toLowerCase()
+        ? settings.projectsByDomain[cleanDomain]?.realtime : normalizeRealtime(project.realtime),
       updatedAt: new Date().toISOString()
     };
 

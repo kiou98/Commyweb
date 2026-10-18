@@ -31,7 +31,10 @@ for (const alias of ['commyweb-extension.zip', 'commyweb-admin.zip', 'commyweb-u
   fs.copyFileSync(path.join(output, filename), path.join(output, alias));
 }
 await zip(`commyweb-source-v${version}.zip`, archive => archive.glob('**/*', {
-  cwd: root, dot: true, ignore: ['.git/**', 'node_modules/**', 'dist/**', 'dist-admin/**', 'dist-user/**', 'release/**', 'test-results/**', '.test-profile/**']
+  cwd: root, dot: true, ignore: ['.git/**', '**/node_modules/**', 'dist/**', 'site-dist/**', 'dist-admin/**', 'dist-user/**', 'release/**', 'test-results/**', '.test-profile/**']
+}));
+await zip(`commyweb-realtime-relay-v${version}.zip`, archive => archive.glob('**/*', {
+  cwd: path.join(root, 'relay'), dot: true, ignore: ['node_modules/**', '*.log']
 }));
 console.log(`Commyweb ${version}: ${(size / 1024).toFixed(1)} KB — ${path.join(output, filename)}`);
 console.log('One extension for everyone. Legacy Admin/User download names remain available.');

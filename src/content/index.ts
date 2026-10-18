@@ -143,8 +143,8 @@ class CommywebContentApp {
       if (!decoded || normalizeUrl(decoded.url) !== this.currentUrl) { this.toast('Ce lien ne correspond pas à cette page.'); return; }
       if (!decoded.repo) return;
       try {
-        await this.message('AUTO_CONFIGURE_PROJECT', { repo: decoded.repo });
-        this.toast('Projet sélectionné. Ajoutez votre propre accès GitHub dans les réglages Commyweb.');
+        await this.message('AUTO_CONFIGURE_PROJECT', { repo: decoded.repo, realtime: decoded.realtime });
+        this.toast('Projet sélectionné. Ouvrez les réglages Commyweb et cliquez sur « Créer mon jeton GitHub » pour vous connecter.');
         void this.loadComments();
       } catch (error) { this.toast((error as Error).message); }
     }

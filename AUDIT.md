@@ -1,4 +1,18 @@
-# Commyweb — analyse et corrections, version 1.6.0
+# Commyweb — analyse et corrections
+
+## Mise à jour 1.7.0 : temps réel et connexion guidée
+
+- Relais WebSocket autonome fourni dans `relay/`, avec Dockerfile, dépendances verrouillées, health check et archive séparée. Il transmet des signaux de changement, sans commentaires ni jetons GitHub.
+- Réception des changements entre navigateurs, mise à jour des réponses et résolutions, reconnexion après une coupure et statut de connexion explicite. Le signal part après confirmation de l’écriture par GitHub ; la latence dépend aussi de son API.
+- Configuration du relais à effectuer une fois par le responsable ; les nouvelles invitations transportent le canal et l’adresse automatiquement. Sans relais déployé, la synchronisation reste périodique.
+- Bouton **✉ Inviter** visible, adresse du destinataire, aperçu de l’email et ouverture d’un brouillon. Le texte indique explicitement de vérifier puis d’envoyer depuis la messagerie ; copie complète disponible en secours. Aucun email n’est envoyé automatiquement.
+- Guide GitHub en trois étapes dans un onglet persistant, lien de génération de jeton prérempli, choix du projet parmi les dépôts accessibles et contrôle de lecture avant enregistrement. La sélection exacte du dépôt reste explicite dans le formulaire GitHub.
+- Vérifications ajoutées : lien prérempli, email sans secret, validation des relais, isolation des canaux, reconnexion, sélection des projets, vérification de lecture et essais entre deux profils Chromium indépendants. L’API GitHub est simulée ; le relais et les connexions WebSocket sont réels dans ces essais locaux.
+- Résultat : **30 tests automatisés réussis**, les **10 groupes de vérifications navigateur existants** réussis et **6 groupes supplémentaires** validant deux installations, les réponses, les résolutions, le redémarrage du relais, le guide GitHub et le brouillon d’email. Le commentaire distant est apparu en environ 3 secondes dans le scénario local complet ; ce n’est pas une garantie de délai en production sur GitHub.
+- Le relais autonome exige un serveur permanent compatible WebSocket. Le projet Netlify fourni peut servir les pages web, mais ses fonctions courtes ne peuvent pas exécuter ce serveur. Aucun déploiement public du relais n’est effectué par la simple compilation de l’extension.
+- Guide Netlify ajouté : accueil, archive téléchargeable de l’extension et invitation guidée avec le bon projet. Deux groupes de vérifications navigateur supplémentaires valident le téléchargement, la transmission du canal sans jeton, les liens invalides, les changements d’invitation dans un même onglet et les petites fenêtres. La publication utilise `site-dist`, et non le dossier de l’extension.
+
+## Historique de la version 1.6.0
 
 Travail réalisé le 19 octobre 2026 à partir du dépôt `kiou98/Commyweb`. Les modifications sont regroupées sur la branche `codex/simplify-experience`.
 

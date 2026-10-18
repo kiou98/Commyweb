@@ -63,9 +63,16 @@ export interface SiteProject {
   name?: string;
   token?: string;
   updatedAt?: string;
+  realtime?: RealtimeConfig | null;
+}
+
+export interface RealtimeConfig {
+  endpoint: string;
+  channel: string;
 }
 
 export interface UserSettings {
+  realtime?: RealtimeConfig;
   githubToken?: string;
   storageRepo?: string;
   isCommentModeActive?: boolean;
@@ -80,6 +87,10 @@ export interface ExtensionMessage {
     | 'TOGGLE_COMMENT_MODE'
     | 'GET_COMMENT_MODE'
     | 'SET_COMMENT_MODE'
+    | 'COMMENTS_UPDATED'
+    | 'REALTIME_STATUS_UPDATED'
+    | 'LIST_GITHUB_REPOSITORIES'
+    | 'VERIFY_GITHUB_PROJECT'
     | 'GET_PAGE_COMMENTS'
     | 'ADD_COMMENT'
     | 'UPDATE_COMMENT_ANCHOR'

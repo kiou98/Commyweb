@@ -3,8 +3,16 @@ import { GitHubBackend } from '../storage/github';
 import { ExtensionMessage } from '../types';
 import { normalizeUrl, extractDomain } from '../utils/security';
 import { parseGitHubRepo } from '../utils/github-parser';
+import { RealtimeManager } from './realtime';
+import { normalizeRealtime } from '../utils/realtime';
 
 const MENU_ID = 'commyweb-add-comment';
+let notificationTimer: ReturnType<typeof setTimeout> | undefined;
+const realtime = new RealtimeManager(() => {
+  clearTimeout(notificationTimer);
+  notificationTimer = setTimeout(() => { void broadcast(); }, 150);
+}, () => { void chrome.runtime.sendMessage({ type: 'REALTIME_STATUS_UPDATED' }).catch(() => {}); });
+GitHubBackend.onSynced = settings => { realtime.publish(settings.realtime); void broadcast(); };
 
 function setupContextMenu() {
   chrome.contextMenus.removeAll(() => {
@@ -39,6 +47,7 @@ chrome.commands.onCommand.addListener(async command => {
 });
 
 async function broadcast(urlHash?: string) {
+  void chrome.runtime.sendMessage({ type: 'COMMENTS_UPDATED', payload: { urlHash } }).catch(() => {});
   for (const tab of await chrome.tabs.query({})) {
     if (tab.id) {
       void chrome.tabs.sendMessage(tab.id, { type: 'COMMENTS_UPDATED', payload: { urlHash } }).catch(() => {});
@@ -47,13 +56,20 @@ async function broadcast(urlHash?: string) {
 }
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
+  if (message.type === 'COMMENTS_UPDATED' || message.type === 'REALTIME_STATUS_UPDATED') return;
   void (async () => {
     const payload = message.payload || {};
     const settings = await CacheManager.getSettings(payload.url || payload.comment?.url || payload.targetUrl || sender.tab?.url);
     switch (message.type) {
       case 'GET_PAGE_COMMENTS': {
+        const realtimeStatus = settings.githubToken && settings.storageRepo ? realtime.watch(settings.realtime) : 'off';
         const comments = await GitHubBackend.fetchComments(settings, payload.urlHash);
-        return { success: true, comments, syncError: GitHubBackend.getSyncError(settings) };
+        return { success: true, comments, syncError: GitHubBackend.getSyncError(settings), realtimeStatus };
+      }
+      case 'LIST_GITHUB_REPOSITORIES': return { success: true, repositories: await GitHubBackend.listRepositories(payload.token || '') };
+      case 'VERIFY_GITHUB_PROJECT': {
+        await GitHubBackend.verifyProject({ githubToken: payload.token, storageRepo: payload.repo });
+        return { success: true };
       }
       case 'ADD_COMMENT': {
         if (!payload.comment?.content?.trim()) throw new Error('Le commentaire est vide.');
@@ -109,7 +125,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
         if (sender.tab?.url && normalizeUrl(sender.tab.url) !== normalizeUrl(payload.url)) throw new Error('Le lien ne correspond pas à cette page.');
         const domain = extractDomain(payload.url);
         const previous = await CacheManager.getSiteProject(domain);
-        await CacheManager.saveSiteProject({ domain, repo, token: previous?.repo.toLowerCase() === repo.toLowerCase() ? previous.token : '' });
+        await CacheManager.saveSiteProject({ domain, repo, token: previous?.repo.toLowerCase() === repo.toLowerCase() ? previous.token : '',
+          realtime: normalizeRealtime(payload.realtime) || (previous?.repo.toLowerCase() === repo.toLowerCase() ? previous.realtime : null) });
         await broadcast();
         return { success: true };
       }

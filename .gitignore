@@ -8,3 +8,4 @@ release
 Thumbs.db
 test-results/
 .test-profile/
+site-dist/

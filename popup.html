@@ -11,7 +11,7 @@
     <header class="popup-header">
       <a class="brand" href="#" aria-label="Accueil Commyweb"><img src="/icons/logotype.png" alt="Commyweb"></a>
       <div class="header-actions">
-        <button class="icon-btn" id="btn-toggle-invite" aria-label="Partager le projet" title="Partager le projet">↗</button>
+        <button class="invite-trigger" id="btn-toggle-invite" aria-label="Inviter par email" title="Inviter par email">✉ Inviter</button>
         <button class="icon-btn" id="btn-toggle-settings" aria-label="Réglages" title="Réglages">⚙</button>
       </div>
     </header>
@@ -27,29 +27,45 @@
       <span id="project-status-repo">Sur cet appareil</span>
       <span class="status-tag" id="project-status-tag">Local</span>
     </button>
+    <div class="sync-indicator" id="realtime-status" role="status">Mode local · sur cet appareil</div>
     <div class="notice" id="sync-status" role="status" aria-live="polite" hidden></div>
     <div class="identity"><label for="quick-author-name">Votre nom</label><input id="quick-author-name" type="text" placeholder="Comment souhaitez-vous apparaître ?" maxlength="80" autocomplete="name"></div>
 
     <section class="drawer" id="settings-drawer" aria-labelledby="settings-title" hidden>
       <div class="drawer-heading"><h2 id="settings-title">Connecter votre équipe</h2><button class="text-button" data-close>Fermer</button></div>
-      <p class="muted">Le mode local fonctionne sans compte. Pour partager vos retours, associez un dépôt GitHub à ce site.</p>
+      <p class="muted">Trois étapes, une seule fois pour ce site.</p>
+      <button class="secondary" id="btn-open-setup">Ouvrir ce guide dans un onglet ↗</button>
+      <p class="helper">Le guide restera ouvert pendant vos aller-retours sur GitHub.</p>
       <form id="settings-form">
-        <label for="input-storage-repo">Dépôt GitHub de ce site</label>
+        <label for="input-storage-repo"><span class="step-number">1</span> Choisir le projet GitHub</label>
         <input id="input-storage-repo" placeholder="propriétaire/projet ou URL GitHub" autocomplete="off">
-        <label for="input-github-token">Votre jeton d’accès GitHub</label>
+        <div class="setup-links"><a id="link-github-project" href="https://github.com/" target="_blank" rel="noreferrer">Retrouver mon projet sur GitHub ↗</a><a href="https://github.com/new" target="_blank" rel="noreferrer">Créer un projet ↗</a></div>
+        <label><span class="step-number">2</span> Créer votre accès</label>
+        <a class="secondary" id="link-create-token" href="https://github.com/settings/personal-access-tokens/new?name=Commyweb&amp;expires_in=30&amp;issues=write&amp;metadata=read" target="_blank" rel="noreferrer">Créer mon jeton GitHub ↗</a>
+        <p class="helper" id="token-project-hint">Sur GitHub, choisissez « Only select repositories » puis le projet de l’étape 1. Les permissions utiles sont préremplies.</p>
+        <label for="input-github-token"><span class="step-number">3</span> Coller le jeton et se connecter</label>
         <div class="password-input-group"><input type="password" id="input-github-token" placeholder="github_pat_…" autocomplete="off"><button type="button" class="text-button" id="btn-toggle-github-eye" aria-label="Afficher le jeton" aria-pressed="false">Afficher</button></div>
         <p class="helper">Stocké sur cet appareil uniquement. Chaque collaborateur utilise son propre jeton.</p>
-        <details><summary>Comment obtenir mon accès GitHub ?</summary><p>Créez un <a href="https://github.com/new" target="_blank" rel="noreferrer">dépôt privé</a>, puis un <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">jeton à accès limité</a> à ce dépôt, avec la permission <strong>Issues : Read and write</strong>. Invitez les membres de votre équipe dans les réglages du dépôt GitHub.</p></details>
-        <div class="form-actions"><button class="primary" type="submit" id="btn-save-settings">Enregistrer</button><button type="button" class="text-button" id="btn-local-mode">Utiliser le mode local</button></div>
+        <button type="button" class="text-button" id="btn-load-repositories">Choisir parmi mes projets GitHub</button>
+        <label for="select-github-repo" id="label-github-repo" hidden>Projets accessibles avec ce jeton</label>
+        <select id="select-github-repo" hidden><option value="">Choisir le projet à connecter…</option></select>
+        <p class="helper" id="repository-result" role="status" hidden></p>
+        <details id="realtime-settings"><summary>Temps réel · configuration du responsable</summary><p class="helper">Renseignez l’adresse du relais une fois. Elle sera incluse dans les invitations ; les collaborateurs n’auront rien à configurer ici.</p><label for="input-realtime-endpoint">Adresse du relais WebSocket</label><input id="input-realtime-endpoint" placeholder="wss://votre-relais.example/sync" autocomplete="off"><p class="helper">Sans relais, actualisation de secours toutes les 15 secondes.</p></details>
+        <div class="form-actions"><button class="primary" type="submit" id="btn-save-settings">Vérifier et connecter</button><button type="button" class="text-button" id="btn-local-mode">Utiliser le mode local</button></div>
       </form>
     </section>
 
     <section class="drawer" id="invite-drawer" aria-labelledby="invite-title" hidden>
-      <div class="drawer-heading"><h2 id="invite-title">Partager cette page</h2><button class="text-button" data-close>Fermer</button></div>
-      <p class="muted">Copiez le lien pour votre équipe. Il contient la page et le nom du dépôt ; votre jeton reste privé.</p>
-      <p class="helper">Les droits se gèrent dans GitHub. Ce lien n’accorde pas d’accès au dépôt.</p>
-      <button class="primary" id="btn-copy-invite-link">Copier le lien du projet</button>
-      <form id="join-form"><label for="input-join-link">Vous avez reçu un lien ?</label><input type="url" id="input-join-link" placeholder="Collez le lien Commyweb" required><button class="secondary" type="submit">Ouvrir ce projet</button></form>
+      <div class="drawer-heading"><h2 id="invite-title">Inviter un collaborateur par email</h2><button class="text-button" data-close>Fermer</button></div>
+      <p class="invite-callout">Préparez l’email ici, puis <strong>envoyez-le depuis votre messagerie.</strong></p>
+      <p class="helper" id="invite-project-summary"></p>
+      <a class="access-link" id="link-github-access" href="https://github.com/" target="_blank" rel="noreferrer">1. Donner accès au projet sur GitHub ↗</a>
+      <p class="helper">Si nécessaire, le responsable invite d’abord le compte GitHub du collaborateur.</p>
+      <form id="invite-form"><label for="input-invite-email">2. Email du collaborateur</label><input type="email" id="input-invite-email" placeholder="prenom@entreprise.fr" required autocomplete="email"><button class="primary" type="submit" id="btn-prepare-email">✉ Préparer l’email d’invitation</button></form>
+      <p class="helper">Votre messagerie s’ouvre avec un brouillon. Vérifiez-le, puis cliquez sur <strong>Envoyer</strong>. Aucun email ne part automatiquement.</p>
+      <details><summary>Voir le message avant de l’envoyer</summary><label for="invite-email-preview">Message d’invitation</label><textarea id="invite-email-preview" rows="8" readonly></textarea></details>
+      <div class="invite-alternatives"><button class="secondary" id="btn-copy-invite-email">Copier l’email complet</button><button class="text-button" id="btn-copy-invite-link">Copier seulement le lien</button></div>
+      <details id="join-details"><summary>J’ai reçu une invitation</summary><form id="join-form"><label for="input-join-link">Lien reçu par email</label><input type="url" id="input-join-link" placeholder="Collez le lien Commyweb" required><button class="secondary" type="submit">Ouvrir ce projet</button></form></details>
     </section>
 
     <div class="list-toolbar"><h2>Discussions <span id="count-all">0</span></h2><button class="text-button" id="btn-refresh" aria-label="Actualiser les discussions">Actualiser</button></div>

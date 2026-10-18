@@ -33,7 +33,25 @@ The model does not offer atomic edits across clients. Two simultaneous read/modi
 
 Share links contain only a validated repository and canonical HTTP(S) page URL. Old payloads are decoded but token, email and authorization fields are ignored. The content script removes the extension fragment before async configuration and refuses a project link for a different page.
 
+Since 1.7.0, links can also carry a validated realtime endpoint and a random project notification channel. They still contain no GitHub credentials. The popup provides a visible email invitation form that opens a mailto draft, with copy fallback and explicit instructions to press Send in the email client. No email is sent by the extension itself.
+
+The GitHub guide runs in a persistent extension tab. Its token creation link uses GitHub's documented `target_name`, `issues=write`, `metadata=read`, name and expiration parameters. Exact repository selection still happens in GitHub. An authenticated picker pages through `/user/repos` and only lists active repositories with Issues enabled. Connection checks read repository metadata and Issues without creating a test Issue; they do not assert that write permission has been proved.
+
 There is one extension edition. Packaging preserves the legacy Admin/User archive aliases without stripping settings from anyone's UI. Existing legacy member policy data is left untouched, but the interface no longer presents local revocation as remote access control.
+
+## Realtime relay (1.7.0)
+
+`src/background/realtime.ts` manages one browser WebSocket per endpoint/channel. `relay/server.mjs` is a standalone Node.js invalidation relay. Once GitHub acknowledges an extension mutation, the backend publishes `changed`. Subscribers refetch GitHub; no comment body, repository name or GitHub token is sent to the relay. Subscription channels are random capabilities included in invitations, not an authorization boundary for GitHub data.
+
+Readiness is acknowledged before the UI reports a live connection. Twenty-second heartbeat exchanges keep Chrome 116+ workers active and detect silent connections; reconnect attempts use bounded exponential backoff. A successful reconnect triggers a refetch. Idle project subscriptions expire after 90 seconds without a page read. Polling remains at 15 seconds as fallback and for edits made outside Commyweb. The relay does not make issue-body updates atomic across clients.
+
+Use one always-running relay instance with TLS terminated by its host or reverse proxy. Independent replicas need an external shared bus; this implementation does not provide one. Netlify's short-lived functions do not run this standalone WebSocket process. The repository ships a separate relay package, dependency lockfile, Dockerfile, health check and deployment guide. No production relay URL is built in.
+
+## Netlify invitation guide
+
+`site/` and `src/site/join.ts` provide public installation and invitation pages without Chrome APIs or a token input. The invitation configuration stays in the URL fragment; decoded fields are rendered using text content and validated links. Legacy credentials are stripped from the fragment, and hash changes rerender the guide. Email invitations link to the deployed guide, with a direct page link as fallback.
+
+`npm run build:site` builds the extension, bundles the guide into `site-dist/` and adds an installable extension zip under `downloads/`. `netlify.toml` selects that output instead of the browser extension's `dist/`. A separate browser check verifies downloads, link validation, project/channel preservation and mobile bounds. A static guide deployment does not start the standalone relay.
 
 ## Verification
 

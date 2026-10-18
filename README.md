@@ -1,6 +1,6 @@
 # Commyweb
 
-Pin feedback directly to web pages. An open-source Chrome / Edge / Brave extension with local storage and optional GitHub collaboration. No server to host.
+Pin feedback directly to web pages. An open-source Chrome / Edge / Brave extension with local storage, optional GitHub collaboration and an optional standalone realtime relay.
 
 [Documentation française](README.fr.md) · [Architecture](ARCHITECTURE.md) · [Change assessment](AUDIT.md)
 
@@ -24,19 +24,28 @@ Local mode works without an account or setup. To load a development build, selec
 - Filter discussions by all, open or resolved status.
 - Cache-first display, explicit local/synchronized feedback and retry of pending changes.
 - Separate projects by website and cached discussions by repository.
-- Poll visible pages every 15 seconds; no periodic network polling for hidden pages.
+- Receive cross-browser changes through a WebSocket relay, with a 15-second GitHub polling fallback.
 - Detect single-page application pathname/query navigation within about a second.
 
 ## GitHub collaboration
 
 1. Create a private GitHub repository and grant collaborators appropriate access in GitHub.
-2. Each person creates their **own** fine-grained token limited to this repository with **Issues: Read and write**.
-3. On the target website, open Commyweb settings, enter the repository and personal token, then save.
-4. Share the project link. It contains the page and repository, **never the token**. Recipients configure their own GitHub access.
+2. Open Commyweb settings, then open the persistent setup guide in its own tab.
+3. Enter the repository URL and choose **Créer mon jeton GitHub**. The owner and Issues permissions are prefilled; select **Only select repositories**, choose the named project and generate your personal token.
+4. Paste the token. The picker lists projects accessible with that token. Choose **Vérifier et connecter** to verify repository and Issues read access without creating test data. Commenting also requires write access.
+5. Choose **✉ Inviter**, enter the recipient's email address and prepare the invitation. It opens an email draft: **review it and press Send in your email client**. If no mail client opens, copy the full email instead. Commyweb does not send email automatically.
 
 Access and revocation are managed in GitHub. A link does not grant access. Repository permissions do not enforce access to a single page. Old invitation tokens are ignored. Tokens remain in extension local storage and are removed from Chrome-synchronized preferences.
 
 Local-only comments are not automatically uploaded when a repository is connected. Selecting local mode preserves both local and team data and changes which set is shown.
+
+## Realtime collaboration
+
+Deploy the standalone relay using its [deployment guide](relay/README.md). It supports Node.js or Docker on an always-running host accepting WebSocket connections. The project owner enters its `wss://…/sync` address once; new invitation links include the relay and channel automatically. Short-lived Netlify functions do not host this standalone server.
+
+After a GitHub write succeeds, the extension signals other clients through the relay and they fetch the latest discussions. Replies and resolution changes update open dialogs. Connections recover after interruptions and refetch missed changes. **Temps réel actif** appears only after the relay confirms a subscription.
+
+The relay receives no GitHub tokens or comment bodies and stores no discussion data. It is not an authorization service. Display latency still depends on GitHub. Periodic refresh remains as fallback and picks up edits made directly in GitHub. Without a deployed relay, collaboration remains periodic.
 
 ## Development and verification
 
@@ -52,9 +61,9 @@ npm run test:browser
 npm run package
 ```
 
-`dev` watches both extension builds. Reload the extension and target pages after rebuilding. `test:browser` uses an isolated temporary Chromium profile with the real extension loaded. Storage and synchronization tests mock GitHub; no live GitHub account is used.
+`dev` watches both extension builds. Reload the extension and target pages after rebuilding. `test:browser` uses isolated temporary Chromium profiles with the real extension loaded, including a two-profile realtime test through the actual relay. Storage and synchronization tests mock GitHub; no live GitHub account is used.
 
-`release/` contains the extension and source archives. There is one edition; previous Admin/User archive names remain as aliases for compatibility.
+`release/` contains extension, source and standalone relay archives. There is one edition; previous Admin/User archive names remain as aliases for compatibility.
 
 ## Practical limits
 

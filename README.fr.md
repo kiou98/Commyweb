@@ -1,8 +1,10 @@
 # Commyweb
 
-Des retours précis, directement sur les pages web. Extension Chrome / Edge / Brave, open source, sans serveur à héberger.
+Des retours précis, directement sur les pages web. Extension Chrome / Edge / Brave, open source. Mode local sans serveur ; collaboration GitHub et relais temps réel facultatif.
 
 [English](README.md) · [Architecture](ARCHITECTURE.md) · [Bilan des changements](AUDIT.md)
+
+Le guide public d’installation et d’invitation est prévu pour [commyweb.netlify.app](https://commyweb.netlify.app). Les liens d’invitation envoyés par email ouvrent `/join.html` avec le projet déjà sélectionné ; le jeton se saisit uniquement dans l’extension.
 
 ## Commencer
 
@@ -30,9 +32,12 @@ Les annotations sont associées à l’URL de la page. Les paramètres de suivi 
 ## Travailler en équipe
 
 1. Créez un dépôt GitHub privé et donnez aux collaborateurs les droits nécessaires dans GitHub.
-2. Chaque personne crée son **propre jeton GitHub**, limité à ce dépôt, avec **Issues : Read and write**.
-3. Sur le site concerné, ouvrez les réglages Commyweb. Renseignez le dépôt et votre jeton, puis **Enregistrer**.
-4. Utilisez **Partager** pour copier le lien de la page et du projet. Chaque collaborateur renseigne ensuite son propre accès GitHub.
+2. Sur le site concerné, ouvrez les réglages Commyweb et **Ouvrir ce guide dans un onglet**. Collez l’URL du projet GitHub.
+3. Cliquez sur **Créer mon jeton GitHub** : le propriétaire et les permissions **Issues : Read and write** sont préremplis. Dans GitHub, choisissez **Only select repositories**, sélectionnez précisément le projet indiqué et générez le jeton.
+4. Collez votre jeton dans Commyweb. **Choisir parmi mes projets GitHub** permet de retrouver les dépôts accessibles sans recopier leur nom. Cliquez sur **Vérifier et connecter** : la lecture du projet et des Issues est contrôlée sans créer de données de test. Les droits d’écriture seront nécessaires pour commenter.
+5. Cliquez sur **✉ Inviter**, saisissez l’email du collaborateur puis **Préparer l’email d’invitation**. Un brouillon s’ouvre dans votre messagerie : **vérifiez-le puis cliquez sur Envoyer**. Si votre messagerie ne s’ouvre pas, utilisez **Copier l’email complet**. Aucun email ne part automatiquement.
+
+L’email contient les étapes d’installation et un lien qui sélectionne déjà le bon projet. Chaque collaborateur connecte son propre accès GitHub une seule fois. Si nécessaire, le responsable lui donne d’abord accès au dépôt via le lien GitHub affiché dans le volet d’invitation.
 
 Chaque site peut utiliser un dépôt et un jeton différents. Le bouton **Utiliser le mode local** revient aux annotations locales sans effacer les annotations d’équipe. Les commentaires créés en local restent locaux : ils ne sont pas envoyés automatiquement à un dépôt que vous venez de connecter.
 
@@ -44,7 +49,11 @@ Les commentaires sont d’abord enregistrés dans `chrome.storage.local`. Les di
 
 Les jetons restent dans le stockage local de l’extension. Les préférences synchronisées par Chrome sont nettoyées de leurs jetons. Un message distingue un enregistrement local d’un partage réussi. Une modification non synchronisée reste en attente et sera réessayée lors des prochains rafraîchissements.
 
-Les pages visibles se rafraîchissent toutes les 15 secondes ; les changements effectués dans l’extension sont aussi signalés aux onglets ouverts. Aucun rafraîchissement réseau périodique n’est lancé pour un onglet masqué. Les pages internes du navigateur et les pages qui interdisent les extensions ne sont pas annotables.
+Avec un relais connecté, les changements Commyweb confirmés par GitHub sont signalés immédiatement aux autres navigateurs. Le statut indique **Temps réel actif** seulement après connexion effective. Le relais se reconnecte automatiquement en cas de coupure ; l’affichage dépend aussi du délai de réponse de GitHub.
+
+Le responsable configure une fois l’adresse `wss://…/sync` dans les réglages avancés. Les invitations la transmettent automatiquement aux collaborateurs. Voir le [guide de déploiement du relais autonome](relay/README.md). Aucun jeton ou texte de commentaire n’est transmis au relais.
+
+Sans relais, ou en cas de panne, les pages visibles gardent un rafraîchissement de secours toutes les 15 secondes. Les modifications faites directement dans GitHub sont aussi récupérées par ce filet de sécurité. Les pages internes du navigateur et les pages qui interdisent les extensions ne sont pas annotables.
 
 ## Développement
 
@@ -63,11 +72,18 @@ npm test
 npx playwright install chromium
 npm run test:browser
 npm run package
+npm run test:site
 ```
 
 Les essais navigateur chargent réellement l’extension dans un profil Chromium temporaire. Ils ne touchent pas au profil courant et n’accèdent pas à un compte GitHub réel. Les réponses de l’API GitHub sont simulées dans les tests de synchronisation.
 
-Les archives se trouvent dans `release/`. Il existe désormais une seule édition ; les noms `commyweb-admin.zip` et `commyweb-user.zip` sont conservés comme alias de téléchargement. Le code source se trouve dans `commyweb-source-v*.zip`.
+Les archives se trouvent dans `release/`. Il existe une seule édition ; les noms `commyweb-admin.zip` et `commyweb-user.zip` sont conservés comme alias. Les sources sont dans `commyweb-source-v*.zip`, le relais autonome dans `commyweb-realtime-relay-v*.zip`.
+
+## Guide public sur Netlify
+
+Le fichier `netlify.toml` compile le guide via `npm run build:site` et publie `site-dist`, avec l’archive de l’extension dans `/downloads/`. Le dossier `dist` est une extension de navigateur et ne doit pas servir de site web public. `npm run test:site` vérifie le téléchargement, les invitations, l’affichage mobile et les liens invalides.
+
+Ce site statique héberge les étapes d’installation ; il n’exécute pas le serveur WebSocket du dossier `relay/`. Le déploiement de ce serveur et son URL publique restent nécessaires pour activer le temps réel entre collaborateurs.
 
 ## Limites connues
 

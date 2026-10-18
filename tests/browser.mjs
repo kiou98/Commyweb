@@ -133,6 +133,7 @@ try {
   await page.setViewportSize({ width: 1280, height: 900 });
   popup = await openPopup();
   await popup.locator('#btn-toggle-invite').click();
+  await popup.locator('#join-details summary').click();
   await popup.locator('#input-join-link').fill(`${origin}/fixture#commyweb_config=${Buffer.from(JSON.stringify({ repo: 'team/project', token: 'never-import-this', url: `${origin}/fixture` })).toString('base64')}`);
   await popup.locator('#join-form button').click();
   await expect.poll(() => page.url()).toBe(`${origin}/fixture`);
@@ -142,7 +143,7 @@ try {
   console.log('PASS: legacy invitations select the right project without importing credentials');
 
   popup = await openPopup();
-  await popup.locator('#btn-toggle-settings').click();
+  if (await popup.locator('#settings-drawer').isHidden()) await popup.locator('#btn-toggle-settings').click();
   await popup.locator('#input-storage-repo').fill('invalid');
   await popup.locator('#input-github-token').fill('fake-token');
   await popup.locator('#btn-save-settings').click();

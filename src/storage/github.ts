@@ -6,6 +6,7 @@ type SaveResult = { success: boolean; synced: boolean; error?: string; issueNumb
 
 /** Local mutations remain pending until GitHub acknowledges them. */
 export class GitHubBackend {
+  static onSynced?: (settings: UserSettings) => void;
   private static writes = new Map<string, Promise<SaveResult>>();
   private static reads = new Map<string, Promise<WebComment[]>>();
   private static errors = new Map<string, string>();
@@ -34,6 +35,30 @@ export class GitHubBackend {
   }
 
   static getSyncError(settings: UserSettings): string | undefined { return this.errors.get(this.repo(settings)); }
+
+  static async listRepositories(token: string): Promise<{ fullName: string; private: boolean }[]> {
+    if (!token.trim()) throw new Error('Collez d’abord votre jeton GitHub.');
+    const repositories: { fullName: string; private: boolean }[] = [];
+    for (let page = 1; ; page++) {
+      const response = await this.request({ githubToken: token }, `/user/repos?per_page=100&sort=pushed&page=${page}`);
+      const data = await response.json();
+      for (const repo of data) {
+        if (repo.has_issues && !repo.archived && !repo.disabled && parseGitHubRepo(repo.full_name)) {
+          repositories.push({ fullName: repo.full_name, private: !!repo.private });
+        }
+      }
+      if (!response.headers.get('Link')?.includes('rel="next"')) break;
+    }
+    return repositories;
+  }
+
+  static async verifyProject(settings: UserSettings): Promise<void> {
+    const repo = this.repo(settings);
+    if (!repo || !settings.githubToken) throw new Error('Indiquez votre projet et votre jeton GitHub.');
+    const metadata = await (await this.request(settings, `/repos/${repo}`)).json();
+    if (!metadata.has_issues || metadata.archived || metadata.disabled) throw new Error('Ce dépôt doit être actif et avoir les Issues activées.');
+    await this.request(settings, `/repos/${repo}/issues?per_page=1&state=all`);
+  }
 
   static async getCurrentUser(token: string): Promise<Author | null> {
     try {
@@ -149,6 +174,7 @@ export class GitHubBackend {
         pendingChanges: pendingResolution ? ['status'] : [] });
       if (pendingResolution) return this.syncComment(settings, id, hash);
       this.errors.delete(repo);
+      try { this.onSynced?.(settings); } catch { /* A relay failure must not undo a GitHub save. */ }
       return { success: true, synced: true, issueNumber: issue.number };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Synchronisation indisponible.';
