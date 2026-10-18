@@ -36,6 +36,8 @@ export interface WebComment {
   replies: CommentReply[];
   issueNumber?: number;
   issueUrl?: string;
+  storageRepo?: string;
+  pendingChanges?: ('content' | 'replies' | 'status' | 'anchor')[];
 }
 
 export interface AnchorData {
@@ -45,6 +47,7 @@ export interface AnchorData {
   yPercent: number;
   textSnippet?: string;
   scrollOffset?: { x: number; y: number };
+  fallbackPosition?: { x: number; y: number };
 }
 
 export interface CommentReply {
@@ -76,6 +79,7 @@ export interface ExtensionMessage {
   type: 
     | 'TOGGLE_COMMENT_MODE'
     | 'GET_COMMENT_MODE'
+    | 'SET_COMMENT_MODE'
     | 'GET_PAGE_COMMENTS'
     | 'ADD_COMMENT'
     | 'UPDATE_COMMENT_ANCHOR'

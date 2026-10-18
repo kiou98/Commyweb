@@ -39,7 +39,7 @@ export default defineConfig({
   plugins: [copyExtensionAssets()],
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    emptyOutDir: !process.env.COMMYWEB_WATCH,
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'popup.html'),

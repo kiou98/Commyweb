@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,258 +7,61 @@
   <link rel="stylesheet" href="/src/popup/popup.css">
 </head>
 <body>
-  <div class="popup-container">
-    <!-- Header -->
+  <main class="popup-container">
     <header class="popup-header">
-      <div class="brand" id="brand-logo" style="cursor: pointer;" title="Accueil / Fermer les volets">
-        <img class="brand-logotype-img" src="/icons/logotype.png" alt="Commyweb" style="height: 22px; width: auto; object-fit: contain;">
-      </div>
+      <a class="brand" href="#" aria-label="Accueil Commyweb"><img src="/icons/logotype.png" alt="Commyweb"></a>
       <div class="header-actions">
-        <button class="icon-btn" id="btn-toggle-invite" title="Invite Collaborators">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="8.5" cy="7.5" r="4"></circle>
-            <line x1="20" y1="8" x2="20" y2="14"></line>
-            <line x1="23" y1="11" x2="17" y2="11"></line>
-          </svg>
-        </button>
-        <button class="icon-btn" id="btn-toggle-settings" title="Settings">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-        </button>
+        <button class="icon-btn" id="btn-toggle-invite" aria-label="Partager le projet" title="Partager le projet">↗</button>
+        <button class="icon-btn" id="btn-toggle-settings" aria-label="Réglages" title="Réglages">⚙</button>
       </div>
     </header>
+    <section class="page-summary">
+      <div class="eyebrow">Votre espace de retours</div>
+      <h1 id="active-site-domain">Cette page</h1>
+      <p id="page-path" class="muted"></p>
+      <button class="primary" id="btn-add-comment">＋ Ajouter un commentaire</button>
+      <p class="shortcut" id="mode-hint">Choisissez un endroit sur la page · Alt + C</p>
+    </section>
+    <button class="project-status" id="project-status-bar" aria-label="Configurer le projet">
+      <span class="status-dot" id="project-status-dot"></span>
+      <span id="project-status-repo">Sur cet appareil</span>
+      <span class="status-tag" id="project-status-tag">Local</span>
+    </button>
+    <div class="notice" id="sync-status" role="status" aria-live="polite" hidden></div>
+    <div class="identity"><label for="quick-author-name">Votre nom</label><input id="quick-author-name" type="text" placeholder="Comment souhaitez-vous apparaître ?" maxlength="80" autocomplete="name"></div>
 
-    <!-- Comment Mode Banner & Toggle -->
-    <div class="mode-card">
-      <div class="mode-info">
-        <div class="mode-label" id="lbl-comment-mode">Comment Mode</div>
-        <div class="mode-hint">Shortcut: <kbd>Alt</kbd> + <kbd>C</kbd></div>
-      </div>
-      <label class="switch">
-        <input type="checkbox" id="chk-comment-mode">
-        <span class="slider"></span>
-      </label>
+    <section class="drawer" id="settings-drawer" aria-labelledby="settings-title" hidden>
+      <div class="drawer-heading"><h2 id="settings-title">Connecter votre équipe</h2><button class="text-button" data-close>Fermer</button></div>
+      <p class="muted">Le mode local fonctionne sans compte. Pour partager vos retours, associez un dépôt GitHub à ce site.</p>
+      <form id="settings-form">
+        <label for="input-storage-repo">Dépôt GitHub de ce site</label>
+        <input id="input-storage-repo" placeholder="propriétaire/projet ou URL GitHub" autocomplete="off">
+        <label for="input-github-token">Votre jeton d’accès GitHub</label>
+        <div class="password-input-group"><input type="password" id="input-github-token" placeholder="github_pat_…" autocomplete="off"><button type="button" class="text-button" id="btn-toggle-github-eye" aria-label="Afficher le jeton" aria-pressed="false">Afficher</button></div>
+        <p class="helper">Stocké sur cet appareil uniquement. Chaque collaborateur utilise son propre jeton.</p>
+        <details><summary>Comment obtenir mon accès GitHub ?</summary><p>Créez un <a href="https://github.com/new" target="_blank" rel="noreferrer">dépôt privé</a>, puis un <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">jeton à accès limité</a> à ce dépôt, avec la permission <strong>Issues : Read and write</strong>. Invitez les membres de votre équipe dans les réglages du dépôt GitHub.</p></details>
+        <div class="form-actions"><button class="primary" type="submit" id="btn-save-settings">Enregistrer</button><button type="button" class="text-button" id="btn-local-mode">Utiliser le mode local</button></div>
+      </form>
+    </section>
+
+    <section class="drawer" id="invite-drawer" aria-labelledby="invite-title" hidden>
+      <div class="drawer-heading"><h2 id="invite-title">Partager cette page</h2><button class="text-button" data-close>Fermer</button></div>
+      <p class="muted">Copiez le lien pour votre équipe. Il contient la page et le nom du dépôt ; votre jeton reste privé.</p>
+      <p class="helper">Les droits se gèrent dans GitHub. Ce lien n’accorde pas d’accès au dépôt.</p>
+      <button class="primary" id="btn-copy-invite-link">Copier le lien du projet</button>
+      <form id="join-form"><label for="input-join-link">Vous avez reçu un lien ?</label><input type="url" id="input-join-link" placeholder="Collez le lien Commyweb" required><button class="secondary" type="submit">Ouvrir ce projet</button></form>
+    </section>
+
+    <div class="list-toolbar"><h2>Discussions <span id="count-all">0</span></h2><button class="text-button" id="btn-refresh" aria-label="Actualiser les discussions">Actualiser</button></div>
+    <div class="filters" role="group" aria-label="Filtrer les discussions">
+      <button class="filter active" data-filter="all" aria-pressed="true">Toutes</button>
+      <button class="filter" data-filter="open" aria-pressed="false">À traiter <span id="count-open">0</span></button>
+      <button class="filter" data-filter="resolved" aria-pressed="false">Résolues <span id="count-resolved">0</span></button>
     </div>
-
-    <!-- Project Status Bar -->
-    <div id="project-status-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 16px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7; font-size: 11px;">
-      <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; max-width: 70%;">
-        <span id="project-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #dc2626; flex-shrink: 0;"></span>
-        <span style="color: #71717a; font-weight: 600; white-space: nowrap;">Projet :</span>
-        <span id="project-status-repo" style="font-weight: 800; color: #000000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Dépôt GitHub du projet">Non configuré</span>
-      </div>
-      <span id="project-status-tag" style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px; background: #fee2e2; color: #991b1b; white-space: nowrap;">Déconnecté</span>
-    </div>
-
-    <!-- Quick Author Profile Row -->
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; margin: 0 0 4px; background: #fafafa; border-bottom: 1px solid #f4f4f5; gap: 10px;">
-      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-        <div id="quick-user-color-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #000000;"></div>
-        <span style="font-size: 11px; font-weight: 700; color: #71717a; white-space: nowrap;">Votre nom :</span>
-      </div>
-      <input type="text" id="quick-author-name" placeholder="Ex: Vincent" style="flex: 1; border: 1px solid #e4e4e7; border-radius: 6px; padding: 5px 8px; font-size: 12px; font-weight: 700; outline: none; background: #ffffff;" />
-    </div>
-
-    <!-- Invite Collaborators Drawer -->
-    <div class="drawer" id="invite-drawer">
-      <div class="drawer-header">
-        <div class="drawer-title" id="lbl-invite-title">Inviter par Email</div>
-      </div>
-
-      <!-- Scope Notice (One Project & One URL) -->
-      <div class="project-scope-box">
-        <div class="scope-row">
-          <span class="scope-label">Projet :</span>
-          <span class="scope-value" id="scope-repo-name">Non configuré</span>
-        </div>
-        <div class="scope-row">
-          <span class="scope-label">URL :</span>
-          <span class="scope-value" id="scope-page-url">https://...</span>
-        </div>
-        <div class="scope-notice">
-          🔒 <strong>Équipe restreinte :</strong> Les collaborateurs invités auront un accès exclusif à <em>cette page précise</em> et à <em>ce projet</em>.
-        </div>
-      </div>
-
-      <div id="warn-admin-unconfigured" style="display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 12px; font-size: 11.5px; line-height: 1.45; color: #991b1b; margin-bottom: 10px;">
-        ⚠️ <strong>Dépôt GitHub non configuré :</strong><br>
-        Renseignez d'abord votre GitHub Token et votre Dépôt dans les <a href="#" id="link-open-settings" style="color: #991b1b; font-weight: 700; text-decoration: underline;">Paramètres ⚙️</a> pour que vos invités soient connectés automatiquement au projet.
-      </div>
-
-      <div style="font-size: 11.5px; color: #3f3f46; line-height: 1.45;">
-        Ajoutez l'adresse email de votre collaborateur pour autoriser son accès, puis copiez l'invitation pour l'envoyer depuis votre boîte mail (Gmail, Outlook...) ou Slack :
-      </div>
-
-      <div class="invite-input-row">
-        <input type="email" class="input-text" id="input-invite-email" placeholder="collaborateur@entreprise.com">
-        <button class="btn-black" id="btn-send-invite">Autoriser &amp; Préparer</button>
-      </div>
-
-      <div style="display: flex; gap: 6px;">
-        <button class="btn-secondary" style="flex: 1;" id="btn-copy-html-email" title="Copier l'email complet formaté en HTML pour le coller dans Gmail ou Outlook">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
-          </svg>
-          <span id="lbl-copy-html">Copier Email (HTML)</span>
-        </button>
-        <button class="btn-secondary" style="flex: 1;" id="btn-copy-invite-link" title="Copier le texte d'invitation avec lien pour Slack, Teams ou WhatsApp">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          <span id="lbl-copy-link">Copier Lien / Texte</span>
-        </button>
-      </div>
-
-      <div class="toast" id="toast-invite">Lien copié dans le presse-papier !</div>
-
-      <div class="drawer-header" style="margin-top: 6px;">
-        <div class="drawer-title" id="lbl-members-title">Membres Autorisés &amp; Révocation</div>
-      </div>
-      <div class="members-list" id="invited-members-list">
-        <div class="empty-state" style="padding: 10px;" id="lbl-no-members">Aucun membre pour le moment.</div>
-      </div>
-    </div>
-
-    <!-- Settings Drawer -->
-    <div class="drawer" id="settings-drawer">
-      <div class="drawer-header">
-        <div class="drawer-title">Stockage Collaboratif (No-DB)</div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span id="auto-save-indicator" style="font-size: 10px; color: #16a34a; font-weight: 700; opacity: 0; transition: opacity 0.2s; white-space: nowrap;">✓ Sauvegardé</span>
-          <button type="button" class="btn-icon-subtle" id="btn-open-settings-tab" title="Ouvrir les paramètres dans un onglet séparé (ne se fermera pas en changeant d'onglet)">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="user-profile-badge" id="user-badge" style="display: none;">
-        <img class="profile-avatar" id="user-avatar" src="" alt="">
-        <div class="profile-text">
-          <div class="profile-status" id="lbl-connected-as">Connecté en tant que</div>
-          <div class="profile-username" id="user-name">@username</div>
-        </div>
-      </div>
-
-      <div style="background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.45; color: #18181b;">
-        💡 <strong>Note pour votre équipe :</strong><br>
-        Vous êtes le <strong>seul</strong> à configurer ce dépôt. Vos collègues et clients n'ont <strong>aucun compte</strong> à créer sur GitHub !
-      </div>
-
-      <div class="form-group">
-        <label for="input-user-name">Votre nom d'auteur</label>
-        <input type="text" class="input-text" id="input-user-name" placeholder="Ex: Vincent">
-      </div>
-
-      <!-- Step-by-Step GitHub Guide -->
-      <details class="guide-accordion">
-        <summary class="guide-summary">
-          <span>📘 Guide d'installation GitHub (Pas à pas)</span>
-          <span style="font-size: 10px; color: #71717a;">▾</span>
-        </summary>
-        <div class="guide-body">
-          <div class="guide-step">
-            <div class="guide-step-title">
-              <span class="step-num">1</span>
-              <span>Créer votre dépôt de projet</span>
-            </div>
-            <div class="guide-step-desc">
-              Rendez-vous sur <a href="https://github.com/new" target="_blank">github.com/new ↗</a>. Donnez-lui un nom (ex: <code>commyweb-projet-a</code>). Vous pouvez le mettre en <strong>Privé</strong> pour protéger vos retours.
-            </div>
-          </div>
-          <div class="guide-step">
-            <div class="guide-step-title">
-              <span class="step-num">2</span>
-              <span>Générer un Personal Access Token (PAT)</span>
-            </div>
-            <div class="guide-step-desc">
-              Allez sur <a href="https://github.com/settings/tokens?type=beta" target="_blank">Fine-grained tokens ↗</a> :<br>
-              • <em>Repository access</em> : Choisissez votre dépôt.<br>
-              • <em>Repository permissions</em> : Cherchez <strong>Issues</strong> et activez <strong>Read and write</strong>.<br>
-              • Cliquez sur <em>Generate token</em> et copiez le jeton <code>github_pat_...</code>.
-            </div>
-          </div>
-          <div class="guide-step">
-            <div class="guide-step-title">
-              <span class="step-num">3</span>
-              <span>Renseigner ci-dessous</span>
-            </div>
-            <div class="guide-step-desc">
-              Collez le token et indiquez votre dépôt sous la forme <code>propriétaire/nom-du-repo</code>.
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- GitHub Token (Masked with Eye Toggle) -->
-      <div class="form-group">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <label for="input-github-token">GitHub Token (PAT)</label>
-          <span class="key-status-badge empty" id="badge-github-status">Non configuré</span>
-        </div>
-        <div class="password-input-group">
-          <input type="password" class="input-text" id="input-github-token" placeholder="github_pat_..." autocomplete="off">
-          <button type="button" class="btn-toggle-eye" id="btn-toggle-github-eye" title="Afficher / Masquer la clé">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-eye">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Storage Repo -->
-      <div class="form-group">
-        <label for="input-storage-repo">Dépôt GitHub du projet (owner/repo)</label>
-        <input type="text" class="input-text" id="input-storage-repo" placeholder="mon-compte/mon-projet">
-      </div>
-
-      <button class="btn-black" id="btn-save-settings" style="margin-top: 4px;">Enregistrer les paramètres</button>
-    </div>
-
-    <!-- Quick Join Box for Invited Collaborators -->
-    <div id="join-project-card" style="display: none; margin: 10px 16px 6px; background: #000000; color: #ffffff; border-radius: 10px; padding: 12px 14px;">
-      <div style="font-size: 12px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-        <span>🔗 Rejoindre un projet d'équipe</span>
-      </div>
-      <div style="font-size: 11px; color: #d4d4d8; margin-bottom: 8px; line-height: 1.4;">
-        Vous avez reçu une invitation ? Collez simplement le lien d'invitation ci-dessous :
-      </div>
-      <div style="display: flex; gap: 6px;">
-        <input type="text" class="input-text" id="input-join-link" placeholder="Collez le lien https://...#commyweb_config=..." style="flex: 1; background: #ffffff; color: #000000; font-size: 11px; padding: 6px 8px;" />
-        <button class="btn-black" id="btn-join-project" style="background: #ffffff; color: #000000; font-size: 11px; padding: 6px 12px; font-weight: 800; border: none; white-space: nowrap; cursor: pointer;">Rejoindre</button>
-      </div>
-    </div>
-
-    <!-- Collaborator Connected Banner -->
-    <div id="collaborator-banner" style="display: none; margin: 8px 16px 4px; background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 8px; padding: 8px 12px; font-size: 11.5px; display: flex; align-items: center; justify-content: space-between;">
-      <span>🚀 <strong>Mode Collaborateur :</strong> Connecté au projet</span>
-      <span class="key-status-badge configured" style="font-size: 10px;">● Connecté</span>
-    </div>
-
-    <!-- Filters Tabs -->
-    <div class="tabs-container">
-      <button class="tab-btn active" data-tab="all" id="tab-all">Tous (<span id="count-all">0</span>)</button>
-      <button class="tab-btn" data-tab="open" id="tab-open">Actifs (<span id="count-open">0</span>)</button>
-      <button class="tab-btn" data-tab="resolved" id="tab-resolved">Résolus (<span id="count-resolved">0</span>)</button>
-    </div>
-
-    <!-- Comments List on current page -->
-    <div class="comments-list" id="comments-list">
-      <div class="empty-state" id="empty-state">
-        <p id="lbl-no-comments">Aucun commentaire sur cette page. Activez le Mode commentaire et cliquez n'importe où pour commencer !</p>
-      </div>
-    </div>
-  </div>
-
+    <section class="comments-list" id="comments-list" aria-label="Discussions de cette page" aria-busy="true"></section>
+    <footer>Un retour précis. Une équipe qui avance.</footer>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script type="module" src="/src/popup/popup.ts"></script>
 </body>
 </html>

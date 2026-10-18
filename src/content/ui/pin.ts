@@ -48,6 +48,15 @@ export class PinElement {
     this.element.style.pointerEvents = 'auto';
     this.element.style.zIndex = '2147483646';
     this.element.dataset.commentId = comment.id;
+    this.element.tabIndex = 0;
+    this.element.setAttribute('role', 'button');
+    this.element.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.callbacks.onClick(this.comment, this);
+      }
+    });
     if (comment.status === 'resolved') {
       this.element.classList.add('resolved');
       this.element.style.background = '#71717a';
@@ -102,7 +111,7 @@ export class PinElement {
 
         const newX = this.startPinX + dx;
         const newY = this.startPinY + dy;
-        this.setPosition(newX, newY);
+        this.setPosition(newX, newY, true);
       };
 
       const onPointerUp = (upEv: PointerEvent) => {
@@ -131,10 +140,20 @@ export class PinElement {
 
       window.addEventListener('pointermove', onPointerMove, true);
       window.addEventListener('pointerup', onPointerUp, true);
+      const onCancel = () => {
+        this.isDragging = false;
+        this.element.style.cursor = 'grab';
+        this.element.style.zIndex = '2147483646';
+        window.removeEventListener('pointermove', onPointerMove, true);
+        window.removeEventListener('pointerup', onPointerUp, true);
+      };
+      window.addEventListener('pointercancel', onCancel, { once: true, capture: true });
+      window.addEventListener('pointerup', () => window.removeEventListener('pointercancel', onCancel, true), { once: true });
     });
   }
 
-  public setPosition(x: number, y: number) {
+  public setPosition(x: number, y: number, fromDrag = false) {
+    if (this.isDragging && !fromDrag) return;
     this.element.style.left = `${Math.round(x)}px`;
     this.element.style.top = `${Math.round(y)}px`;
   }
@@ -147,8 +166,12 @@ export class PinElement {
     }
   }
 
-  public updateComment(comment: WebComment) {
+  public updateComment(comment: WebComment, index: number = this.index) {
     this.comment = comment;
+    this.index = index;
+    const number = this.element.querySelector('.commyweb-pin-number');
+    if (number) number.textContent = String(index);
+    this.element.setAttribute('aria-label', `${index}. ${comment.author.name || comment.author.username} : ${comment.content}`);
     if (comment.status === 'resolved') {
       this.element.classList.add('resolved');
       this.element.style.background = '#71717a';

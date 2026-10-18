@@ -18,7 +18,7 @@ export class CursorManager {
     this.onEscapeCallback = onEscape;
 
     this.onKeyDownHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && this.isActive) {
+      if (e.key === 'Escape' && this.isActive && this.onEscapeCallback) {
         this.setActive(false);
         this.onEscapeCallback?.();
       }

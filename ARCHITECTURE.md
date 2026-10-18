@@ -1,102 +1,45 @@
-# Commyweb Architecture & Technical Design
+# Commyweb architecture
 
-This document details the internal design and key architectural choices of **Commyweb**.
+## Entry points
 
----
+- `popup.html` is the sole popup markup source. `src/popup/popup.ts` handles page context, filtering, author identity, site settings and token-free sharing.
+- `src/content/index.ts` owns page interaction, navigation detection, pins and the thread dialog inside a Shadow DOM. Reinjection is guarded so it cannot add duplicate listeners.
+- `src/background/index.ts` brokers messages, talks to GitHub and broadcasts changes. It owns the context menu and the sole Alt+C command handler.
+- Vite builds the popup/service worker as modules and the content script separately as an IIFE. Both watchers preserve the other's output.
 
-## 🏛️ System Overview
+## Interaction model
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          HOST WEBPAGE (Any URL)                        │
-│                                                                        │
-│   ┌──────────────────────────────────────────────────────────────┐     │
-│   │               Commyweb Isolated Shadow DOM                   │     │
-│   │                                                              │     │
-│   │   [Pin 1]            [Pin 2 (Active)]                        │     │
-│   │                          │                                   │     │
-│   │                          ▼                                   │     │
-│   │               ┌───────────────────────┐                      │     │
-│   │               │   Figma Thread Modal  │                      │     │
-│   │               │   - Author & time     │                      │     │
-│   │               │   - Replies           │                      │     │
-│   │               │   - [Resolve] [Reply] │                      │     │
-│   │               └───────────────────────┘                      │     │
-│   └──────────────────────────────▲───────────────────────────────┘     │
-└──────────────────────────────────┼─────────────────────────────────────┘
-                                   │
-                                   ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        CHROME EXTENSION RUNTIME                        │
-│                                                                        │
-│   ┌───────────────────────────┐      ┌─────────────────────────────┐   │
-│   │     Content Script        │◄────►│  Background Service Worker  │   │
-│   │   - Spatial DOM Anchoring │      │  - Central Message Broker   │   │
-│   │   - Resize & Scroll Watch │      │  - Badge Counter            │   │
-│   └───────────────────────────┘      └──────────────┬──────────────┘   │
-│                                                     │                  │
-│   ┌───────────────────────────┐                     │                  │
-│   │        Popup UI           │◄────────────────────┤                  │
-│   │   - Mode Switch & Filters │                     │                  │
-│   │   - Page Comments List    │                     ▼                  │
-│   └───────────────────────────┘       ┌────────────────────────────┐   │
-│                                       │   chrome.storage.local     │   │
-│                                       │   (Instant Local Cache)    │   │
-│                                       └─────────────┬──────────────┘   │
-└─────────────────────────────────────────────────────┼──────────────────┘
-                                                      │
-                                                      ▼
-                              ┌──────────────────────────────────────────┐
-                              │     Zero-DB Collaborative Backend        │
-                              │       GitHub REST / Issues API           │
-                              │      (1 URL = 1 Issue / Thread)          │
-                              └──────────────────────────────────────────┘
-```
+Pins remain visible during normal browsing. Placement is opt-in and ends after a locally persisted comment. Escape cancels placement. Dialog submissions are guarded against duplicate requests, retain input on failure, support multiline and composition input, and expose accessible names and focus states.
 
----
+Scroll and resize events share one animation-frame position update. Scroll capture also handles nested containers. Anchors use escaped CSS selectors, XPath, relative coordinates and an absolute fallback. A lightweight URL check catches navigation originating in the page's separate JavaScript world.
 
-## 1. 🎯 Spatial DOM Anchoring Engine
+## Storage boundaries
 
-Unlike Figma where coordinates $(X, Y)$ exist on a static 2D vector canvas, the web is responsive, scrollable, and dynamic across varying screen sizes.
+Existing `commyweb_comments_<urlHash>` arrays are preserved. `storageRepo` distinguishes projects inside each array; legacy GitHub-backed comments infer it from their `issueUrl`. Unassigned legacy comments belong to local mode. Project changes do not automatically export local comments.
 
-### How Anchoring Works
-1. **Target Element Identification:** When a user clicks, Commyweb traverses the DOM upwards to compute a resilient CSS selector (`#id`, unique class chains, or `:nth-of-type(...)`) and fallback XPath.
-2. **Relative Offset Calculation:** Rather than storing absolute window pixels, the anchor stores proportional coordinates $(X\%, Y\%)$:
-   $$X\% = \frac{X_{\text{click}} - X_{\text{element}}}{\text{Width}_{\text{element}}}$$
-   $$Y\% = \frac{Y_{\text{click}} - Y_{\text{element}}}{\text{Height}_{\text{element}}}$$
-3. **Dynamic Layout Tracking:**
-   - Active pins listen to `window.scroll` and `window.resize`.
-   - Coordinates are dynamically recalculated: $X_{\text{pin}} = X_{\text{elem}} + (X\% \times W_{\text{elem}})$.
-   - Even if the window shrinks or elements move, pins stay attached to the exact visual target.
+Site settings override legacy global defaults without mutating them during reads. An explicit empty site repository selects local mode. Tokens are stored locally only; synchronized settings exclude both global and per-site tokens. On installation/update, old local settings are retained while synchronized preferences are sanitized.
 
----
+Writes within a storage manager are serialized by settings key or URL. The background also serializes mutations per repository/thread. Cache merges retain unrelated repositories and local changes made while a fetch was in flight.
 
-## 2. 🛡️ Shadow DOM Isolation
+## GitHub protocol
 
-Chrome extensions that inject UI into arbitrary web pages often suffer from CSS pollution:
-- The website's CSS can break the extension's buttons, typography, or modal layout.
-- The extension's CSS can unintentionally leak and alter styles on the host page.
+One thread maps to one Issue labeled `commyweb` and its URL hash. The body contains `<!-- COMMYWEB_DATA ... -->` JSON. Closing/reopening an Issue represents resolution state. Replies remain embedded in the thread payload for compatibility with existing installations.
 
-**Solution:** Commyweb injects all pins, popovers, and badges inside an isolated `ShadowRoot` (`attachShadow({ mode: 'open' })`). This guarantees 100% style encapsulation and identical visual fidelity on every website.
+`pendingChanges` records locally saved fields that GitHub has not acknowledged. Requests check HTTP status and have a timeout. On retry, the backend reads the current Issue, merges reply IDs, applies pending fields, and writes the result. Failed writes retain pending data. Fetches are deduplicated while in flight and follow all result pages.
 
----
+The model does not offer atomic edits across clients. Two simultaneous read/modify/write operations can race. A future protocol using independently persisted reply records would improve concurrent collaboration. GitHub-side access permissions apply to the repository; local policy records and URL hashes are not an authorization boundary.
 
-## 3. ⚡ Zero-Database Collaborative Backend (No-DB)
+## Sharing and compatibility
 
-Instead of hosting, maintaining, and paying for a traditional database:
-- **Storage Layer:** GitHub Issues in a designated repository (public or private).
-- **Page Association:** The normalized URL is hashed (e.g. `cw_9x7z...`).
-- **Data Encapsulation:** Commyweb stores serialized comment metadata inside hidden issue body tags `<!-- COMMYWEB_DATA ... -->`.
-- **Offline / Local First:** If no GitHub token is provided, Commyweb operates flawlessly with zero setup via `chrome.storage.local`.
-- **Security:**
-  - Token is stored strictly inside extension sandbox storage.
-  - Strict HTML escaping prevents Cross-Site Scripting (XSS).
-  - Tracking query parameters (`utm_*`, `fbclid`) are stripped to prevent thread fragmentation.
+Share links contain only a validated repository and canonical HTTP(S) page URL. Old payloads are decoded but token, email and authorization fields are ignored. The content script removes the extension fragment before async configuration and refuses a project link for a different page.
 
----
+There is one extension edition. Packaging preserves the legacy Admin/User archive aliases without stripping settings from anyone's UI. Existing legacy member policy data is left untouched, but the interface no longer presents local revocation as remote access control.
 
-## 4. 🌍 Internationalization (i18n)
+## Verification
 
-Commyweb is designed for global teams:
-- Localization keys handled via `chrome.i18n`.
-- Dynamic timestamps use the browser's native `Intl.RelativeTimeFormat` matching the user's system locale.
+- `npm test`: storage, project isolation, synchronization, pagination, offline recovery, escaping, URL validation and sharing regression tests.
+- `npm run test:browser`: actual Chromium extension profile covering placement, replies, drafts, resolution, reopening, dragging, viewport bounds, invitation compatibility, SPA navigation and nested scrolling.
+- `npm run build`: strict TypeScript and both production bundles.
+- `npm run package`: installable zip, legacy aliases, source archive and manifest version check.
+
+Browser tests open the popup as an extension tab, which does not receive the toolbar's `activeTab` grant. They supply the target tab's URL metadata to that popup only; extension storage, background messaging and content scripts are real. GitHub regression tests use simulated API responses and do not prove live account permissions.

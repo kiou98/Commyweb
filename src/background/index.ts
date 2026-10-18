@@ -1,354 +1,126 @@
 import { CacheManager } from '../storage/cache';
 import { GitHubBackend } from '../storage/github';
-import { ExtensionMessage, Author, UserSettings } from '../types';
-import { normalizeUrl, hashUrl, extractDomain } from '../utils/security';
+import { ExtensionMessage } from '../types';
+import { normalizeUrl, extractDomain } from '../utils/security';
 import { parseGitHubRepo } from '../utils/github-parser';
 
-/**
- * Commyweb Background Service Worker (Manifest V3)
- */
-
-const CONTEXT_MENU_ID = 'commyweb-add-comment';
+const MENU_ID = 'commyweb-add-comment';
 
 function setupContextMenu() {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: CONTEXT_MENU_ID,
-      title: 'Ajouter un commentaire', // SANS EMOJI comme demandé
-      contexts: ['all']
-    }, () => {
-      if (chrome.runtime.lastError) {
-        // Ignorer si déjà existant
-      }
-    });
+    chrome.contextMenus.create({ id: MENU_ID, title: 'Ajouter un commentaire Commyweb', contexts: ['all'], documentUrlPatterns: ['http://*/*', 'https://*/*'] });
   });
 }
-
 chrome.runtime.onInstalled.addListener(() => {
   setupContextMenu();
+  void CacheManager.saveSettings({});
 });
+chrome.runtime.onStartup.addListener(setupContextMenu);
 
-chrome.runtime.onStartup.addListener(() => {
-  setupContextMenu();
-});
-
-// Exécuter également au démarrage du worker
-setupContextMenu();
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === CONTEXT_MENU_ID) {
-    let targetTabId = tab?.id;
-    if (!targetTabId) {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      targetTabId = activeTab?.id;
-    }
-    if (!targetTabId) return;
-
-    try {
-      await chrome.tabs.sendMessage(targetTabId, {
-        type: 'CONTEXT_MENU_ADD_COMMENT',
-        payload: {
-          selectionText: info.selectionText,
-          linkUrl: info.linkUrl,
-          srcUrl: info.srcUrl
-        }
-      });
-    } catch {
-      // Si l'onglet était déjà ouvert avant le chargement/reload de l'extension,
-      // on injecte dynamiquement content.js et on réessaie immédiatement
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: targetTabId },
-          files: ['content.js']
-        });
-        setTimeout(() => {
-          chrome.tabs.sendMessage(targetTabId, {
-            type: 'CONTEXT_MENU_ADD_COMMENT',
-            payload: {
-              selectionText: info.selectionText,
-              linkUrl: info.linkUrl,
-              srcUrl: info.srcUrl
-            }
-          }).catch(() => {});
-        }, 120);
-      } catch (injectErr) {
-        console.warn('[Commyweb] Impossible d injecter content script sur cet onglet:', injectErr);
-      }
-    }
+async function sendToPage(tabId: number, message: unknown) {
+  try { return await chrome.tabs.sendMessage(tabId, message); }
+  catch {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    return chrome.tabs.sendMessage(tabId, message);
   }
-});
-
-// Handle keyboard shortcut command defined in manifest (Alt + C)
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command === 'toggle-comment-mode') {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_COMMENT_MODE' }).catch(() => {});
-    }
-  }
-});
-
-function broadcastCommentsUpdated(urlHash?: string) {
-  chrome.tabs.query({}, (tabs) => {
-    for (const tab of tabs) {
-      if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, {
-          type: 'COMMENTS_UPDATED',
-          payload: { urlHash }
-        }, () => {
-          void chrome.runtime.lastError;
-        });
-      }
-    }
-  });
 }
 
-// Central message broker
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
-  (async () => {
-    try {
-      const urlOrDomain =
-        message.payload?.url ||
-        message.payload?.comment?.url ||
-        message.payload?.targetUrl ||
-        _sender.tab?.url;
-      const settings = await CacheManager.getSettings(urlOrDomain);
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === MENU_ID && tab?.id) {
+    void sendToPage(tab.id, { type: 'CONTEXT_MENU_ADD_COMMENT' }).catch(console.warn);
+  }
+});
+chrome.commands.onCommand.addListener(async command => {
+  if (command !== 'toggle-comment-mode') return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id && /^https?:\/\//.test(tab.url || '')) {
+    void sendToPage(tab.id, { type: 'TOGGLE_COMMENT_MODE' }).catch(console.warn);
+  }
+});
 
-      switch (message.type) {
-        case 'GET_PAGE_COMMENTS': {
-          const urlHash = message.payload?.urlHash;
-          const comments = await GitHubBackend.fetchComments(settings, urlHash);
-          sendResponse({ comments });
-          break;
-        }
-
-        case 'ADD_COMMENT': {
-          const comment = message.payload?.comment;
-          if (comment) {
-            const res = await GitHubBackend.saveComment(settings, comment);
-            broadcastCommentsUpdated(comment.urlHash);
-            sendResponse(res);
-          }
-          break;
-        }
-
-        case 'UPDATE_COMMENT_ANCHOR': {
-          const { commentId, urlHash, anchor } = message.payload || {};
-          if (commentId && urlHash && anchor) {
-            const comments = await CacheManager.getCommentsForUrl(urlHash);
-            const comment = comments.find(c => c.id === commentId);
-            if (comment) {
-              comment.anchor = anchor;
-              comment.updatedAt = new Date().toISOString();
-              await CacheManager.saveCommentsForUrl(urlHash, comments);
-              await GitHubBackend.updateCommentAnchor(settings, comment);
-              broadcastCommentsUpdated(urlHash);
-            }
-            sendResponse({ success: true });
-          } else {
-            sendResponse({ success: false });
-          }
-          break;
-        }
-
-        case 'NAVIGATE_OR_FOCUS_COMMENT': {
-          const { commentId, targetUrl, tabId } = message.payload || {};
-          let destTabId = tabId;
-          if (!destTabId) {
-            const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            destTabId = activeTab?.id;
-          }
-          if (destTabId && targetUrl && commentId) {
-            const currentTab = await chrome.tabs.get(destTabId);
-            const currentNorm = normalizeUrl(currentTab.url || '');
-            const targetNorm = normalizeUrl(targetUrl);
-
-            if (currentNorm === targetNorm) {
-              chrome.tabs.sendMessage(destTabId, {
-                type: 'FOCUS_COMMENT',
-                payload: { commentId }
-              }).catch(() => {});
-            } else {
-              const targetWithHash = targetUrl.includes('#')
-                ? targetUrl.replace(/#.*$/, `#commyweb_focus=${commentId}`)
-                : `${targetUrl}#commyweb_focus=${commentId}`;
-              await chrome.tabs.update(destTabId, { url: targetWithHash });
-            }
-            sendResponse({ success: true });
-          } else {
-            sendResponse({ success: false });
-          }
-          break;
-        }
-
-        case 'ADD_REPLY': {
-          const { commentId, urlHash, reply } = message.payload || {};
-          if (commentId && urlHash && reply) {
-            await GitHubBackend.addReply(settings, commentId, urlHash, reply);
-            broadcastCommentsUpdated(urlHash);
-            sendResponse({ success: true });
-          }
-          break;
-        }
-
-        case 'RESOLVE_COMMENT': {
-          const { commentId, urlHash } = message.payload || {};
-          if (commentId && urlHash) {
-            const isResolved = await GitHubBackend.toggleResolve(settings, commentId, urlHash);
-            broadcastCommentsUpdated(urlHash);
-            sendResponse({ success: true, isResolved });
-          }
-          break;
-        }
-
-        case 'USER_SETTINGS_UPDATED': {
-          if (settings.githubToken) {
-            const user = await GitHubBackend.getCurrentUser(settings.githubToken);
-            if (user) {
-              await chrome.storage.local.set({ commyweb_user: user });
-            }
-          }
-          sendResponse({ success: true });
-          break;
-        }
-
-        case 'INVITE_MEMBER': {
-          const { urlHash, url, email, addedBy } = message.payload || {};
-          if (urlHash && email) {
-            const member = await CacheManager.addOrInviteMember(urlHash, url || '', email, addedBy);
-            sendResponse({ success: true, member });
-          } else {
-            sendResponse({ error: 'Missing email or urlHash' });
-          }
-          break;
-        }
-
-        case 'REVOKE_MEMBER': {
-          const { urlHash, memberId } = message.payload || {};
-          if (urlHash && memberId) {
-            const success = await CacheManager.revokeMember(urlHash, memberId);
-            sendResponse({ success });
-          } else {
-            sendResponse({ error: 'Missing parameters' });
-          }
-          break;
-        }
-
-        case 'GET_MEMBERS': {
-          const { urlHash, url } = message.payload || {};
-          if (urlHash) {
-            const policy = await CacheManager.getPolicy(urlHash, url);
-            sendResponse({ members: policy.members });
-          } else {
-            sendResponse({ members: [] });
-          }
-          break;
-        }
-
-        case 'VALIDATE_JOIN_CODE': {
-          const { urlHash, code, email } = message.payload || {};
-          if (urlHash && code) {
-            const valid = await CacheManager.validateJoinCode(urlHash, code, email || '');
-            sendResponse({ valid });
-          } else {
-            sendResponse({ valid: false });
-          }
-          break;
-        }
-
-        case 'AUTO_CONFIGURE_PROJECT': {
-          const { repo, token, email, url, authCode } = message.payload || {};
-          if (repo || token || email) {
-            const updates: Partial<UserSettings> = {
-              userRole: 'collaborator'
-            };
-            if (repo) {
-              const parsed = parseGitHubRepo(repo);
-              updates.storageRepo = parsed ? parsed.fullName : repo.trim();
-            }
-            if (token) updates.githubToken = token;
-            if (email) updates.userEmail = email;
-            await CacheManager.saveSettings(updates);
-
-            if (email) {
-              const displayName = email.split('@')[0];
-              const user: Author = {
-                id: email,
-                username: displayName,
-                name: displayName,
-                email: email,
-                avatarUrl: ''
-              };
-              await chrome.storage.local.set({ commyweb_user: user });
-            }
-
-            if (url && email) {
-              const urlHash = hashUrl(normalizeUrl(url));
-              await CacheManager.addOrInviteMember(urlHash, url, email, 'Admin Invite Link');
-              if (authCode) {
-                await CacheManager.validateJoinCode(urlHash, authCode, email);
-              }
-            }
-
-            if (url && repo) {
-              const domain = extractDomain(url);
-              if (domain) {
-                const parsed = parseGitHubRepo(repo);
-                await CacheManager.saveSiteProject({
-                  domain,
-                  repo: parsed ? parsed.fullName : repo.trim(),
-                  token,
-                  name: domain
-                });
-              }
-            }
-
-            broadcastCommentsUpdated();
-            sendResponse({ success: true });
-          } else {
-            sendResponse({ success: false });
-          }
-          break;
-        }
-
-        case 'GET_SITE_PROJECTS': {
-          const projects = await CacheManager.getAllSiteProjects();
-          sendResponse({ projects });
-          break;
-        }
-
-        case 'SAVE_SITE_PROJECT': {
-          const { project } = message.payload || {};
-          if (project && project.domain && project.repo) {
-            await CacheManager.saveSiteProject(project);
-            broadcastCommentsUpdated();
-            sendResponse({ success: true });
-          } else {
-            sendResponse({ success: false, error: 'Missing domain or repo' });
-          }
-          break;
-        }
-
-        case 'DELETE_SITE_PROJECT': {
-          const { domain } = message.payload || {};
-          if (domain) {
-            await CacheManager.removeSiteProject(domain);
-            broadcastCommentsUpdated();
-            sendResponse({ success: true });
-          } else {
-            sendResponse({ success: false, error: 'Missing domain' });
-          }
-          break;
-        }
-
-        default:
-          sendResponse({ error: 'Unknown message type' });
-      }
-    } catch (e: any) {
-      console.error('[Commyweb Background Error]', e);
-      sendResponse({ error: e.message });
+async function broadcast(urlHash?: string) {
+  for (const tab of await chrome.tabs.query({})) {
+    if (tab.id) {
+      void chrome.tabs.sendMessage(tab.id, { type: 'COMMENTS_UPDATED', payload: { urlHash } }).catch(() => {});
     }
-  })();
+  }
+}
 
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
+  void (async () => {
+    const payload = message.payload || {};
+    const settings = await CacheManager.getSettings(payload.url || payload.comment?.url || payload.targetUrl || sender.tab?.url);
+    switch (message.type) {
+      case 'GET_PAGE_COMMENTS': {
+        const comments = await GitHubBackend.fetchComments(settings, payload.urlHash);
+        return { success: true, comments, syncError: GitHubBackend.getSyncError(settings) };
+      }
+      case 'ADD_COMMENT': {
+        if (!payload.comment?.content?.trim()) throw new Error('Le commentaire est vide.');
+        const result = await GitHubBackend.saveComment(settings, payload.comment);
+        await broadcast(payload.comment.urlHash);
+        return result;
+      }
+      case 'ADD_REPLY': {
+        if (!payload.reply?.content?.trim()) throw new Error('La réponse est vide.');
+        const result = await GitHubBackend.addReply(settings, payload.commentId, payload.urlHash, payload.reply);
+        await broadcast(payload.urlHash);
+        return result;
+      }
+      case 'RESOLVE_COMMENT': {
+        const result = await GitHubBackend.toggleResolve(settings, payload.commentId, payload.urlHash);
+        await broadcast(payload.urlHash);
+        return result;
+      }
+      case 'UPDATE_COMMENT_ANCHOR': {
+        const comments = await CacheManager.getCommentsForUrl(payload.urlHash);
+        const comment = comments.find(c => c.id === payload.commentId && CacheManager.belongsToProject(c, settings.storageRepo));
+        if (!comment) throw new Error('Discussion introuvable.');
+        const result = await GitHubBackend.updateCommentAnchor(settings, { ...comment, anchor: payload.anchor });
+        await broadcast(payload.urlHash);
+        return result;
+      }
+      case 'NAVIGATE_OR_FOCUS_COMMENT': {
+        const { commentId, targetUrl, tabId } = payload;
+        if (!commentId || !/^https?:\/\//.test(targetUrl || '')) throw new Error('Page indisponible.');
+        const targetId = tabId || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+        if (!targetId) throw new Error('Onglet introuvable.');
+        const tab = await chrome.tabs.get(targetId);
+        if (normalizeUrl(tab.url || '') === normalizeUrl(targetUrl)) {
+          await sendToPage(targetId, { type: 'FOCUS_COMMENT', payload: { commentId } });
+        } else {
+          const url = new URL(targetUrl);
+          url.hash = `commyweb_focus=${encodeURIComponent(commentId)}`;
+          await chrome.tabs.update(targetId, { url: url.href });
+        }
+        return { success: true };
+      }
+      case 'SAVE_SITE_PROJECT': {
+        const project = payload.project;
+        if (!project?.domain || (project.repo && !parseGitHubRepo(project.repo))) throw new Error('Dépôt GitHub invalide.');
+        await CacheManager.saveSiteProject(project);
+        await broadcast();
+        return { success: true };
+      }
+      case 'AUTO_CONFIGURE_PROJECT': {
+        // Sharing a link selects a repository; it never imports credentials or grants rights.
+        const repo = parseGitHubRepo(payload.repo)?.fullName;
+        if (!repo || !/^https?:\/\//.test(payload.url || '')) throw new Error('Lien de projet invalide.');
+        if (sender.tab?.url && normalizeUrl(sender.tab.url) !== normalizeUrl(payload.url)) throw new Error('Le lien ne correspond pas à cette page.');
+        const domain = extractDomain(payload.url);
+        const previous = await CacheManager.getSiteProject(domain);
+        await CacheManager.saveSiteProject({ domain, repo, token: previous?.repo.toLowerCase() === repo.toLowerCase() ? previous.token : '' });
+        await broadcast();
+        return { success: true };
+      }
+      case 'GET_SITE_PROJECTS': return { success: true, projects: await CacheManager.getAllSiteProjects() };
+      case 'DELETE_SITE_PROJECT': {
+        await CacheManager.removeSiteProject(payload.domain);
+        await broadcast();
+        return { success: true };
+      }
+      default: throw new Error('Action inconnue.');
+    }
+  })().then(sendResponse).catch(error => sendResponse({ success: false, error: error instanceof Error ? error.message : 'Action impossible.' }));
   return true;
 });

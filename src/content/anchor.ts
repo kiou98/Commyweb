@@ -28,7 +28,7 @@ export class AnchorEngine {
       let selector = current.nodeName.toLowerCase();
       
       // If element has ID, we can terminate path
-      if (current.id && document.querySelectorAll(`#${current.id}`).length === 1) {
+      if (current.id && document.querySelectorAll(`#${CSS.escape(current.id)}`).length === 1) {
         selector = `#${CSS.escape ? CSS.escape(current.id) : current.id}`;
         path.unshift(selector);
         break;
@@ -43,15 +43,13 @@ export class AnchorEngine {
         }
       }
 
-      if (nth > 1) {
-        selector += `:nth-of-type(${nth})`;
-      }
+      selector += `:nth-of-type(${nth})`;
 
       path.unshift(selector);
       current = current.parentElement;
     }
 
-    return path.join(' > ');
+    return path.join(' > ') || 'body';
   }
 
   /**
@@ -117,6 +115,7 @@ export class AnchorEngine {
       xPercent,
       yPercent,
       textSnippet,
+      fallbackPosition: { x: clientX + window.scrollX, y: clientY + window.scrollY },
       scrollOffset: {
         x: window.scrollX,
         y: window.scrollY
@@ -164,6 +163,7 @@ export class AnchorEngine {
     }
 
     // 4. Absolute fallback if element is no longer found in dynamic page
+    if (anchor.fallbackPosition) return anchor.fallbackPosition;
     if (anchor.scrollOffset) {
       return {
         x: anchor.scrollOffset.x + (window.innerWidth * anchor.xPercent),

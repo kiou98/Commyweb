@@ -2,355 +2,198 @@ import { WebComment, Author, UserSettings, CommentReply } from '../types';
 import { CacheManager } from './cache';
 import { parseGitHubRepo } from '../utils/github-parser';
 
-/**
- * GitHub API client providing a zero-database backend
- * Uses GitHub Issues as collaborative thread storage
- */
-export class GitHubBackend {
-  private static savingCommentIds = new Set<string>();
-  private static etagByUrlHash = new Map<string, string>();
+type SaveResult = { success: boolean; synced: boolean; error?: string; issueNumber?: number };
 
-  private static async getHeaders(token: string) {
-    return {
-      'Accept': 'application/vnd.github.v3+json',
-      'Authorization': `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json'
-    };
+/** Local mutations remain pending until GitHub acknowledges them. */
+export class GitHubBackend {
+  private static writes = new Map<string, Promise<SaveResult>>();
+  private static reads = new Map<string, Promise<WebComment[]>>();
+  private static errors = new Map<string, string>();
+
+  private static repo(settings: UserSettings): string {
+    return parseGitHubRepo(settings.storageRepo)?.fullName || '';
   }
 
-  /**
-   * Verify token and fetch current authenticated user profile
-   */
+  private static async request(settings: UserSettings, path: string, method = 'GET', body?: unknown) {
+    const response = await fetch(`https://api.github.com${path}`, {
+      method,
+      headers: {
+        Accept: 'application/vnd.github+json', Authorization: `Bearer ${settings.githubToken}`,
+        'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'
+      },
+      signal: AbortSignal.timeout(15000),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) })
+    });
+    if (!response.ok) {
+      const advice = response.status === 401 ? 'Vérifiez votre jeton GitHub.'
+        : response.status === 403 || response.status === 429 ? 'Accès refusé ou limite GitHub atteinte. Réessayez plus tard.'
+        : response.status === 404 ? 'Vérifiez le dépôt et les droits de votre jeton.' : 'Réessayez dans quelques instants.';
+      throw new Error(`GitHub (${response.status}) : ${advice}`);
+    }
+    return response;
+  }
+
+  static getSyncError(settings: UserSettings): string | undefined { return this.errors.get(this.repo(settings)); }
+
   static async getCurrentUser(token: string): Promise<Author | null> {
     try {
-      const res = await fetch('https://api.github.com/user', {
-        headers: await this.getHeaders(token)
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return {
-        id: String(data.id),
-        username: data.login,
-        name: data.name || data.login,
-        avatarUrl: data.avatar_url
-      };
-    } catch {
-      return null;
-    }
+      const data = await (await this.request({ githubToken: token }, '/user')).json();
+      return { id: String(data.id), username: data.login, name: data.name || data.login, avatarUrl: data.avatar_url };
+    } catch { return null; }
   }
 
-  /**
-   * Fetch all comments for a given URL hash (or all pages if urlHash is omitted or 'all')
-   * Uses direct issues endpoint with labels and ETag conditional GET
-   * Sorts newest comments first (Derniers commentaires en priorité)
-   */
+  private static parseIssue(item: any): WebComment | null {
+    try {
+      const match = item.body?.match(/<!-- COMMYWEB_DATA\s*([\s\S]*?)\s*-->/);
+      if (!match) return null;
+      const comment = JSON.parse(match[1]);
+      if (!comment || typeof comment.id !== 'string' || typeof comment.url !== 'string'
+        || typeof comment.urlHash !== 'string' || typeof comment.content !== 'string'
+        || !comment.anchor || typeof comment.anchor.selector !== 'string'
+        || !Number.isFinite(comment.anchor.xPercent) || !Number.isFinite(comment.anchor.yPercent)
+        || !comment.author || typeof comment.author.username !== 'string'
+        || (comment.author.name !== undefined && typeof comment.author.name !== 'string')
+        || !Array.isArray(comment.replies) || !Number.isFinite(Date.parse(comment.createdAt))) return null;
+      if (comment.replies.some((r: CommentReply) => !r || typeof r.id !== 'string'
+        || typeof r.content !== 'string' || !r.author || typeof r.author.username !== 'string'
+        || (r.author.name !== undefined && typeof r.author.name !== 'string'))) return null;
+      return { ...comment, status: item.state === 'closed' ? 'resolved' : 'open',
+        issueNumber: item.number, issueUrl: item.html_url, pendingChanges: [] };
+    } catch { return null; }
+  }
+
   static async fetchComments(settings: UserSettings, urlHash?: string): Promise<WebComment[]> {
-    const isAllPages = !urlHash || urlHash === 'all';
-    const cached = isAllPages ? await CacheManager.getAllComments() : await CacheManager.getCommentsForUrl(urlHash!);
+    const key = `${this.repo(settings)}:${urlHash || 'all'}`;
+    const existing = this.reads.get(key);
+    if (existing) return existing;
+    const pending = this.fetchProject(settings, urlHash);
+    this.reads.set(key, pending);
+    try { return await pending; } finally { this.reads.delete(key); }
+  }
 
-    if (!settings.githubToken || !settings.storageRepo) {
-      return cached;
-    }
-
+  private static async fetchProject(settings: UserSettings, urlHash?: string): Promise<WebComment[]> {
+    const repo = this.repo(settings);
+    const allPages = !urlHash || urlHash === 'all';
+    const readCache = async () => (allPages ? await CacheManager.getAllComments()
+      : await CacheManager.getCommentsForUrl(urlHash!)).filter(c => CacheManager.belongsToProject(c, repo));
+    if (!settings.githubToken || !repo) return readCache();
+    const baseline = await readCache();
     try {
-      const repoInfo = parseGitHubRepo(settings.storageRepo);
-      if (!repoInfo) {
-        return cached;
-      }
-      const { owner, repo } = repoInfo;
-
-      // 1. Recover and push any unsynced local comments in background (non-blocking)
-      const unsynced = cached.filter(c => !c.issueNumber && c.status !== 'resolved' && !this.savingCommentIds.has(c.id));
-      for (const pendingComment of unsynced) {
-        this.saveComment(settings, pendingComment).catch(() => {});
-      }
-
-      // 2. Query direct issues API by labels (commyweb or commyweb + urlHash)
-      // Uses ETag for conditional GET: returns 304 in ~100ms with 0 rate limit cost when unchanged!
-      const labelQuery = isAllPages ? 'commyweb' : `commyweb,${encodeURIComponent(urlHash!)}`;
-      const directUrl = `https://api.github.com/repos/${owner}/${repo}/issues?labels=${labelQuery}&state=all&per_page=100`;
-
-      const headers: Record<string, string> = await this.getHeaders(settings.githubToken);
-      const cacheKey = urlHash || 'all';
-      const lastEtag = this.etagByUrlHash.get(cacheKey);
-      if (lastEtag) {
-        headers['If-None-Match'] = lastEtag;
-      }
-
-      const directRes = await fetch(directUrl, { headers });
-
-      if (directRes.status === 304) {
-        // 304 Not Modified: cache is 100% up to date, return immediately
-        return cached;
-      }
-
-      let rawIssues: any[] = [];
-      if (directRes.ok) {
-        const newEtag = directRes.headers.get('ETag');
-        if (newEtag) {
-          this.etagByUrlHash.set(cacheKey, newEtag);
+      const remote: WebComment[] = [];
+      const labels = allPages ? 'commyweb' : `commyweb,${urlHash}`;
+      for (let page = 1; ; page++) {
+        const response = await this.request(settings,
+          `/repos/${repo}/issues?labels=${encodeURIComponent(labels)}&state=all&per_page=100&page=${page}`);
+        const issues = await response.json();
+        for (const issue of issues) {
+          const comment = this.parseIssue(issue);
+          if (comment && (allPages || comment.urlHash === urlHash)) remote.push({ ...comment, storageRepo: repo });
         }
-        rawIssues = await directRes.json();
-      } else {
-        // Fallback to Search API if direct query fails
-        const searchQuery = isAllPages ? `repo:${owner}/${repo} label:commyweb` : `repo:${owner}/${repo} label:commyweb "${urlHash}"`;
-        const searchRes = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(searchQuery)}&per_page=100`, {
-          headers: await this.getHeaders(settings.githubToken)
+        if (!response.headers.get('Link')?.includes('rel="next"')) break;
+      }
+      const hashes = new Set([...remote.map(c => c.urlHash), ...(await readCache()).map(c => c.urlHash)]);
+      for (const hash of hashes) await CacheManager.mergeRemoteComments(hash, repo, remote.filter(c => c.urlHash === hash), baseline.filter(c => c.urlHash === hash));
+      this.errors.delete(repo);
+    } catch (error) {
+      this.errors.set(repo, error instanceof Error ? error.message : 'Connexion indisponible. Vos messages restent sur cet appareil.');
+    }
+    const comments = await readCache();
+    for (const comment of comments) {
+      if (!comment.issueNumber || comment.pendingChanges?.length) {
+        void this.queue(settings, comment.id, comment.urlHash, () => this.syncComment(settings, comment.id, comment.urlHash));
+      }
+    }
+    return comments.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  }
+
+  private static queue(settings: UserSettings, id: string, hash: string, operation: () => Promise<SaveResult>) {
+    const key = `${this.repo(settings)}:${hash}:${id}`;
+    const next = (this.writes.get(key) || Promise.resolve()).catch(() => {}).then(operation);
+    this.writes.set(key, next);
+    void next.finally(() => { if (this.writes.get(key) === next) this.writes.delete(key); }).catch(() => {});
+    return next;
+  }
+
+  private static issueBody(comment: WebComment): string {
+    const { pendingChanges: _pending, ...shared } = comment;
+    const payload = JSON.stringify(shared).replace(/-->/g, '\\u002d\\u002d>');
+    return `### Commyweb Comment on ${comment.url}\n\n**Author:** ${comment.author.name || comment.author.username}\n\n${comment.content}\n\n<!-- COMMYWEB_DATA\n${payload}\n-->`;
+  }
+
+  private static async syncComment(settings: UserSettings, id: string, hash: string): Promise<SaveResult> {
+    const repo = this.repo(settings);
+    const comment = (await CacheManager.getCommentsForUrl(hash)).find(c => c.id === id && CacheManager.belongsToProject(c, repo));
+    if (!comment) return { success: false, synced: false, error: 'Discussion introuvable.' };
+    if (!settings.githubToken || !repo) return { success: true, synced: false };
+    if (comment.issueNumber && !comment.pendingChanges?.length) return { success: true, synced: true, issueNumber: comment.issueNumber };
+    try {
+      let shared = { ...comment };
+      if (comment.issueNumber) {
+        const remote = this.parseIssue(await (await this.request(settings, `/repos/${repo}/issues/${comment.issueNumber}`)).json());
+        if (!remote) throw new Error('La discussion GitHub ne contient plus de données Commyweb valides.');
+        const pending = new Set(comment.pendingChanges);
+        shared = { ...remote, storageRepo: repo,
+          ...(pending.has('anchor') ? { anchor: comment.anchor } : {}),
+          ...(pending.has('status') ? { status: comment.status } : {}), updatedAt: comment.updatedAt,
+          replies: [...new Map([...remote.replies, ...comment.replies].map(r => [r.id, r])).values()] };
+      }
+      const response = await this.request(settings,
+        `/repos/${repo}/issues${comment.issueNumber ? `/${comment.issueNumber}` : ''}`, comment.issueNumber ? 'PATCH' : 'POST', {
+          ...(comment.issueNumber ? { state: shared.status === 'resolved' ? 'closed' : 'open' } : {
+            title: `[Commyweb] ${shared.anchor.textSnippet || shared.url}`.slice(0, 200), labels: ['commyweb', shared.urlHash]
+          }), body: this.issueBody(shared)
         });
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          rawIssues = searchData.items || [];
-        }
-      }
-
-      const remoteComments: WebComment[] = [];
-
-      for (const item of rawIssues) {
-        try {
-          const match = item.body?.match(/<!-- COMMYWEB_DATA\s*([\s\S]*?)\s*-->/);
-          if (match && match[1]) {
-            const parsed: WebComment = JSON.parse(match[1]);
-            parsed.status = item.state === 'closed' ? 'resolved' : 'open';
-            parsed.issueNumber = item.number;
-            parsed.issueUrl = item.html_url;
-            remoteComments.push(parsed);
-          }
-        } catch {
-          // ignore corrupted items
-        }
-      }
-
-      // Preserve local resolved state to prevent GitHub slow replication from un-resolving
-      const cachedMap = new Map(cached.map(c => [c.id, c]));
-      for (const r of remoteComments) {
-        const local = cachedMap.get(r.id);
-        if (local && local.status === 'resolved' && r.status === 'open') {
-          r.status = 'resolved';
-        }
-      }
-
-      // Merge remote comments with any locally pending comments
-      const merged: WebComment[] = [...remoteComments];
-      for (const c of cached) {
-        if (!merged.some(r => r.id === c.id)) {
-          merged.push(c);
-        }
-      }
-
-      // Sort comments chronologically: NEWEST FIRST (Derniers commentaires en priorité)
-      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      // Update local cache per urlHash
-      if (isAllPages) {
-        const byUrl = new Map<string, WebComment[]>();
-        for (const c of merged) {
-          if (!byUrl.has(c.urlHash)) byUrl.set(c.urlHash, []);
-          byUrl.get(c.urlHash)!.push(c);
-        }
-        for (const [hash, list] of byUrl.entries()) {
-          await CacheManager.saveCommentsForUrl(hash, list);
-        }
-      } else {
-        await CacheManager.saveCommentsForUrl(urlHash!, merged);
-      }
-
-      return merged;
-    } catch (e) {
-      console.warn('[Commyweb] Failed to fetch comments from GitHub, using cache:', e);
-      return cached;
+      const issue = await response.json();
+      const pendingResolution = !comment.issueNumber && shared.status === 'resolved';
+      await CacheManager.addComment({ ...shared, issueNumber: issue.number, issueUrl: issue.html_url,
+        pendingChanges: pendingResolution ? ['status'] : [] });
+      if (pendingResolution) return this.syncComment(settings, id, hash);
+      this.errors.delete(repo);
+      return { success: true, synced: true, issueNumber: issue.number };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Synchronisation indisponible.';
+      this.errors.set(repo, message);
+      return { success: true, synced: false, error: message };
     }
   }
 
-  /**
-   * Save a new comment to GitHub and local cache
-   */
-  static async saveComment(settings: UserSettings, comment: WebComment): Promise<{ success: boolean; error?: string; issueNumber?: number }> {
-    if (this.savingCommentIds.has(comment.id)) {
-      return { success: true };
-    }
-    this.savingCommentIds.add(comment.id);
-
-    // Save to local cache first for instant local feedback
-    await CacheManager.addComment(comment);
-
-    if (!settings.githubToken || !settings.storageRepo) {
-      this.savingCommentIds.delete(comment.id);
-      return {
-        success: false,
-        error: 'Projet GitHub non configuré : le commentaire est enregistré uniquement en local.'
-      };
-    }
-
-    try {
-      const repoInfo = parseGitHubRepo(settings.storageRepo);
-      if (!repoInfo) {
-        return {
-          success: false,
-          error: `Format de dépôt GitHub invalide : "${settings.storageRepo}". Attendu: owner/repo ou URL GitHub (ex: kiou98/Commyweb).`
-        };
-      }
-      const { owner, repo } = repoInfo;
-
-      const title = `[Commyweb] ${comment.urlHash} - ${comment.author.name || comment.author.username} commented on ${comment.anchor.textSnippet || comment.url}`;
-      const payload = JSON.stringify(comment, null, 2);
-      const body = `### Commyweb Comment on ${comment.url}\n\n` +
-        `**Author:** @${comment.author.name || comment.author.username}\n\n` +
-        `> ${comment.content}\n\n` +
-        `<!-- COMMYWEB_DATA\n${payload}\n-->`;
-
-      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
-        method: 'POST',
-        headers: await this.getHeaders(settings.githubToken),
-        body: JSON.stringify({
-          title,
-          body,
-          labels: ['commyweb', comment.urlHash]
-        })
-      });
-
-      if (res.ok) {
-        const issue = await res.json();
-        comment.issueNumber = issue.number;
-        comment.issueUrl = issue.html_url;
-
-        // Invalidate ETag so next poll fetches fresh state immediately
-        this.etagByUrlHash.delete(comment.urlHash);
-        this.etagByUrlHash.delete('all');
-
-        // Update cache with issue info
-        const cachedList = await CacheManager.getCommentsForUrl(comment.urlHash);
-        const idx = cachedList.findIndex(c => c.id === comment.id);
-        if (idx >= 0) {
-          cachedList[idx] = comment;
-          await CacheManager.saveCommentsForUrl(comment.urlHash, cachedList);
-        }
-        return { success: true, issueNumber: issue.number };
-      } else {
-        const errText = await res.text();
-        console.error('[Commyweb] GitHub API error creating issue:', res.status, errText);
-        return {
-          success: false,
-          error: `Erreur GitHub (${res.status}) lors de l'enregistrement sur ${owner}/${repo}`
-        };
-      }
-    } catch (e: any) {
-      console.error('[Commyweb] Error syncing comment with GitHub:', e);
-      return {
-        success: false,
-        error: e.message || 'Erreur réseau lors de la synchronisation avec GitHub'
-      };
-    } finally {
-      this.savingCommentIds.delete(comment.id);
-    }
+  static saveComment(settings: UserSettings, comment: WebComment): Promise<SaveResult> {
+    return this.queue(settings, comment.id, comment.urlHash, async () => {
+      const previous = (await CacheManager.getCommentsForUrl(comment.urlHash)).find(c => c.id === comment.id);
+      if (!previous) await CacheManager.addComment({ ...comment, storageRepo: this.repo(settings), pendingChanges: ['content'] });
+      return this.syncComment(settings, comment.id, comment.urlHash);
+    });
   }
 
-  /**
-   * Update existing comment on GitHub (e.g. anchor repositioning)
-   */
-  static async updateCommentAnchor(settings: UserSettings, comment: WebComment): Promise<void> {
-    if (!settings.githubToken || !settings.storageRepo || !comment.issueNumber) return;
-
-    try {
-      const repoInfo = parseGitHubRepo(settings.storageRepo);
-      if (!repoInfo) return;
-      const { owner, repo } = repoInfo;
-
-      const payload = JSON.stringify(comment, null, 2);
-      const body = `### Commyweb Comment on ${comment.url}\n\n` +
-        `**Author:** @${comment.author.name || comment.author.username}\n\n` +
-        `> ${comment.content}\n\n` +
-        `<!-- COMMYWEB_DATA\n${payload}\n-->`;
-
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${comment.issueNumber}`, {
-        method: 'PATCH',
-        headers: await this.getHeaders(settings.githubToken),
-        body: JSON.stringify({ body })
-      });
-    } catch (e) {
-      console.error('[Commyweb] Error updating issue anchor on GitHub:', e);
-    }
+  private static mutate(settings: UserSettings, id: string, hash: string,
+    field: NonNullable<WebComment['pendingChanges']>[number], change: (comment: WebComment) => void) {
+    return this.queue(settings, id, hash, async () => {
+      const comment = (await CacheManager.getCommentsForUrl(hash)).find(c => c.id === id && CacheManager.belongsToProject(c, this.repo(settings)));
+      if (!comment) return { success: false, synced: false, error: 'Discussion introuvable.' };
+      change(comment);
+      comment.updatedAt = new Date().toISOString();
+      comment.pendingChanges = [...new Set([...(comment.pendingChanges || []), field])];
+      await CacheManager.addComment(comment);
+      return this.syncComment(settings, id, hash);
+    });
   }
 
-  /**
-   * Add a reply to an existing comment
-   */
-  static async addReply(settings: UserSettings, commentId: string, urlHash: string, reply: CommentReply): Promise<void> {
-    const comments = await CacheManager.getCommentsForUrl(urlHash);
-    const comment = comments.find(c => c.id === commentId);
-    if (!comment) return;
-
-    if (!comment.replies) comment.replies = [];
-    comment.replies.push(reply);
-    await CacheManager.saveCommentsForUrl(urlHash, comments);
-
-    this.etagByUrlHash.delete(urlHash);
-    this.etagByUrlHash.delete('all');
-
-    if (!settings.githubToken || !settings.storageRepo || !comment.issueNumber) return;
-
-    try {
-      const repoInfo = parseGitHubRepo(settings.storageRepo);
-      if (!repoInfo) return;
-      const { owner, repo } = repoInfo;
-
-      // 1. Post comment reply to GitHub issue discussion
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${comment.issueNumber}/comments`, {
-        method: 'POST',
-        headers: await this.getHeaders(settings.githubToken),
-        body: JSON.stringify({
-          body: `**@${reply.author.name || reply.author.username}** replied:\n\n> ${reply.content}`
-        })
-      });
-
-      // 2. Update issue body with new serialized comment state (including all replies)
-      const payload = JSON.stringify(comment, null, 2);
-      const body = `### Commyweb Comment on ${comment.url}\n\n` +
-        `**Author:** @${comment.author.name || comment.author.username}\n\n` +
-        `> ${comment.content}\n\n` +
-        `<!-- COMMYWEB_DATA\n${payload}\n-->`;
-
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${comment.issueNumber}`, {
-        method: 'PATCH',
-        headers: await this.getHeaders(settings.githubToken),
-        body: JSON.stringify({ body })
-      });
-    } catch (e) {
-      console.error('[Commyweb] Error syncing reply with GitHub:', e);
-    }
+  static updateCommentAnchor(settings: UserSettings, comment: WebComment) {
+    return this.mutate(settings, comment.id, comment.urlHash, 'anchor', stored => { stored.anchor = comment.anchor; });
   }
 
-  /**
-   * Toggle resolve state
-   */
-  static async toggleResolve(settings: UserSettings, commentId: string, urlHash: string): Promise<boolean> {
-    const comments = await CacheManager.getCommentsForUrl(urlHash);
-    const comment = comments.find(c => c.id === commentId);
-    if (!comment) return false;
+  static addReply(settings: UserSettings, id: string, hash: string, reply: CommentReply) {
+    return this.mutate(settings, id, hash, 'replies', comment => {
+      if (!comment.replies.some(r => r.id === reply.id)) comment.replies.push(reply);
+    });
+  }
 
-    comment.status = comment.status === 'resolved' ? 'open' : 'resolved';
-    await CacheManager.saveCommentsForUrl(urlHash, comments);
-
-    this.etagByUrlHash.delete(urlHash);
-    this.etagByUrlHash.delete('all');
-
-    if (settings.githubToken && settings.storageRepo && comment.issueNumber) {
-      try {
-        const repoInfo = parseGitHubRepo(settings.storageRepo);
-        if (repoInfo) {
-          const { owner, repo } = repoInfo;
-          const state = comment.status === 'resolved' ? 'closed' : 'open';
-          await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${comment.issueNumber}`, {
-            method: 'PATCH',
-            headers: await this.getHeaders(settings.githubToken),
-            body: JSON.stringify({ state })
-          });
-        }
-      } catch (e) {
-        console.error('[Commyweb] Error updating issue state on GitHub:', e);
-      }
-    }
-
-    return comment.status === 'resolved';
+  static async toggleResolve(settings: UserSettings, id: string, hash: string) {
+    let isResolved = false;
+    const result = await this.mutate(settings, id, hash, 'status', comment => {
+      comment.status = comment.status === 'resolved' ? 'open' : 'resolved';
+      isResolved = comment.status === 'resolved';
+    });
+    return { ...result, isResolved };
   }
 }
