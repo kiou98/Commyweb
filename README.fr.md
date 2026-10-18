@@ -81,6 +81,8 @@ Les archives se trouvent dans `release/`. Il existe une seule édition ; les nom
 
 ## Guide public sur Netlify
 
+Le projet Netlify `commyweb` suit actuellement la branche `codex/simplify-experience`. Chaque push sur cette branche déclenche une publication sur `https://commyweb.netlify.app`.
+
 Le fichier `netlify.toml` compile le guide via `npm run build:site` et publie `site-dist`, avec l’archive de l’extension dans `/downloads/`. Le dossier `dist` est une extension de navigateur et ne doit pas servir de site web public. `npm run test:site` vérifie le téléchargement, les invitations, l’affichage mobile et les liens invalides.
 
 Ce site statique héberge les étapes d’installation ; il n’exécute pas le serveur WebSocket du dossier `relay/`. Le déploiement de ce serveur et son URL publique restent nécessaires pour activer le temps réel entre collaborateurs.
