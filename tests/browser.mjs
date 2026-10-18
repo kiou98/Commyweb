@@ -74,6 +74,10 @@ try {
   await draft.press('Shift+Enter');
   await draft.type('Et garder un ton accueillant.');
   await expect(draft).toHaveValue('Rendre ce titre plus clair.\nEt garder un ton accueillant.');
+  if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
+    await mkdir('site/screenshots', { recursive: true });
+    await page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/commenter.png' });
+  }
   await page.locator('#btn-submit-new').click();
   await expect(page.locator('.commyweb-pin')).toHaveCount(1);
   await expect(page.locator('.commyweb-modal')).toHaveCount(0);

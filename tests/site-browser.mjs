@@ -45,6 +45,11 @@ try {
   await expect(page.locator('main')).toBeFocused();
   await page.getByText('Afficher les étapes d’installation', { exact: true }).click();
   await expect(page.getByText('edge://extensions', { exact: true })).toBeVisible();
+  await page.getByText('Afficher les étapes d’installation', { exact: true }).click();
+  for (const capture of await page.locator('.walkthrough img').all()) {
+    await capture.scrollIntoViewIfNeeded();
+    await expect.poll(() => capture.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+  }
   const audit = async label => {
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     assert.deepEqual(result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.map(n => n.target) })), [], `${label}: accessibility violations`);
@@ -52,6 +57,7 @@ try {
   await audit('desktop home');
   await mkdir('test-results', { recursive: true });
   await page.screenshot({ path: 'test-results/site-neonea-desktop.png', fullPage: true });
+  await page.locator('#fonctionnement').screenshot({ path: 'test-results/walkthrough-desktop.png' });
   for (const width of [320, 375, 768]) {
     await page.setViewportSize({ width, height: 900 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Home overflows at ${width}px`);

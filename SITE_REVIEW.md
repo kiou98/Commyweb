@@ -8,6 +8,8 @@ Référence : https://neonea.nc/ et son formulaire https://neonea.nc/#contact, v
 
 ## Vérifications
 
+Le guide présente trois étapes avec des captures de l’extension : configuration du projet, invitation par email, puis commentaire du collaborateur. Les données sont fictives et les détails secondaires sont masqués uniquement dans les captures. `npm run capture:site` régénère les images depuis des profils Chromium isolés ; la page ne reçoit aucun jeton.
+
 - Page principale statique utilisable sans JavaScript ; aucune vidéo, animation ou dépendance JavaScript pour la présentation.
 - HTML sémantique, titre principal unique, lien d’évitement, focus visible, accordéons natifs et audit automatisé axe sur ordinateur et mobile.
 - Contrôle des débordements à 320, 375, 768 et 1280 pixels ; invitation historique également vérifiée sur mobile.

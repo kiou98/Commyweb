@@ -142,6 +142,13 @@ try {
   await expect(popup.locator('#toast')).toContainText('lecture GitHub vérifiée');
   await expect(popup.locator('#realtime-status')).toContainText('Temps réel actif');
   await popup.screenshot({ path: join(output, 'setup-realtime.png'), fullPage: true });
+  if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
+    await mkdir('site/screenshots', { recursive: true });
+    await popup.locator('#settings-drawer').screenshot({
+      path: 'site/screenshots/configurer.png',
+      style: '#settings-drawer > p, #settings-form .setup-links, #settings-form .helper, #btn-load-repositories, #label-github-repo, #select-github-repo, #realtime-settings, #btn-local-mode { display:none!important }'
+    });
+  }
   console.log('PASS: prefilled token link, authenticated project selection and connection check work');
 
   await popup.locator('#btn-toggle-invite').click();
@@ -158,6 +165,12 @@ try {
   assert.ok(!draft.includes('test-only-'));
   await expect(popup.locator('#toast')).toContainText('Envoyer');
   await popup.screenshot({ path: join(output, 'invite-email.png'), fullPage: true });
+  if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
+    await popup.locator('#invite-drawer').screenshot({
+      path: 'site/screenshots/inviter.png',
+      style: '#invite-drawer details, #invite-drawer .invite-alternatives, #link-github-access, #invite-drawer .helper:not(#invite-project-summary) { display:none!important }'
+    });
+  }
   assert.deepEqual(errors, []);
   console.log('PASS: invitation opens an explicit email draft without sending or sharing tokens');
 } catch (error) {
