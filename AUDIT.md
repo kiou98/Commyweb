@@ -1,5 +1,11 @@
 # Commyweb — analyse et corrections
 
+## Mise à jour 1.7.1 : présentation Néonéa et configuration dans l’extension
+
+- Page publique centrée sur les bénéfices, exemple illustratif, téléchargement, installation, questions fréquentes et renvoi au formulaire Néonéa. Direction visuelle alignée sur neonea.nc. Voir [la vérification de la page](SITE_REVIEW.md).
+- Aucun enregistrement de projet sur le site public. Suppression de l’onglet de configuration ; retour à la modale de l’extension avec conservation temporaire du nom du dépôt pendant la création du jeton sur GitHub. Les jetons ne sont pas enregistrés dans ce brouillon.
+- Icône d’invitation d’origine « personne + » restaurée ; consignes explicites sur l’envoi de l’email conservées. Les nouvelles invitations ouvrent directement la page à commenter, les anciennes pages d’invitation restent compatibles.
+
 ## Mise à jour 1.7.0 : temps réel et connexion guidée
 
 - Relais WebSocket autonome fourni dans `relay/`, avec Dockerfile, dépendances verrouillées, health check et archive séparée. Il transmet des signaux de changement, sans commentaires ni jetons GitHub.

@@ -3,11 +3,14 @@ import { promises as fs } from 'node:fs';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import archiver from 'archiver';
+import sharp from 'sharp';
 
 const target = resolve('site-dist');
 await fs.mkdir(target, { recursive: true });
 await fs.cp(resolve('site'), target, { recursive: true });
 await fs.copyFile(resolve('icons/logotype.png'), resolve(target, 'logotype.png'));
+await sharp(resolve('icons/logo.png')).resize(48, 48).png().toFile(resolve(target, 'favicon.png'));
+await sharp(resolve('site/social-card.svg')).png().toFile(resolve(target, 'social-card.png'));
 await fs.mkdir(resolve(target, 'downloads'), { recursive: true });
 await build({ entryPoints: ['src/site/join.ts'], outfile: resolve(target, 'join.js'), bundle: true, format: 'esm', minify: true, target: 'es2022' });
 const zip = (file, directory) => new Promise((done, reject) => {

@@ -28,6 +28,8 @@ test('email invitation is a draft action and includes installation and project s
   assert.ok(email.body.includes('chrome://extensions'));
   assert.ok(email.body.includes('Créer mon jeton GitHub'));
   assert.ok(email.body.includes('team/project'));
+  assert.equal(new URL(email.link).origin, 'https://example.test');
+  assert.ok(email.body.includes('modale de l’extension'));
   assert.throws(() => invitationMailto('user@example.test?bcc=evil@example.test', email.subject, email.body));
 });
 

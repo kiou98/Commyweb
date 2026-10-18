@@ -11,7 +11,7 @@
     <header class="popup-header">
       <a class="brand" href="#" aria-label="Accueil Commyweb"><img src="/icons/logotype.png" alt="Commyweb"></a>
       <div class="header-actions">
-        <button class="invite-trigger" id="btn-toggle-invite" aria-label="Inviter par email" title="Inviter par email">✉ Inviter</button>
+        <button class="icon-btn" id="btn-toggle-invite" aria-label="Inviter un collaborateur par email" title="Inviter un collaborateur par email"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg></button>
         <button class="icon-btn" id="btn-toggle-settings" aria-label="Réglages" title="Réglages">⚙</button>
       </div>
     </header>
@@ -34,8 +34,7 @@
     <section class="drawer" id="settings-drawer" aria-labelledby="settings-title" hidden>
       <div class="drawer-heading"><h2 id="settings-title">Connecter votre équipe</h2><button class="text-button" data-close>Fermer</button></div>
       <p class="muted">Trois étapes, une seule fois pour ce site.</p>
-      <button class="secondary" id="btn-open-setup">Ouvrir ce guide dans un onglet ↗</button>
-      <p class="helper">Le guide restera ouvert pendant vos aller-retours sur GitHub.</p>
+      <p class="helper">Configurez votre projet ici. Après la création du jeton sur GitHub, revenez sur ce site et rouvrez Commyweb pour le coller.</p>
       <form id="settings-form">
         <label for="input-storage-repo"><span class="step-number">1</span> Choisir le projet GitHub</label>
         <input id="input-storage-repo" placeholder="propriétaire/projet ou URL GitHub" autocomplete="off">

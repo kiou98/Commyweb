@@ -31,8 +31,6 @@ class PopupController {
 
   private async init() {
     const params = new URLSearchParams(location.search);
-    document.body.classList.toggle('setup-page', params.get('view') === 'setup');
-    element('btn-open-setup').hidden = params.get('view') === 'setup';
     this.setupEvents();
     const target = Number(new URLSearchParams(location.search).get('tabId'));
     const tab = target ? await chrome.tabs.get(target) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
@@ -48,6 +46,7 @@ class PopupController {
       element('mode-hint').textContent = 'Ouvrez une page web pour laisser un commentaire.';
     }
     await this.loadSettings();
+    await this.restoreSetupDraft();
     const requestedRepo = parseGitHubRepo(params.get('repo'));
     if (requestedRepo) { input('input-storage-repo').value = requestedRepo.fullName; this.updateSetupLinks(); }
     const stored = await chrome.storage.local.get('commyweb_user');
@@ -60,10 +59,6 @@ class PopupController {
       if (message.type === 'COMMENTS_UPDATED' && (!message.payload?.urlHash || message.payload.urlHash === hashUrl(this.url))) void this.refresh();
     });
     if (new URLSearchParams(location.search).get('drawer') === 'settings') this.openDrawer('settings');
-    if (params.get('go') === 'token' && params.get('view') === 'setup') {
-      await chrome.tabs.create({ url: githubTokenUrl(input('input-storage-repo').value) });
-      history.replaceState(null, '', location.href.replace('&go=token', ''));
-    }
   }
 
   private openDrawer(drawer?: string) {
@@ -101,17 +96,16 @@ class PopupController {
     element('btn-copy-invite-link').addEventListener('click', () => void this.copyLink());
     element('btn-copy-invite-email').addEventListener('click', () => void this.copyEmail());
     element('invite-form').addEventListener('submit', event => { event.preventDefault(); void this.prepareEmail(); });
-    input('input-storage-repo').addEventListener('input', () => this.updateSetupLinks());
+    input('input-storage-repo').addEventListener('input', () => { this.updateSetupLinks(); void this.saveSetupDraft(); });
+    input('input-realtime-endpoint').addEventListener('input', () => void this.saveSetupDraft());
     element('btn-load-repositories').addEventListener('click', () => void this.loadRepositories());
     element<HTMLSelectElement>('select-github-repo').addEventListener('change', () => {
       const value = element<HTMLSelectElement>('select-github-repo').value;
-      if (value) { input('input-storage-repo').value = value; this.updateSetupLinks(); }
+      if (value) { input('input-storage-repo').value = value; this.updateSetupLinks(); void this.saveSetupDraft(); }
     });
-    element('btn-open-setup').addEventListener('click', () => this.openSetupTab());
     element('link-create-token').addEventListener('click', event => {
-      if (new URLSearchParams(location.search).get('view') !== 'setup') {
-        event.preventDefault(); this.openSetupTab(true);
-      }
+      event.preventDefault();
+      void this.openTokenPage();
     });
     element('join-form').addEventListener('submit', event => { event.preventDefault(); void this.join(); });
     document.querySelectorAll<HTMLButtonElement>('[data-filter]').forEach(button => button.addEventListener('click', () => {
@@ -176,10 +170,28 @@ class PopupController {
       : 'Sur GitHub, choisissez « Only select repositories » puis votre projet. Les permissions Issues sont préremplies.';
   }
 
-  private openSetupTab(createToken = false) {
-    const params = new URLSearchParams({ drawer: 'settings', view: 'setup', tabId: String(this.tabId || ''), repo: input('input-storage-repo').value.trim() });
-    if (createToken) params.set('go', 'token');
-    void chrome.tabs.create({ url: chrome.runtime.getURL(`popup.html?${params}`) });
+  private async saveSetupDraft() {
+    if (!this.domain) return;
+    await chrome.storage.session.set({ [`commyweb_setup_draft:${this.domain}`]: {
+      repo: input('input-storage-repo').value, endpoint: input('input-realtime-endpoint').value
+    } });
+  }
+
+  private async restoreSetupDraft() {
+    if (!this.domain) return;
+    const key = `commyweb_setup_draft:${this.domain}`;
+    const draft = (await chrome.storage.session.get(key))[key];
+    if (!draft) return;
+    input('input-storage-repo').value = draft.repo || '';
+    input('input-realtime-endpoint').value = draft.endpoint || '';
+    this.openDrawer('settings');
+  }
+
+  private async openTokenPage() {
+    try {
+      await this.saveSetupDraft();
+      await chrome.tabs.create({ url: githubTokenUrl(input('input-storage-repo').value) });
+    } catch (error) { this.toast((error as Error).message); }
   }
 
   private async loadRepositories() {
@@ -220,6 +232,7 @@ class PopupController {
       button.textContent = 'Vérification de l’accès…';
       await this.message('VERIFY_GITHUB_PROJECT', { repo: repo.fullName, token });
       await this.message('SAVE_SITE_PROJECT', { project: { domain: this.domain, repo: repo.fullName, token, realtime } });
+      await chrome.storage.session.remove(`commyweb_setup_draft:${this.domain}`);
       await this.loadSettings();
       this.signature = '';
       await this.refresh();
@@ -232,6 +245,7 @@ class PopupController {
     if (!this.domain) return;
     try {
       await this.message('SAVE_SITE_PROJECT', { project: { domain: this.domain, repo: '', token: '', realtime: null } });
+      await chrome.storage.session.remove(`commyweb_setup_draft:${this.domain}`);
       await this.loadSettings();
       this.signature = '';
       await this.refresh();

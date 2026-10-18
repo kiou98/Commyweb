@@ -122,8 +122,17 @@ try {
     const get = chrome.tabs.get.bind(chrome.tabs);
     chrome.tabs.get = async id => ({ ...await get(id), ...(id === tabId ? { url: targetUrl } : {}) });
   }, { tabId: first.tabId, targetUrl });
-  await popup.goto(`chrome-extension://${new URL(first.worker.url()).host}/popup.html?tabId=${first.tabId}&drawer=settings&view=setup`);
+  await popup.goto(`chrome-extension://${new URL(first.worker.url()).host}/popup.html?tabId=${first.tabId}&drawer=settings`);
   await expect(popup.locator('#comments-list')).toHaveAttribute('aria-busy', 'false');
+  await expect(popup.locator('#btn-open-setup')).toHaveCount(0);
+  await expect(popup.getByRole('button', { name: 'Inviter un collaborateur par email', exact: true }).locator('svg')).toBeVisible();
+  await popup.locator('#input-storage-repo').fill('team/draft-project');
+  await popup.evaluate(() => { chrome.tabs.create = async options => { window.openedTokenUrl = options.url; return { id: 999, ...options }; }; });
+  await popup.locator('#link-create-token').click();
+  await expect.poll(() => popup.evaluate(() => window.openedTokenUrl)).toMatch(/^https:\/\/github.com\/settings\/personal-access-tokens\/new/);
+  await popup.reload();
+  await expect(popup.locator('#input-storage-repo')).toHaveValue('team/draft-project');
+  await popup.locator('#input-storage-repo').fill('team/project');
   await expect(popup.locator('#link-create-token')).toHaveAttribute('href', /target_name=team/);
   await expect(popup.locator('#token-project-hint')).toContainText('project');
   await popup.locator('#btn-load-repositories').click();

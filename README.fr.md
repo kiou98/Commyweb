@@ -4,7 +4,7 @@ Des retours précis, directement sur les pages web. Extension Chrome / Edge / Br
 
 [English](README.md) · [Architecture](ARCHITECTURE.md) · [Bilan des changements](AUDIT.md)
 
-Le guide public d’installation et d’invitation est prévu pour [commyweb.netlify.app](https://commyweb.netlify.app). Les liens d’invitation envoyés par email ouvrent `/join.html` avec le projet déjà sélectionné ; le jeton se saisit uniquement dans l’extension.
+La présentation et le téléchargement sont disponibles sur [commyweb.netlify.app](https://commyweb.netlify.app). Les invitations ouvrent directement la page à commenter avec le projet déjà sélectionné. Toute la configuration du projet se fait dans la modale de l’extension ; seule la création du jeton passe par GitHub. Les anciens liens `/join.html` restent lisibles.
 
 ## Commencer
 
@@ -32,10 +32,10 @@ Les annotations sont associées à l’URL de la page. Les paramètres de suivi 
 ## Travailler en équipe
 
 1. Créez un dépôt GitHub privé et donnez aux collaborateurs les droits nécessaires dans GitHub.
-2. Sur le site concerné, ouvrez les réglages Commyweb et **Ouvrir ce guide dans un onglet**. Collez l’URL du projet GitHub.
+2. Sur le site concerné, ouvrez les réglages dans la modale Commyweb. Collez l’URL du projet GitHub.
 3. Cliquez sur **Créer mon jeton GitHub** : le propriétaire et les permissions **Issues : Read and write** sont préremplis. Dans GitHub, choisissez **Only select repositories**, sélectionnez précisément le projet indiqué et générez le jeton.
 4. Collez votre jeton dans Commyweb. **Choisir parmi mes projets GitHub** permet de retrouver les dépôts accessibles sans recopier leur nom. Cliquez sur **Vérifier et connecter** : la lecture du projet et des Issues est contrôlée sans créer de données de test. Les droits d’écriture seront nécessaires pour commenter.
-5. Cliquez sur **✉ Inviter**, saisissez l’email du collaborateur puis **Préparer l’email d’invitation**. Un brouillon s’ouvre dans votre messagerie : **vérifiez-le puis cliquez sur Envoyer**. Si votre messagerie ne s’ouvre pas, utilisez **Copier l’email complet**. Aucun email ne part automatiquement.
+5. Cliquez sur l’icône **Inviter un collaborateur** (personne avec un signe +), saisissez l’email du collaborateur puis **Préparer l’email d’invitation**. Un brouillon s’ouvre dans votre messagerie : **vérifiez-le puis cliquez sur Envoyer**. Si votre messagerie ne s’ouvre pas, utilisez **Copier l’email complet**. Aucun email ne part automatiquement.
 
 L’email contient les étapes d’installation et un lien qui sélectionne déjà le bon projet. Chaque collaborateur connecte son propre accès GitHub une seule fois. Si nécessaire, le responsable lui donne d’abord accès au dépôt via le lien GitHub affiché dans le volet d’invitation.
 
