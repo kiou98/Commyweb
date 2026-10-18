@@ -30,7 +30,7 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin);
-  await expect(page.getByRole('heading', { name: /Le bon retour/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Commentez vos pages web/ })).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
   await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /commentaires/);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://commyweb.netlify.app/');
@@ -70,7 +70,7 @@ try {
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   const staticPage = await noScript.newPage();
   await staticPage.goto(origin);
-  await expect(staticPage.getByRole('heading', { name: /Le bon retour/ })).toBeVisible();
+  await expect(staticPage.getByRole('heading', { name: /Commentez vos pages web/ })).toBeVisible();
   await expect(staticPage.getByRole('link', { name: /Télécharger Commyweb/ })).toBeVisible();
   await staticPage.getByText('Faut-il un compte GitHub pour utiliser Commyweb ?', { exact: true }).click();
   await expect(staticPage.getByText(/Vous pouvez prendre des notes en mode local/)).toBeVisible();
