@@ -4,7 +4,7 @@
   "name": "__MSG_appName__",
   "short_name": "Commyweb",
   "description": "__MSG_appDescription__",
-  "version": "1.7.2",
+  "version": "1.8.0",
   "default_locale": "en",
   "permissions": [
     "storage",
@@ -14,13 +14,19 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "https://api.github.com/*"
+    "https://api.github.com/*",
+    "https://commyweb.neonea.nc/*"
   ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["invitation.js"],
+      "run_at": "document_start"
+    },
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],

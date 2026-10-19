@@ -6,6 +6,7 @@ import { decodeProjectConfig, projectLink } from '../utils/email-template';
 import { parseGitHubRepo } from '../utils/github-parser';
 import { githubTokenUrl, githubProjectUrl, invitationEmail, invitationMailto } from '../utils/github-setup';
 import { newRealtimeChannel, realtimeEndpoint } from '../utils/realtime';
+import { hasProjectAccess, isUserEdition } from '../storage/collaboration';
 
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = (id: string) => element<HTMLInputElement>(id);
@@ -23,6 +24,7 @@ class PopupController {
   private restoring = true;
   private panel = new URLSearchParams(location.search).get('panel') === '1';
   private windowId?: number;
+  private userEdition = isUserEdition();
 
   constructor() { void this.init().catch(error => this.toast(error.message)); }
 
@@ -35,6 +37,14 @@ class PopupController {
   private async init() {
     const params = new URLSearchParams(location.search);
     document.body.classList.toggle('side-panel', this.panel);
+    document.body.classList.toggle('user-edition', this.userEdition);
+    if (this.userEdition) {
+      element('btn-toggle-settings').hidden = true;
+      element('btn-toggle-invite').hidden = true;
+      const join = element<HTMLDetailsElement>('join-details');
+      join.classList.add('join-card');
+      element('project-status-bar').after(join);
+    }
     this.setupEvents();
     const target = Number(new URLSearchParams(location.search).get('tabId'));
     const tab = target ? await chrome.tabs.get(target).catch(() => undefined) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
@@ -62,24 +72,32 @@ class PopupController {
     keepOpen.hidden = this.panel || !chrome.sidePanel?.open || !this.url || this.windowId === undefined;
     keepOpen.disabled = false;
     if (this.panel) element('setup-persistence-hint').textContent = 'Ce panneau reste ouvert sur ce site pendant vos recherches sur GitHub. Vos saisies sont conservées sur cet appareil.';
-    await this.refresh();
+    void this.refresh();
     const timer = window.setInterval(() => { if (!document.hidden) void this.refresh(); }, 15000);
     window.addEventListener('unload', () => clearInterval(timer));
     chrome.runtime.onMessage.addListener(message => {
       if (message.type === 'REALTIME_STATUS_UPDATED') void this.refresh();
-      if (message.type === 'COMMENTS_UPDATED' && (!message.payload?.urlHash || message.payload.urlHash === hashUrl(this.url))) void this.refresh();
+      if (message.type === 'COMMENTS_UPDATED' && (!message.payload?.urlHash || message.payload.urlHash === hashUrl(this.url))) void this.refresh(!!message.payload?.cacheOnly);
+    });
+    const visibility = input('toggle-comments');
+    const visibilityStored = await chrome.storage.local.get('commyweb_comments_enabled');
+    visibility.checked = visibilityStored.commyweb_comments_enabled !== false;
+    visibility.disabled = !this.tabId;
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.commyweb_comments_enabled) visibility.checked = changes.commyweb_comments_enabled.newValue !== false;
     });
     if (new URLSearchParams(location.search).get('drawer') === 'settings') this.openDrawer('settings');
   }
 
   private openDrawer(drawer?: string) {
+    if (this.userEdition) drawer = undefined;
     document.body.classList.toggle('settings-open', drawer === 'settings');
     for (const name of ['settings', 'invite']) {
       element(`${name}-drawer`).hidden = name !== drawer;
       element(`btn-toggle-${name}`).setAttribute('aria-expanded', String(name === drawer));
     }
     if (drawer === 'settings') this.updateSetupLinks();
-    if (drawer === 'invite') void this.updateInvitation();
+    if (drawer === 'invite') { void this.updateInvitation(); void this.loadMembers(); }
     this.saveViewState();
   }
 
@@ -92,6 +110,7 @@ class PopupController {
     element('project-status-bar').addEventListener('click', () => this.openDrawer('settings'));
     element('btn-refresh').addEventListener('click', () => void this.refresh());
     element('btn-add-comment').addEventListener('click', () => void this.startComment());
+    input('toggle-comments').addEventListener('change', () => void this.toggleComments());
     element('btn-keep-open').addEventListener('click', () => {
       const params = new URLSearchParams({ panel: '1', drawer: 'settings', page: this.url });
       if (this.tabId) params.set('tabId', String(this.tabId));
@@ -118,6 +137,7 @@ class PopupController {
     element('btn-local-mode').addEventListener('click', () => void this.useLocal());
     element('btn-copy-invite-link').addEventListener('click', () => void this.copyLink());
     element('btn-copy-invite-email').addEventListener('click', () => void this.copyEmail());
+    element('btn-refresh-members').addEventListener('click', () => void this.loadMembers());
     element('invite-form').addEventListener('submit', event => { event.preventDefault(); void this.prepareEmail(); });
     input('input-storage-repo').addEventListener('input', () => { this.updateSetupLinks(); void this.saveSetupDraft(); });
     input('input-realtime-endpoint').addEventListener('input', () => void this.saveSetupDraft());
@@ -169,6 +189,16 @@ class PopupController {
     finally { button.disabled = false; }
   }
 
+  private async toggleComments() {
+    if (!this.tabId) return;
+    const toggle = input('toggle-comments');
+    toggle.disabled = true;
+    try {
+      await chrome.tabs.sendMessage(this.tabId, { type: 'SET_COMMENTS_ENABLED', payload: { enabled: toggle.checked } });
+    } catch { toggle.checked = !toggle.checked; this.toast('Cette page ne permet pas les commentaires.'); }
+    finally { toggle.disabled = false; }
+  }
+
   private async loadSettings() {
     const settings = await CacheManager.getSettings(this.url);
     input('input-storage-repo').value = settings.storageRepo || '';
@@ -176,14 +206,22 @@ class PopupController {
     input('input-realtime-endpoint').value = settings.realtime?.endpoint || '';
     this.updateSetupLinks();
     this.renderSettings(settings);
-    if (settings.storageRepo && !settings.githubToken) this.openDrawer('settings');
+    if (settings.storageRepo && !hasProjectAccess(settings)) this.openDrawer('settings');
   }
 
   private renderSettings(settings: UserSettings) {
-    const shared = !!(settings.storageRepo && settings.githubToken);
+    const shared = hasProjectAccess(settings);
     element('project-status-repo').textContent = settings.storageRepo || 'Sur cet appareil';
     element('project-status-tag').textContent = shared ? 'Équipe' : settings.storageRepo ? 'Accès requis' : 'Local';
     element('project-status-dot').style.background = shared ? '#37845a' : '#8c8c97';
+    if (this.userEdition) {
+      const status = element<HTMLButtonElement>('project-status-bar');
+      status.disabled = true;
+      status.setAttribute('aria-label', shared ? 'Projet connecté' : 'Aucun projet connecté');
+      const join = element<HTMLDetailsElement>('join-details');
+      join.querySelector('summary')!.textContent = shared ? 'Rejoindre un autre projet' : 'J’ai reçu un lien magique';
+      join.open = !shared;
+    }
   }
 
   private updateSetupLinks() {
@@ -313,27 +351,76 @@ class PopupController {
   private async copyLink() {
     if (!this.url) { this.toast('Ouvrez une page web à partager.'); return; }
     try {
-      const settings = await CacheManager.getSettings(this.url);
-      await navigator.clipboard.writeText(projectLink(this.url, settings.storageRepo, settings.realtime));
-      this.toast(settings.storageRepo ? 'Lien copié. Votre jeton reste sur cet appareil.' : 'Lien copié. Les commentaires locaux ne sont pas partagés.');
-    } catch { this.toast('Copie impossible. Vérifiez l’autorisation du presse-papier et réessayez.'); }
+      const invitation = await this.updateInvitation(true);
+      if (!invitation) throw new Error('Connectez le projet et indiquez l’email du collaborateur.');
+      await navigator.clipboard.writeText(invitation.link);
+      this.toast('Lien magique personnel copié. Envoyez-le au collaborateur.');
+    } catch (error) { this.toast((error as Error).message); }
   }
 
-  private async updateInvitation() {
+  private async updateInvitation(generate = false) {
     if (!this.url) return;
     const settings = await CacheManager.getSettings(this.url);
-    const invitation = invitationEmail(this.url, settings.storageRepo, input('quick-author-name').value.trim() || 'Votre équipe', settings.realtime);
-    element<HTMLTextAreaElement>('invite-email-preview').value = `Objet : ${invitation.subject}\n\n${invitation.body}`;
     element('invite-project-summary').textContent = settings.storageRepo ? `Projet : ${settings.storageRepo}` : 'Connectez un projet GitHub avant d’inviter votre équipe à partager ses retours.';
-    const projectUrl = githubProjectUrl(settings.storageRepo);
-    element<HTMLAnchorElement>('link-github-access').href = projectUrl ? `${projectUrl}/settings/access` : 'https://github.com/';
-    element<HTMLButtonElement>('btn-prepare-email').disabled = !settings.storageRepo;
+    const emailField = input('input-invite-email');
+    const email = emailField.value.trim().toLowerCase();
+    const key = `commyweb_invitation_draft:${this.domain}`;
+    let cached = (await chrome.storage.local.get(key))[key];
+    if (cached?.email !== email || cached?.repo !== settings.storageRepo || cached?.url !== this.url || Date.parse(cached?.expiresAt) <= Date.now()) cached = undefined;
+    const button = element<HTMLButtonElement>('btn-prepare-email');
+    button.disabled = !settings.githubToken || !settings.storageRepo;
+    if (generate && !cached) {
+      invitationMailto(email, '', '');
+      const buttons = ['btn-prepare-email', 'btn-copy-invite-email', 'btn-copy-invite-link'].map(id => element<HTMLButtonElement>(id));
+      buttons.forEach(item => { item.disabled = true; }); emailField.disabled = true;
+      button.textContent = 'Création du lien magique…';
+      try {
+        const result = await this.message('INVITE_MEMBER', { url: this.url, email });
+        cached = { email, repo: settings.storageRepo, url: this.url, expiresAt: result.member.expiresAt,
+          link: projectLink(this.url, settings.storageRepo, settings.realtime, result.invitation) };
+        await chrome.storage.local.set({ [key]: cached });
+        void this.loadMembers();
+      } finally {
+        buttons.forEach(item => { item.disabled = false; }); emailField.disabled = false;
+        button.textContent = '✉ Préparer l’email d’invitation';
+      }
+    }
+    if (!cached) {
+      element<HTMLTextAreaElement>('invite-email-preview').value = 'Saisissez l’email du collaborateur, puis préparez l’invitation pour créer son lien magique personnel.';
+      return;
+    }
+    const invitation = invitationEmail(this.url, settings.storageRepo, input('quick-author-name').value.trim() || 'Votre équipe', settings.realtime, cached.link);
+    element<HTMLTextAreaElement>('invite-email-preview').value = `Objet : ${invitation.subject}\n\n${invitation.body}`;
     return invitation;
+  }
+
+  private async loadMembers() {
+    if (!this.url || this.userEdition) return;
+    const list = element('members-list');
+    try {
+      const response = await this.message('GET_MEMBERS', { url: this.url });
+      list.replaceChildren();
+      if (!response.members.length) { list.textContent = 'Aucune invitation pour ce site.'; return; }
+      for (const member of response.members) {
+        const row = document.createElement('div'); row.className = 'member-row';
+        row.innerHTML = `<span>${escapeHtml(member.email)}<small>Expire le ${escapeHtml(new Date(member.expiresAt).toLocaleDateString('fr-FR'))}</small></span>`;
+        const revoke = document.createElement('button'); revoke.className = 'text-button'; revoke.textContent = 'Retirer l’accès';
+        revoke.addEventListener('click', async () => {
+          revoke.disabled = true;
+          try {
+            await this.message('REVOKE_MEMBER', { url: this.url, memberId: member.id });
+            await chrome.storage.local.remove(`commyweb_invitation_draft:${this.domain}`);
+            await this.loadMembers(); this.toast('Accès retiré. Le lien ne permet plus de synchroniser les commentaires.');
+          } catch (error) { this.toast((error as Error).message); revoke.disabled = false; }
+        });
+        row.append(revoke); list.append(row);
+      }
+    } catch (error) { list.textContent = (error as Error).message; }
   }
 
   private async prepareEmail() {
     try {
-      const invitation = await this.updateInvitation();
+      const invitation = await this.updateInvitation(true);
       if (!invitation) throw new Error('Ouvrez une page web à partager.');
       const href = invitationMailto(input('input-invite-email').value.trim(), invitation.subject, invitation.body);
       const link = document.createElement('a');
@@ -344,7 +431,7 @@ class PopupController {
 
   private async copyEmail() {
     try {
-      const invitation = await this.updateInvitation();
+      const invitation = await this.updateInvitation(true);
       if (!invitation) throw new Error('Ouvrez une page web à partager.');
       await navigator.clipboard.writeText(`Objet : ${invitation.subject}\n\n${invitation.body}`);
       this.toast('Email copié. Collez-le dans un nouvel email, ajoutez le destinataire et cliquez sur Envoyer.');
@@ -357,13 +444,25 @@ class PopupController {
       const encoded = new URLSearchParams(link.hash.slice(1)).get('commyweb_config');
       const config = encoded && decodeProjectConfig(encoded);
       if (!config) throw new Error('Lien Commyweb invalide.');
-      if (this.tabId) await chrome.tabs.update(this.tabId, { url: projectLink(config.url, config.repo, config.realtime) });
-      else await chrome.tabs.create({ url: projectLink(config.url, config.repo, config.realtime) });
+      if (config.invitation) {
+        await this.message('AUTO_CONFIGURE_PROJECT', { url: config.url, repo: config.repo, invitation: config.invitation, realtime: config.realtime });
+        if (this.tabId) await chrome.tabs.update(this.tabId, { url: config.url });
+        else await chrome.tabs.create({ url: config.url });
+        window.close(); return;
+      }
+      if (this.tabId) await chrome.tabs.update(this.tabId, { url: projectLink(config.url, config.repo, config.realtime, config.invitation) });
+      else await chrome.tabs.create({ url: projectLink(config.url, config.repo, config.realtime, config.invitation) });
       window.close();
     } catch (error) { this.toast((error as Error).message); }
   }
 
-  private async refresh() {
+  private async refresh(cacheOnly = false) {
+    if (cacheOnly) {
+      const settings = await CacheManager.getSettings(this.url);
+      this.comments = (await CacheManager.getCommentsForUrl(hashUrl(this.url))).filter(c => CacheManager.belongsToProject(c, settings.storageRepo));
+      this.signature = JSON.stringify(this.comments); this.renderComments();
+      return;
+    }
     if (this.loading) { this.refreshRequested = true; return; }
     if (!this.url) { element('comments-list').setAttribute('aria-busy', 'false'); this.renderComments(); return; }
     this.loading = true;
@@ -383,7 +482,7 @@ class PopupController {
       const realtimeStatus = element('realtime-status');
       realtimeStatus.dataset.state = response.realtimeStatus || 'off';
       realtimeStatus.textContent = !settings.storageRepo ? 'Mode local · sur cet appareil'
-        : !settings.githubToken ? 'Projet sélectionné · votre accès GitHub est nécessaire'
+        : !hasProjectAccess(settings) ? 'Projet sélectionné · ouvrez votre lien magique pour vous connecter'
         : response.syncError ? 'GitHub indisponible · modifications conservées sur cet appareil'
         : response.realtimeStatus === 'live' ? '● Temps réel actif · changements reçus automatiquement'
         : response.realtimeStatus === 'connecting' ? 'Connexion au temps réel…'
@@ -441,7 +540,7 @@ class PopupController {
         try {
           const response = await this.message('RESOLVE_COMMENT', { commentId: comment.id, urlHash: comment.urlHash, url: comment.url });
           if (response.error) this.toast(`Modification conservée sur cet appareil. ${response.error}`);
-          await this.refresh();
+          await this.refresh(true);
         } catch (error) { this.toast((error as Error).message); }
         finally { button.disabled = false; }
       });

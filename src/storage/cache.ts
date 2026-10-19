@@ -68,6 +68,7 @@ export class CacheManager {
           settings.storageRepo = siteProj.repo;
           settings.githubToken = siteProj.token ?? settings.githubToken;
           settings.realtime = normalizeRealtime(siteProj.realtime) || undefined;
+          settings.collaboration = siteProj.collaboration || undefined;
         }
       }
 
@@ -101,9 +102,9 @@ export class CacheManager {
     // Also persist in chrome.storage.sync so settings survive plugin reloads, updates and new folder installs
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-        const { githubToken: _token, projectsByDomain, ...preferences } = updated;
+        const { githubToken: _token, collaboration: _access, projectsByDomain, ...preferences } = updated;
         const safeProjects = Object.fromEntries(Object.entries(projectsByDomain || {}).map(([domain, project]) => {
-          const { token: _projectToken, ...safeProject } = project;
+          const { token: _projectToken, collaboration: _projectAccess, ...safeProject } = project;
           return [domain, safeProject];
         }));
         await chrome.storage.sync.set({ [this.SETTINGS_KEY]: { ...preferences, projectsByDomain: safeProjects } });
@@ -143,6 +144,8 @@ export class CacheManager {
       repo: cleanRepo,
       name: project.name?.trim() || cleanDomain,
       token: project.token === undefined ? settings.projectsByDomain[cleanDomain]?.token : project.token.trim(),
+      collaboration: project.collaboration === undefined && settings.projectsByDomain[cleanDomain]?.repo.toLowerCase() === cleanRepo.toLowerCase()
+        ? settings.projectsByDomain[cleanDomain]?.collaboration : project.collaboration,
       realtime: project.realtime === undefined && settings.projectsByDomain[cleanDomain]?.repo.toLowerCase() === cleanRepo.toLowerCase()
         ? settings.projectsByDomain[cleanDomain]?.realtime : normalizeRealtime(project.realtime),
       updatedAt: new Date().toISOString()
@@ -223,6 +226,43 @@ export class CacheManager {
     }
     await this.saveCommentsForUrl(comment.urlHash, comments);
     });
+  }
+
+  static async mutateComment(hash: string, id: string, repo: string, change: (comment: WebComment) => void): Promise<void> {
+    return this.serialize(hash, async () => {
+      const comments = await this.getCommentsForUrl(hash);
+      const comment = comments.find(c => c.id === id && this.belongsToProject(c, repo));
+      if (!comment) throw new Error('Discussion introuvable.');
+      change(comment);
+      await this.saveCommentsForUrl(hash, comments);
+    });
+  }
+
+  static async addCommentIfMissing(comment: WebComment): Promise<void> {
+    return this.serialize(comment.urlHash, async () => {
+      const comments = await this.getCommentsForUrl(comment.urlHash);
+      if (comments.some(existing => existing.id === comment.id)) return;
+      await this.saveCommentsForUrl(comment.urlHash, [...comments, comment]);
+    });
+  }
+
+  static async acknowledgeSync(sent: WebComment, shared: WebComment): Promise<WebComment> {
+    let acknowledged = shared;
+    await this.mutateComment(sent.urlHash, sent.id, sent.storageRepo || '', current => {
+      const pending: NonNullable<WebComment['pendingChanges']> = [];
+      const editedDuringWrite = current.updatedAt !== sent.updatedAt;
+      if (JSON.stringify(current.replies) !== JSON.stringify(sent.replies)) pending.push('replies');
+      if (current.status !== sent.status || (editedDuringWrite && current.pendingChanges?.includes('status')) || (!sent.issueNumber && sent.status === 'resolved')) pending.push('status');
+      if (JSON.stringify(current.anchor) !== JSON.stringify(sent.anchor) || (editedDuringWrite && current.pendingChanges?.includes('anchor'))) pending.push('anchor');
+      acknowledged = { ...shared,
+        ...(pending.includes('status') ? { status: current.status } : {}),
+        ...(pending.includes('anchor') ? { anchor: current.anchor } : {}),
+        updatedAt: current.updatedAt || shared.updatedAt,
+        replies: [...new Map([...shared.replies, ...current.replies].map(reply => [reply.id, reply])).values()], pendingChanges: pending };
+      Object.assign(current, acknowledged);
+      delete current.createAttemptedAt;
+    });
+    return acknowledged;
   }
 
   static belongsToProject(comment: WebComment, repo: string = ''): boolean {

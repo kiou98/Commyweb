@@ -4,6 +4,7 @@ import { RealtimeConfig } from '../types';
 import { normalizeRealtime } from './realtime';
 
 export interface CommywebProjectConfig {
+  invitation?: { projectId: string; secret: string };
   repo?: string;
   email?: string;
   url: string;
@@ -15,7 +16,7 @@ export interface CommywebProjectConfig {
 
 export function encodeProjectConfig(config: CommywebProjectConfig): string {
   try {
-    const safe = { repo: parseGitHubRepo(config.repo)?.fullName, url: normalizeUrl(config.url), realtime: normalizeRealtime(config.realtime) || undefined };
+    const safe = { repo: parseGitHubRepo(config.repo)?.fullName, url: normalizeUrl(config.url), realtime: normalizeRealtime(config.realtime) || undefined, invitation: validInvitation(config.invitation) };
     if (!/^https?:\/\//.test(safe.url)) return '';
     const bytes = new TextEncoder().encode(JSON.stringify(safe));
     return btoa(String.fromCharCode(...bytes));
@@ -30,12 +31,17 @@ export function decodeProjectConfig(encoded: string): CommywebProjectConfig | nu
     const url = normalizeUrl(parsed.url);
     const repo = parseGitHubRepo(parsed.repo)?.fullName;
     if (parsed.repo && !repo) return null;
-    return { url, repo, realtime: normalizeRealtime(parsed.realtime) || undefined };
+    return { url, repo, realtime: normalizeRealtime(parsed.realtime) || undefined, invitation: validInvitation(parsed.invitation) };
   } catch { return null; }
 }
 
-export function projectLink(url: string, repo?: string, realtime?: RealtimeConfig): string {
+function validInvitation(invitation: CommywebProjectConfig['invitation']) {
+  return invitation && /^[a-f0-9-]{36}$/.test(invitation.projectId) && /^[a-f0-9]{64}$/.test(invitation.secret)
+    ? { projectId: invitation.projectId, secret: invitation.secret } : undefined;
+}
+
+export function projectLink(url: string, repo?: string, realtime?: RealtimeConfig, invitation?: CommywebProjectConfig['invitation']): string {
   const normalized = normalizeUrl(url);
-  const encoded = encodeProjectConfig({ url: normalized, repo, realtime });
+  const encoded = encodeProjectConfig({ url: normalized, repo, realtime, invitation });
   return encoded ? `${normalized}#commyweb_config=${encoded}` : normalized;
 }

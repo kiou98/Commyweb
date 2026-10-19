@@ -12,6 +12,7 @@ function copyExtensionAssets() {
         resolve(__dirname, 'manifest.json'),
         resolve(__dirname, 'dist/manifest.json')
       );
+      fs.copyFileSync(resolve(__dirname, 'src/content/invitation.js'), resolve(__dirname, 'dist/invitation.js'));
 
       // Copy _locales
       const copyDirRecursive = (src: string, dest: string) => {

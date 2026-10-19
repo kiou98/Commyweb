@@ -36,6 +36,7 @@ export interface WebComment {
   replies: CommentReply[];
   issueNumber?: number;
   issueUrl?: string;
+  createAttemptedAt?: number;
   storageRepo?: string;
   pendingChanges?: ('content' | 'replies' | 'status' | 'anchor')[];
 }
@@ -58,6 +59,7 @@ export interface CommentReply {
 }
 
 export interface SiteProject {
+  collaboration?: CollaborationAccess | null;
   domain: string;
   repo: string;
   name?: string;
@@ -66,12 +68,19 @@ export interface SiteProject {
   realtime?: RealtimeConfig | null;
 }
 
+export interface CollaborationAccess {
+  projectId: string;
+  secret: string;
+  role: 'admin' | 'collaborator';
+}
+
 export interface RealtimeConfig {
   endpoint: string;
   channel: string;
 }
 
 export interface UserSettings {
+  collaboration?: CollaborationAccess;
   realtime?: RealtimeConfig;
   githubToken?: string;
   storageRepo?: string;

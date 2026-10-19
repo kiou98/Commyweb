@@ -106,6 +106,73 @@ test('duplicate submissions create only one GitHub issue', async () => {
   assert.equal(posts, 1);
 });
 
+test('slow GitHub writes do not block local replies or resolution, and late acknowledgements preserve them', async () => {
+  const value = comment('slow-write', { storageRepo: settings.storageRepo });
+  let release;
+  const blocked = new Promise(resolve => { release = resolve; });
+  let remote;
+  let posts = 0;
+  globalThis.fetch = async (_url, options) => {
+    if (options.method === 'POST') { posts++; await blocked; remote = JSON.parse(options.body); return response({ number: 17, html_url: 'https://github.com/team/project/issues/17' }); }
+    if (options.method === 'GET') return response({ ...remote, number: 17, state: remote.state || 'open', html_url: 'https://github.com/team/project/issues/17' });
+    remote = JSON.parse(options.body); return response({ number: 17, html_url: 'https://github.com/team/project/issues/17' });
+  };
+  const saved = await github.saveComment(settings, value, false);
+  assert.equal(saved.success, true);
+  const reply = { id: 'fast-reply', content: 'Sans attendre GitHub', author: value.author, createdAt: value.createdAt };
+  await github.addReply(settings, value.id, value.urlHash, reply, false);
+  await github.toggleResolve(settings, value.id, value.urlHash, false);
+  const local = (await cache.getCommentsForUrl(value.urlHash))[0];
+  assert.equal(local.replies.length, 1);
+  assert.equal(local.status, 'resolved');
+  assert.equal(posts, 1);
+  release();
+  await github.saveComment(settings, value);
+  const confirmed = (await cache.getCommentsForUrl(value.urlHash))[0];
+  assert.equal(confirmed.replies.length, 1);
+  assert.equal(confirmed.status, 'resolved');
+  assert.deepEqual(confirmed.pendingChanges, []);
+  assert.equal(posts, 1);
+});
+
+test('magic-link and admin credentials are local and excluded from Chrome sync', async () => {
+  const collaboration = { projectId: '50b02861-3b91-46e7-aaab-123456789012', secret: 'a'.repeat(64), role: 'collaborator' };
+  await cache.saveSiteProject({ domain: 'example.test', repo: 'team/project', token: '', collaboration });
+  assert.equal((await cache.getSettings('https://example.test/')).collaboration.secret, collaboration.secret);
+  assert.ok(!JSON.stringify(sync).includes(collaboration.secret));
+  const link = projectLink('https://example.test/page', 'team/project', undefined, collaboration);
+  const decoded = decodeProjectConfig(new URLSearchParams(new URL(link).hash.slice(1)).get('commyweb_config'));
+  assert.deepEqual(decoded.invitation, { projectId: collaboration.projectId, secret: collaboration.secret });
+  assert.equal(decoded.token, undefined);
+});
+
+test('an unacknowledged create is reconciled before another POST, including rapid repeated submissions', async () => {
+  const value = comment('ambiguous-post', { storageRepo: settings.storageRepo });
+  let posts = 0;
+  let accepted = false;
+  globalThis.fetch = async (url, options) => {
+    if (options.method === 'POST') { posts++; accepted = true; throw new Error('Timed out after acceptance'); }
+    if (options.method === 'PATCH') return response({ number: 9, html_url: 'https://github.com/team/project/issues/9' });
+    if (url.endsWith('/issues/9')) return response(issue({ ...value, issueNumber: 9 }));
+    return response(accepted ? [issue({ ...value, issueNumber: 9 })] : []);
+  };
+  const result = await github.saveComment(settings, value);
+  assert.equal(result.synced, false);
+  assert.equal((await github.saveComment(settings, value)).synced, true);
+  assert.equal(posts, 1);
+  const confirmed = (await cache.getCommentsForUrl(value.urlHash))[0];
+  assert.equal(confirmed.issueNumber, 9);
+});
+
+test('a local status choice during a write wins over a remote status even when it returns to the original value', async () => {
+  const sent = comment('status-choice', { storageRepo: settings.storageRepo, issueNumber: 1, pendingChanges: ['replies'] });
+  await cache.addComment({ ...sent, updatedAt: '2026-10-19T01:00:00Z', pendingChanges: ['replies', 'status'] });
+  await cache.acknowledgeSync(sent, { ...sent, status: 'resolved', pendingChanges: [] });
+  const stored = (await cache.getCommentsForUrl(sent.urlHash))[0];
+  assert.equal(stored.status, 'open');
+  assert.ok(stored.pendingChanges.includes('status'));
+});
+
 test('offline replies survive stale remote reads and merge with team replies on retry', async () => {
   const value = comment('thread', { storageRepo: settings.storageRepo, issueNumber: 1 });
   await cache.addComment(value);

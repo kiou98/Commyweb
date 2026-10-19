@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import archiver from 'archiver';
 import sharp from 'sharp';
+import { prepareEditions } from './editions.mjs';
 
 const target = resolve('site-dist');
 await fs.mkdir(target, { recursive: true });
@@ -20,6 +21,8 @@ const zip = (file, directory) => new Promise((done, reject) => {
   archive.pipe(stream); archive.directory(directory, false); void archive.finalize().catch(reject);
 });
 await zip(resolve(target, 'downloads/commyweb-extension.zip'), resolve('dist'));
+await prepareEditions();
+for (const edition of ['admin', 'user']) await zip(resolve(target, `downloads/commyweb-${edition}.zip`), resolve(`dist-${edition}`));
 await fs.mkdir(resolve('release'), { recursive: true });
 const { version } = JSON.parse(await fs.readFile('package.json', 'utf8'));
 await zip(resolve(`release/commyweb-netlify-v${version}.zip`), target);

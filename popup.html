@@ -19,6 +19,7 @@
       <div class="eyebrow">Votre espace de retours</div>
       <h1 id="active-site-domain">Cette page</h1>
       <p id="page-path" class="muted"></p>
+      <label class="visibility-control" id="comment-visibility" for="toggle-comments"><span>Activer les commentaires</span><input type="checkbox" role="switch" id="toggle-comments" checked disabled></label>
       <button class="primary" id="btn-add-comment">＋ Ajouter un commentaire</button>
       <p class="shortcut" id="mode-hint">Choisissez un endroit sur la page · Alt + C</p>
     </section>
@@ -45,7 +46,7 @@
         <p class="helper" id="token-project-hint">Sur GitHub, choisissez « Only select repositories » puis le projet de l’étape 1. Les permissions utiles sont préremplies.</p>
         <label for="input-github-token"><span class="step-number">3</span> Coller le jeton et se connecter</label>
         <div class="password-input-group"><input type="password" id="input-github-token" placeholder="github_pat_…" autocomplete="off"><button type="button" class="text-button" id="btn-toggle-github-eye" aria-label="Afficher le jeton" aria-pressed="false">Afficher</button></div>
-        <p class="helper">Stocké sur cet appareil uniquement. Chaque collaborateur utilise son propre jeton.</p>
+        <p class="helper">Enregistré sur cet appareil. À l’invitation, il est aussi confié au service Netlify pour connecter les utilisateurs. Il n’est jamais inclus dans leur lien.</p>
         <button type="button" class="text-button" id="btn-load-repositories">Choisir parmi mes projets GitHub</button>
         <label for="select-github-repo" id="label-github-repo" hidden>Projets accessibles avec ce jeton</label>
         <select id="select-github-repo" hidden><option value="">Choisir le projet à connecter…</option></select>
@@ -59,12 +60,12 @@
       <div class="drawer-heading"><h2 id="invite-title">Inviter un collaborateur par email</h2><button class="text-button" data-close>Fermer</button></div>
       <p class="invite-callout">Préparez l’email ici, puis <strong>envoyez-le depuis votre messagerie.</strong></p>
       <p class="helper" id="invite-project-summary"></p>
-      <a class="access-link" id="link-github-access" href="https://github.com/" target="_blank" rel="noreferrer">1. Donner accès au projet sur GitHub ↗</a>
-      <p class="helper">Si nécessaire, le responsable invite d’abord le compte GitHub du collaborateur.</p>
-      <form id="invite-form"><label for="input-invite-email">2. Email du collaborateur</label><input type="email" id="input-invite-email" placeholder="prenom@entreprise.fr" required autocomplete="email"><button class="primary" type="submit" id="btn-prepare-email">✉ Préparer l’email d’invitation</button></form>
+      <p class="helper">Le collaborateur installe l’extension Utilisateur puis ouvre son lien magique. Aucun compte GitHub ni jeton à saisir.</p>
+      <form id="invite-form"><label for="input-invite-email">Email du collaborateur</label><input type="email" id="input-invite-email" placeholder="prenom@entreprise.fr" required autocomplete="email"><button class="primary" type="submit" id="btn-prepare-email">✉ Préparer l’email d’invitation</button></form>
       <p class="helper">Votre messagerie s’ouvre avec un brouillon. Vérifiez-le, puis cliquez sur <strong>Envoyer</strong>. Aucun email ne part automatiquement.</p>
       <details><summary>Voir le message avant de l’envoyer</summary><label for="invite-email-preview">Message d’invitation</label><textarea id="invite-email-preview" rows="8" readonly></textarea></details>
       <div class="invite-alternatives"><button class="secondary" id="btn-copy-invite-email">Copier l’email complet</button><button class="text-button" id="btn-copy-invite-link">Copier seulement le lien</button></div>
+      <section class="members-section" aria-labelledby="members-title"><h3 id="members-title">Invitations en cours</h3><p class="helper">Liens personnels valables 30 jours. Vous pouvez retirer un accès ici.</p><div id="members-list" role="status"></div><button class="text-button" id="btn-refresh-members">Actualiser les invitations</button></section>
       <details id="join-details"><summary>J’ai reçu une invitation</summary><form id="join-form"><label for="input-join-link">Lien reçu par email</label><input type="url" id="input-join-link" placeholder="Collez le lien Commyweb" required><button class="secondary" type="submit">Ouvrir ce projet</button></form></details>
     </section>
 

@@ -72,6 +72,11 @@ try {
   const bytes = await readFile(await file.path());
   assert.equal(bytes.subarray(0, 2).toString(), 'PK');
   assert.ok(bytes.length > 100000);
+  for (const edition of ['admin', 'user']) {
+    const response = await page.request.get(`${origin}/downloads/commyweb-${edition}.zip`);
+    assert.ok(response.ok());
+    assert.equal((await response.body()).subarray(0, 2).toString(), 'PK');
+  }
   console.log('PASS: Netlify home and installation archive are usable without extension APIs');
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   const staticPage = await noScript.newPage();
@@ -94,6 +99,12 @@ try {
   assert.equal(shared.token, undefined);
   await expect(page.locator('input')).toHaveCount(0);
   await audit('legacy invitation');
+  const invitation = { projectId: '50b02861-3b91-46e7-aaab-123456789012', secret: 'c'.repeat(64) };
+  await page.goto(`${origin}/join.html#commyweb_config=${Buffer.from(JSON.stringify({ ...config, invitation })).toString('base64')}`);
+  const magicTarget = new URL(await page.locator('#open-page').getAttribute('href'));
+  const magic = JSON.parse(Buffer.from(new URLSearchParams(magicTarget.hash.slice(1)).get('commyweb_config'), 'base64').toString());
+  assert.deepEqual(magic.invitation, invitation);
+  assert.equal(magic.token, undefined);
   await mkdir('test-results', { recursive: true });
   await page.screenshot({ path: 'test-results/netlify-invitation.png', fullPage: true });
   await page.setViewportSize({ width: 375, height: 812 });

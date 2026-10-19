@@ -2,6 +2,10 @@
   command = "npm run build:site"
   publish = "site-dist"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [[headers]]
   for = "/*"
   [headers.values]

@@ -20,14 +20,14 @@ export function githubProjectUrl(repository?: string): string | null {
   return repo ? `https://github.com/${repo.fullName}` : null;
 }
 
-export function invitationEmail(pageUrl: string, repository?: string, author = 'Votre équipe', realtime?: RealtimeConfig) {
+export function invitationEmail(pageUrl: string, repository?: string, author = 'Votre équipe', realtime?: RealtimeConfig, magicLink?: string) {
   const repo = parseGitHubRepo(repository);
   const directLink = projectLink(pageUrl, repo?.fullName, realtime);
-  const link = directLink;
+  const link = magicLink || directLink;
   const subject = `${author} vous invite à commenter ${new URL(pageUrl).hostname}`;
   const body = `Bonjour,\n\n${author} vous invite à laisser vos retours sur cette page avec Commyweb :\n${link}\n\n`
-    + `1. Installez l’extension (si nécessaire) :\nhttps://commyweb.netlify.app/downloads/commyweb-extension.zip\nDécompressez l’archive, ouvrez chrome://extensions, activez le mode développeur puis chargez le dossier décompressé.\n\n`
-    + (repo ? `2. Ouvrez le lien de la page ci-dessus, puis les réglages Commyweb. Le projet ${repo.fullName} est déjà sélectionné. Cliquez sur « Créer mon jeton GitHub », choisissez uniquement le dépôt ${repo.repo}, puis collez votre jeton et cliquez sur « Vérifier et connecter ».\n\n`
+    + `1. Installez l’extension Utilisateur (si nécessaire) :\nhttps://commyweb.neonea.nc/downloads/commyweb-user.zip\nDécompressez l’archive, ouvrez chrome://extensions, activez le mode développeur puis chargez le dossier décompressé.\n\n`
+    + (magicLink ? `2. Cliquez sur votre lien personnel ci-dessus. L’extension rejoint automatiquement le projet : aucun compte GitHub ni jeton à renseigner. Ce lien donne accès aux commentaires de ce site pendant 30 jours, sauf révocation par le responsable. Gardez-le pour vous.\n\n` : repo ? `2. Ouvrez le lien de la page ci-dessus, puis les réglages Commyweb. Le projet ${repo.fullName} est déjà sélectionné. Cliquez sur « Créer mon jeton GitHub », choisissez uniquement le dépôt ${repo.repo}, puis collez votre jeton et cliquez sur « Vérifier et connecter ».\n\n`
       + `La configuration se fait dans la modale de l’extension. Après avoir créé votre jeton sur GitHub, revenez sur la page à commenter et rouvrez Commyweb pour le coller.\n\nVotre compte GitHub doit avoir accès au dépôt ${githubProjectUrl(repo.fullName)}. Si l’accès est refusé, demandez au responsable du projet de vous y inviter sur GitHub.\n\n` : `2. Ouvrez la page et connectez le même projet GitHub pour partager vos commentaires. Sans connexion GitHub, vos commentaires restent sur votre appareil.\n\n`)
     + `3. Cliquez sur « Ajouter un commentaire », choisissez un endroit sur la page et envoyez votre retour.\n\nÀ bientôt !`;
   return { subject, body, link };

@@ -6,7 +6,7 @@ Pin feedback directly to web pages. An open-source Chrome / Edge / Brave extensi
 
 ## Quick start
 
-1. Download and extract `commyweb-extension.zip` from the project's published releases.
+1. Download and extract `commyweb-admin.zip` to manage a project, or `commyweb-user.zip` when invited. Install one edition per browser.
 2. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the extracted folder.
 3. Open a web page, open Commyweb, enter your display name and choose **Ajouter un commentaire**.
 4. Click a location, write a comment and send it. Normal browsing resumes automatically; pins stay visible.
@@ -29,13 +29,15 @@ Local mode works without an account or setup. To load a development build, selec
 
 ## GitHub collaboration
 
-1. Create a private GitHub repository and grant collaborators appropriate access in GitHub.
+1. Install Admin and create a private GitHub repository with Issues enabled. Invited users do not need GitHub accounts.
 2. Open Commyweb settings. Choose **Garder la configuration ouverte** to keep the extension in the browser's side panel while visiting GitHub. It stays associated with the original website when switching tabs. Inputs and the current settings/invitation view are saved locally as you type, including unfinished setup; connection still requires **Vérifier et connecter**.
 3. Enter the repository URL and choose **Créer mon jeton GitHub**. The owner and Issues permissions are prefilled; select **Only select repositories**, choose the named project and generate your personal token.
 4. Paste the token. The picker lists projects accessible with that token. Choose **Vérifier et connecter** to verify repository and Issues read access without creating test data. Commenting also requires write access.
 5. Choose **✉ Inviter**, enter the recipient's email address and prepare the invitation. It opens an email draft: **review it and press Send in your email client**. If no mail client opens, copy the full email instead. Commyweb does not send email automatically.
 
-Access and revocation are managed in GitHub. A link does not grant access. Repository permissions do not enforce access to a single page. Old invitation tokens are ignored. Tokens remain in extension local storage and are removed from Chrome-synchronized preferences.
+The email contains a personal magic link and the Utilisateur download. Opening it connects that edition automatically. Links expire after 30 days and can be revoked from Admin's invitation list. The link is a bearer credential limited by the Netlify service to Commyweb Issues for the configured website/repository; keep it private. It never contains the GitHub token. Old token-bearing links require a new invitation.
+
+The admin's GitHub token is stored locally and sent to the site's Netlify Function when issuing an invitation. Netlify Blobs stores the project token and hashed invitation credentials; GitHub tokens are never returned to collaborators. Both types of extension credentials are excluded from Chrome sync. Revocation prevents subsequent service requests; previously downloaded discussions remain on users' devices.
 
 Local-only comments are not automatically uploaded when a repository is connected. Selecting local mode preserves both local and team data and changes which set is shown.
 
@@ -63,12 +65,12 @@ npm run package
 
 `dev` watches both extension builds. Reload the extension and target pages after rebuilding. `test:browser` uses isolated temporary Chromium profiles with the real extension loaded, including a two-profile realtime test through the actual relay. Storage and synchronization tests mock GitHub; no live GitHub account is used.
 
-`release/` contains extension, source and standalone relay archives. There is one edition; previous Admin/User archive names remain as aliases for compatibility.
+`release/` contains separate Admin and Utilisateur archives, source and standalone relay archives. `dist-admin/` and `dist-user/` are installable builds. The user edition hides administration and has no direct GitHub API host permission. The Netlify Function and Blobs store deploy automatically with this repository's Netlify project.
 
 ## Practical limits
 
 Browser internal pages and sites which disallow extensions cannot be annotated. URL fragments and tracking parameters are excluded from the canonical page URL, so hash-only routes currently share discussions. The popup is French; on-page dialogs use Chrome's French/English localization.
 
-Threads are serialized into GitHub Issue bodies. The extension rereads before writing and merges reply IDs, but edits to the same issue from different computers at exactly the same time are not atomic. Page-level access control or account-free invitations require a separate authentication service.
+Threads are serialized into GitHub Issue bodies. Local confirmation does not wait for GitHub. Network acknowledgements preserve edits made while requests were in flight; uncertain creates are reconciled before retrying. The extension rereads before writing and merges reply IDs, but edits to the same issue from different computers at exactly the same time are not atomic. Magic links authorize a website, not a single page, and their email label does not verify the holder's identity.
 
 MIT license.

@@ -5,12 +5,25 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { createRelay } from '../relay/server.mjs';
+import { build } from 'esbuild';
+
+const compiledService = await build({ entryPoints: ['netlify/lib/collaboration.mjs'], bundle: true, write: false, format: 'esm', platform: 'node' });
+const { createCollaborationHandler } = await import(`data:text/javascript;base64,${Buffer.from(compiledService.outputFiles[0].text).toString('base64')}`);
+const records = new Map();
+const store = {
+  async get(key) { return structuredClone(records.get(key) || null); },
+  async setJSON(key, value, options = {}) { if (options.onlyIfNew && records.has(key)) return { modified: false }; records.set(key, structuredClone(value)); return { modified: true }; },
+  async list({ prefix }) { return { blobs: [...records.keys()].filter(key => key.startsWith(prefix)).map(key => ({ key })) }; },
+  async delete(key) { records.delete(key); }
+};
 
 const output = resolve('test-results');
 await mkdir(output, { recursive: true });
 const issues = [];
 const apiCalls = [];
-const fixture = '<!doctype html><html lang="fr"><meta charset="utf-8"><title>Collaboration temps réel</title><body style="font-family:system-ui;margin:80px"><h1 id="target">Une page pour toute l’équipe</h1><p>Deux navigateurs, deux comptes, un projet.</p></body></html>';
+let holdWrites;
+let releaseWrites;
+const fixture = '<!doctype html><html lang="fr"><meta charset="utf-8"><title>Collaboration temps réel</title><script>window.fragmentAtPageStart=location.hash</script><body style="font-family:system-ui;margin:80px"><h1 id="target">Une page pour toute l’équipe</h1><p>Deux navigateurs, deux comptes, un projet.</p></body></html>';
 const api = createServer(async (request, response) => {
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Headers', '*');
@@ -22,6 +35,11 @@ const api = createServer(async (request, response) => {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
   const payload = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : null;
+  if (request.url === '/collaboration') {
+    const result = await collaboration(new Request(`${origin}/collaboration`, { method: 'POST', headers: request.headers, body: JSON.stringify(payload) }));
+    response.writeHead(result.status, Object.fromEntries(result.headers)); response.end(await result.text()); return;
+  }
+  if (holdWrites && ['POST', 'PATCH'].includes(request.method)) await holdWrites;
   const url = new URL(request.url, 'http://localhost');
   const json = data => response.end(JSON.stringify(data));
   if (url.pathname === '/user/repos') { json([{ full_name: 'team/project', private: true, has_issues: true }]); return; }
@@ -42,37 +60,42 @@ const api = createServer(async (request, response) => {
 await new Promise(resolve => api.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${api.address().port}`;
 const targetUrl = `${origin}/page`;
+const collaboration = createCollaborationHandler({ store, githubFetch: (url, options) => {
+  const target = new URL(url); return fetch(`${origin}${target.pathname}${target.search}`, options);
+} });
 let relay = createRelay({ port: 0 });
 const address = await relay.start();
 const config = { endpoint: `ws://127.0.0.1:${address.port}/sync`, channel: 'realBrowserTestChannel'.padEnd(64, 'x') };
 const contexts = [];
 const errors = [];
 try {
-  const launch = async name => {
+  const launch = async (name, edition = 'dist', invitation) => {
     const context = await chromium.launchPersistentContext(await mkdtemp(join(tmpdir(), 'commyweb-live-')), {
       channel: 'chromium', headless: true, locale: 'fr-FR', viewport: { width: 1100, height: 800 },
       ignoreDefaultArgs: ['--disable-extensions'],
-      args: [`--disable-extensions-except=${resolve('dist')}`, `--load-extension=${resolve('dist')}`]
+      args: [`--disable-extensions-except=${resolve(edition)}`, `--load-extension=${resolve(edition)}`]
     });
     contexts.push(context);
     context.setDefaultTimeout(8000);
     const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
     await expect.poll(() => worker.evaluate(async () => !!(await chrome.storage.local.get('commyweb_settings')).commyweb_settings)).toBe(true);
-    await worker.evaluate(async ({ origin, name, config }) => {
+    await worker.evaluate(async ({ origin, name, config, invitation }) => {
       const realFetch = globalThis.fetch.bind(globalThis);
       globalThis.fetch = (resource, options) => {
         const url = new URL(resource);
+        if (url.href === 'https://commyweb.neonea.nc/.netlify/functions/collaboration') return realFetch(`${origin}/collaboration`, options);
         if (url.origin !== 'https://api.github.com') throw new Error('Unexpected external request');
         return realFetch(`${origin}${url.pathname}${url.search}`, options);
       };
       await chrome.storage.local.set({
-        commyweb_settings: { projectsByDomain: { [new URL(origin).host]: { domain: new URL(origin).host, repo: 'team/project', token: `test-only-${name}`, realtime: config } } },
+        commyweb_settings: { projectsByDomain: invitation ? {} : { [new URL(origin).host]: { domain: new URL(origin).host, repo: 'team/project', token: `test-only-${name}`, realtime: config } } },
         commyweb_user: { id: name, name, username: name, avatarUrl: '' }
       });
-    }, { origin, name, config });
+    }, { origin, name, config, invitation });
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto(targetUrl);
+    const encoded = invitation ? Buffer.from(JSON.stringify({ url: targetUrl, repo: 'team/project', realtime: config, invitation })).toString('base64') : '';
+    await page.goto(invitation ? `${targetUrl}#commyweb_config=${encoded}` : targetUrl);
     await page.locator('#commyweb-extension-host').waitFor({ state: 'attached' });
     const tabId = await worker.evaluate(async () => (await chrome.tabs.query({})).at(-1).id);
     const probe = await context.newPage();
@@ -82,7 +105,17 @@ try {
     return { context, worker, page, tabId, probe };
   };
   const first = await launch('Camille');
-  const second = await launch('Alex');
+  const invited = await first.probe.evaluate(url => chrome.runtime.sendMessage({ type: 'INVITE_MEMBER', payload: { url, email: 'alex@example.test' } }), targetUrl);
+  assert.equal(invited.success, true);
+  const second = await launch('Alex', 'dist-user', invited.invitation);
+  const collaboratorSettings = await second.worker.evaluate(() => chrome.storage.local.get('commyweb_settings'));
+  assert.ok(!JSON.stringify(collaboratorSettings).includes('test-only-'));
+  assert.equal(collaboratorSettings.commyweb_settings.projectsByDomain[new URL(origin).host].collaboration.role, 'collaborator');
+  const userManifest = await second.worker.evaluate(() => chrome.runtime.getManifest());
+  assert.equal(userManifest.host_permissions.includes('https://api.github.com/*'), false);
+  assert.equal(new URL(second.page.url()).hash, '');
+  assert.equal(await second.page.evaluate(() => window.fragmentAtPageStart), '');
+  console.log('PASS: the real Utilisateur edition joins from a magic link without a GitHub token or setup');
   const command = (client, type, payload = {}) => client.worker.evaluate(({ tabId, type, payload }) => chrome.tabs.sendMessage(tabId, { type, payload }), { tabId: client.tabId, type, payload });
   await command(first, 'SET_COMMENT_MODE', { active: true });
   await first.page.locator('#target').click();
@@ -183,7 +216,7 @@ try {
     await mkdir('site/screenshots', { recursive: true });
     await popup.locator('#settings-drawer').screenshot({
       path: 'site/screenshots/configurer.png',
-      style: '#settings-drawer > p, #settings-form .setup-links, #settings-form .helper, #btn-load-repositories, #label-github-repo, #select-github-repo, #realtime-settings, #btn-local-mode { display:none!important }'
+      style: '#settings-drawer > p, #btn-keep-open, #settings-form .setup-links, #settings-form .helper, #btn-load-repositories, #label-github-repo, #select-github-repo, #realtime-settings, #btn-local-mode { display:none!important }'
     });
   }
   console.log('PASS: prefilled token link, authenticated project selection and connection check work');
@@ -198,14 +231,15 @@ try {
   await popup.locator('#btn-prepare-email').click();
   await expect.poll(() => popup.evaluate(() => window.testMailto)).toMatch(/^mailto:alex%40example.test\?/);
   const draft = await popup.evaluate(() => decodeURIComponent(window.testMailto));
-  assert.ok(draft.includes('Créer mon jeton GitHub'));
+  assert.ok(draft.includes('aucun compte GitHub ni jeton'));
+  assert.ok(draft.includes('commyweb-user.zip'));
   assert.ok(!draft.includes('test-only-'));
   await expect(popup.locator('#toast')).toContainText('Envoyer');
   await popup.screenshot({ path: join(output, 'invite-email.png'), fullPage: true });
   if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
     await popup.locator('#invite-drawer').screenshot({
       path: 'site/screenshots/inviter.png',
-      style: '#invite-drawer details, #invite-drawer .invite-alternatives, #link-github-access, #invite-drawer .helper:not(#invite-project-summary) { display:none!important }'
+      style: '#invite-drawer details, #invite-drawer .invite-alternatives, #invite-drawer .members-section, #invite-drawer .helper:not(#invite-project-summary) { display:none!important }'
     });
   }
   assert.deepEqual(errors, []);
@@ -242,6 +276,82 @@ try {
   await panelView.locator('#settings-drawer [data-close]').click();
   await expect(panelView.locator('#btn-add-comment')).toBeVisible();
   console.log('PASS: native side panel opens on a user click and survives tab switching while keeping the original website');
+
+  const userPopup = await second.context.newPage();
+  await userPopup.setViewportSize({ width: 390, height: 700 });
+  await userPopup.addInitScript(({ tabId, targetUrl }) => {
+    const get = chrome.tabs.get.bind(chrome.tabs);
+    chrome.tabs.get = async id => ({ ...await get(id), ...(id === tabId ? { url: targetUrl } : {}) });
+  }, { tabId: second.tabId, targetUrl });
+  await userPopup.goto(`chrome-extension://${new URL(second.worker.url()).host}/popup.html?tabId=${second.tabId}`);
+  await expect(userPopup.locator('#toggle-comments')).toBeEnabled();
+  await expect(userPopup.locator('#btn-toggle-settings')).toBeHidden();
+  await expect(userPopup.locator('#btn-toggle-invite')).toBeHidden();
+  await expect(userPopup.locator('#input-github-token')).toBeHidden();
+  await expect(userPopup.locator('#project-status-tag')).toHaveText('Équipe');
+  await userPopup.locator('#toggle-comments').uncheck();
+  await expect(second.page.locator('.commyweb-pin')).toHaveCount(0);
+  await second.page.reload();
+  await expect(second.page.locator('.commyweb-pin')).toHaveCount(0);
+  await userPopup.locator('#toggle-comments').check();
+  await expect(second.page.locator('.commyweb-pin')).toHaveCount(1);
+  await userPopup.screenshot({ path: join(output, 'user-extension.png'), fullPage: true });
+  console.log('PASS: Utilisateur has no admin configuration and the comment toggle hides, restores and remembers annotations');
+
+  holdWrites = new Promise(resolve => { releaseWrites = resolve; });
+  await second.page.bringToFront();
+  await command(second, 'SET_COMMENT_MODE', { active: true });
+  await second.page.locator('p').click();
+  await second.page.locator('#new-comment-input').fill('Enregistrer sans attendre un GitHub bloqué.');
+  await second.page.evaluate(() => {
+    const shadow = document.getElementById('commyweb-extension-host').shadowRoot;
+    const modal = shadow.querySelector('.commyweb-modal');
+    window.localSaveLatency = new Promise(resolve => shadow.querySelector('#btn-submit-new').addEventListener('click', () => {
+      const started = performance.now();
+      const observer = new MutationObserver(() => { if (!modal.isConnected) { observer.disconnect(); resolve(performance.now() - started); } });
+      observer.observe(shadow, { childList: true, subtree: true });
+    }, { once: true }));
+  });
+  await second.page.locator('#btn-submit-new').click();
+  await expect(second.page.locator('.commyweb-modal')).toHaveCount(0, { timeout: 1000 });
+  await expect(second.page.locator('.commyweb-pin')).toHaveCount(2, { timeout: 1000 });
+  const localElapsed = Math.round(await second.page.evaluate(() => window.localSaveLatency));
+  assert.ok(localElapsed < 500, `Local save took ${localElapsed} ms`);
+  await second.page.locator('.commyweb-pin').last().click();
+  await second.page.locator('#reply-input').fill('La réponse reste immédiate elle aussi.');
+  await second.page.locator('#btn-send-reply').click();
+  await expect(second.page.locator('#reply-input')).toHaveValue('', { timeout: 1000 });
+  await expect(second.page.locator('.commyweb-reply-item')).toHaveCount(1, { timeout: 1000 });
+  await second.page.locator('#btn-toggle-resolve').click();
+  await expect(second.page.locator('.commyweb-modal')).toHaveCount(0, { timeout: 1000 });
+  await expect(second.page.locator('.commyweb-pin')).toHaveCount(1, { timeout: 1000 });
+  releaseWrites(); holdWrites = undefined;
+  await expect.poll(() => issues.length).toBe(2);
+  await expect.poll(() => issues[1]?.state).toBe('closed');
+  const confirmed = JSON.parse(issues[1].body.match(/<!-- COMMYWEB_DATA\s*([\s\S]*?)\s*-->/)[1]);
+  assert.equal(confirmed.replies.length, 1);
+  assert.equal(apiCalls.filter(call => call === 'POST /repos/team/project/issues').length, 2);
+  console.log(`PASS: comment confirmed locally in ${localElapsed} ms while GitHub is blocked; reply and resolution also complete without waiting or losing edits`);
+
+  await popup.locator('#btn-toggle-invite').click();
+  await expect(popup.locator('.member-row')).toHaveCount(2);
+  await popup.locator('.member-row').first().getByRole('button', { name: 'Retirer l’accès' }).click();
+  await expect(popup.locator('#toast')).toContainText('Accès retiré');
+  const revoked = await second.probe.evaluate(url => chrome.runtime.sendMessage({ type: 'GET_PAGE_COMMENTS', payload: { url } }), targetUrl);
+  assert.match(revoked.syncError, /révoquée/);
+  assert.equal(revoked.comments.length, 2);
+  console.log('PASS: Admin revocation invalidates the collaborator link without deleting cached discussions');
+  const replacement = draft.split('\n').find(line => line.startsWith(`${targetUrl}#commyweb_config=`));
+  assert.ok(replacement);
+  await userPopup.locator('#join-details summary').click();
+  await userPopup.locator('#input-join-link').fill(replacement);
+  const userPopupClosed = userPopup.waitForEvent('close');
+  await userPopup.locator('#join-form button').click();
+  await userPopupClosed;
+  const rejoined = await second.probe.evaluate(url => chrome.runtime.sendMessage({ type: 'GET_PAGE_COMMENTS', payload: { url } }), targetUrl);
+  assert.equal(rejoined.syncError, undefined);
+  assert.equal(new URL(second.page.url()).hash, '');
+  console.log('PASS: pasting a new magic link reconnects Utilisateur without exposing its secret to the website URL');
   assert.deepEqual(errors, []);
 } catch (error) {
   console.error(error);
@@ -250,6 +360,7 @@ try {
   }
   throw error;
 } finally {
+  releaseWrites?.();
   api.closeAllConnections();
   for (const context of contexts) await context.close();
   await relay.close();

@@ -17,6 +17,8 @@ class CommywebContentApp {
   private currentUrl = normalizeUrl(location.href);
   private currentUser: Author = { id: 'anonymous', username: 'Invité', avatarUrl: '' };
   private active = false;
+  private enabled = true;
+  private joining = false;
   private pendingAnchor: AnchorData | null = null;
   private activeCommentId: string | null = null;
   private loading = false;
@@ -49,6 +51,7 @@ class CommywebContentApp {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local') return;
       if (changes.commyweb_user?.newValue) this.currentUser = changes.commyweb_user.newValue;
+      if (changes.commyweb_comments_enabled) this.setEnabled(changes.commyweb_comments_enabled.newValue !== false, false);
     });
   }
 
@@ -104,16 +107,17 @@ class CommywebContentApp {
           break;
         }
         case 'SET_COMMENT_MODE': this.setMode(!!message.payload?.active); break;
+        case 'SET_COMMENTS_ENABLED': this.setEnabled(!!message.payload?.enabled); break;
         case 'TOGGLE_COMMENT_MODE': this.setMode(!this.active); break;
         case 'GET_COMMENT_MODE': break;
         case 'COMMENTS_UPDATED':
-          if (!message.payload?.urlHash || message.payload.urlHash === hashUrl(this.currentUrl)) void this.loadComments();
+          if (!message.payload?.urlHash || message.payload.urlHash === hashUrl(this.currentUrl)) void this.loadComments(!!message.payload?.cacheOnly);
           break;
         case 'SYNC_COMMENTS': void this.loadComments(); break;
         case 'FOCUS_COMMENT': this.focusId = message.payload?.commentId; void this.loadComments(); break;
         default: return;
       }
-      respond({ success: true, isCommentModeActive: this.active });
+      respond({ success: true, isCommentModeActive: this.active, commentsEnabled: this.enabled });
     });
   }
 
@@ -131,7 +135,10 @@ class CommywebContentApp {
   }
 
   private async checkLink() {
-    const params = new URLSearchParams(location.hash.slice(1));
+    const isolatedWindow = window as Window & { __commywebInitialHash?: string };
+    const hash = isolatedWindow.__commywebInitialHash || location.hash;
+    delete isolatedWindow.__commywebInitialHash;
+    const params = new URLSearchParams(hash.slice(1));
     const focusId = params.get('commyweb_focus');
     const config = params.get('commyweb_config');
     if (!focusId && !config) return;
@@ -142,19 +149,30 @@ class CommywebContentApp {
       const decoded = decodeProjectConfig(config);
       if (!decoded || normalizeUrl(decoded.url) !== this.currentUrl) { this.toast('Ce lien ne correspond pas à cette page.'); return; }
       if (!decoded.repo) return;
+      this.joining = !!decoded.invitation;
       try {
-        await this.message('AUTO_CONFIGURE_PROJECT', { repo: decoded.repo, realtime: decoded.realtime });
-        this.toast('Projet sélectionné. Ouvrez les réglages Commyweb et cliquez sur « Créer mon jeton GitHub » pour vous connecter.');
+        const response = await this.message('AUTO_CONFIGURE_PROJECT', { repo: decoded.repo, realtime: decoded.realtime, invitation: decoded.invitation });
+        this.toast(response.connected ? 'Vous avez rejoint le projet. Vous pouvez commenter cette page.' : 'Projet sélectionné. Demandez au responsable un nouveau lien magique pour vous connecter.');
         void this.loadComments();
       } catch (error) { this.toast((error as Error).message); }
+      finally { this.joining = false; }
     }
   }
 
   private setMode(active: boolean) {
+    if (active && this.joining) { this.toast('Connexion au projet en cours. Vous pourrez commenter dans un instant.'); return; }
+    if (active && !this.enabled) this.setEnabled(true);
     this.active = active;
     this.cursor.setActive(active);
     this.updateToolbar();
     if (active && !this.modal.hasDraft()) this.closeModal();
+  }
+
+  private setEnabled(enabled: boolean, persist = true) {
+    this.enabled = enabled;
+    if (!enabled) { this.setMode(false); this.closeModal(); }
+    if (persist) void chrome.storage.local.set({ commyweb_comments_enabled: enabled });
+    this.renderPins();
   }
 
   private openComposer(x: number, y: number) {
@@ -165,6 +183,7 @@ class CommywebContentApp {
   }
 
   private async createComment(text: string) {
+    if (this.joining) throw new Error('La connexion au projet est en cours. Réessayez dans un instant.');
     if (!this.pendingAnchor) throw new Error('Choisissez un endroit sur la page.');
     const settings = await CacheManager.getSettings(this.currentUrl);
     const comment: WebComment = {
@@ -173,17 +192,12 @@ class CommywebContentApp {
       storageRepo: settings.storageRepo || '', pendingChanges: ['content']
     };
     // Confirm local persistence before dismissing the draft; network work continues afterwards.
-    await CacheManager.addComment(comment);
-    this.comments.push(comment);
+    await this.message('ADD_COMMENT', { comment });
+    this.comments = [...this.comments.filter(existing => existing.id !== comment.id), comment];
     this.closeModal();
     this.setMode(false);
     this.renderPins();
     this.toast('Commentaire enregistré sur cet appareil.');
-    void this.message('ADD_COMMENT', { comment }).then(response => {
-      if (response.synced) this.toast('Commentaire partagé avec l’équipe.');
-      else if (response.error) this.toast(`Commentaire conservé sur cet appareil. ${response.error}`);
-      void this.loadComments();
-    }).catch(error => this.toast(`Commentaire conservé sur cet appareil. ${error.message}`));
   }
 
   private async reply(id: string, text: string) {
@@ -191,14 +205,14 @@ class CommywebContentApp {
       id: generateId(), author: { ...this.currentUser }, content: text, createdAt: new Date().toISOString()
     } });
     if (response.error) this.toast(`Réponse conservée sur cet appareil. ${response.error}`);
-    await this.loadComments();
+    await this.loadComments(true);
   }
 
   private async resolve(id: string) {
     const response = await this.message('RESOLVE_COMMENT', { commentId: id, urlHash: hashUrl(this.currentUrl) });
     if (response.error) this.toast(`Modification conservée sur cet appareil. ${response.error}`);
     this.closeModal();
-    await this.loadComments();
+    await this.loadComments(true);
   }
 
   private async move(comment: WebComment, x: number, y: number) {
@@ -206,12 +220,12 @@ class CommywebContentApp {
     try {
       const response = await this.message('UPDATE_COMMENT_ANCHOR', { commentId: comment.id, urlHash: comment.urlHash, anchor });
       if (response.error) this.toast(`Position conservée sur cet appareil. ${response.error}`);
-      await this.loadComments();
+      await this.loadComments(true);
     } catch (error) { this.toast((error as Error).message); this.refreshPositions(); }
   }
 
   private renderPins() {
-    const visible = this.comments.filter(c => c.status === 'open' || c.id === this.activeCommentId);
+    const visible = this.enabled ? this.comments.filter(c => c.status === 'open' || c.id === this.activeCommentId) : [];
     const ids = new Set(visible.map(c => c.id));
     for (const [id, pin] of this.pins) if (!ids.has(id)) { pin.element.remove(); this.pins.delete(id); }
     visible.forEach((comment, index) => {
@@ -258,14 +272,19 @@ class CommywebContentApp {
     }
   }
 
-  private async loadComments() {
+  private async loadComments(cacheOnly = false) {
+    const url = this.currentUrl;
+    const settings = await CacheManager.getSettings(url);
+    const cached = (await CacheManager.getCommentsForUrl(hashUrl(url))).filter(c => CacheManager.belongsToProject(c, settings.storageRepo));
+    if (url === this.currentUrl) {
+      this.comments = cached; this.renderPins();
+      const open = cached.find(c => c.id === this.activeCommentId);
+      if (open) this.modal.updateRepliesIfActive(open);
+    }
+    if (cacheOnly) return;
     if (this.loading) { this.refreshRequested = true; return; }
     this.loading = true;
-    const url = this.currentUrl;
     try {
-      const settings = await CacheManager.getSettings(url);
-      const cached = (await CacheManager.getCommentsForUrl(hashUrl(url))).filter(c => CacheManager.belongsToProject(c, settings.storageRepo));
-      if (url === this.currentUrl) { this.comments = cached; this.renderPins(); }
       const response = await this.message('GET_PAGE_COMMENTS', { urlHash: hashUrl(url) });
       if (url !== this.currentUrl) return;
       this.comments = response.comments;
@@ -289,8 +308,9 @@ class CommywebContentApp {
   }
 
   private async loadUser() {
-    const stored = await chrome.storage.local.get('commyweb_user');
+    const stored = await chrome.storage.local.get(['commyweb_user', 'commyweb_comments_enabled']);
     if (stored.commyweb_user) this.currentUser = stored.commyweb_user;
+    this.setEnabled(stored.commyweb_comments_enabled !== false, false);
   }
 
   private toast(message: string) {
@@ -306,7 +326,7 @@ class CommywebContentApp {
 
   private updateToolbar() {
     const count = this.comments.filter(c => c.status === 'open').length;
-    this.toolbar.hidden = !this.active && count === 0;
+    this.toolbar.hidden = !this.enabled || (!this.active && count === 0);
     this.toolbar.textContent = this.active ? 'Choisissez un endroit · Échap pour annuler' : `${count} commentaire${count > 1 ? 's' : ''} · ＋ Ajouter`;
     this.toolbar.setAttribute('aria-pressed', String(this.active));
   }

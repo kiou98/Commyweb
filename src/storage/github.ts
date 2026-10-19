@@ -1,12 +1,14 @@
 import { WebComment, Author, UserSettings, CommentReply } from '../types';
 import { CacheManager } from './cache';
 import { parseGitHubRepo } from '../utils/github-parser';
+import { collaborationRequest, hasProjectAccess } from './collaboration';
 
 type SaveResult = { success: boolean; synced: boolean; error?: string; issueNumber?: number };
 
 /** Local mutations remain pending until GitHub acknowledges them. */
 export class GitHubBackend {
   static onSynced?: (settings: UserSettings) => void;
+  static onSyncError?: (settings: UserSettings) => void;
   private static writes = new Map<string, Promise<SaveResult>>();
   private static reads = new Map<string, Promise<WebComment[]>>();
   private static errors = new Map<string, string>();
@@ -16,6 +18,7 @@ export class GitHubBackend {
   }
 
   private static async request(settings: UserSettings, path: string, method = 'GET', body?: unknown) {
+    if (settings.collaboration?.role === 'collaborator') return collaborationRequest('github', settings.collaboration, { path, method, body });
     const response = await fetch(`https://api.github.com${path}`, {
       method,
       headers: {
@@ -96,12 +99,12 @@ export class GitHubBackend {
     try { return await pending; } finally { this.reads.delete(key); }
   }
 
-  private static async fetchProject(settings: UserSettings, urlHash?: string): Promise<WebComment[]> {
+  private static async fetchProject(settings: UserSettings, urlHash?: string, retryPending = true): Promise<WebComment[]> {
     const repo = this.repo(settings);
     const allPages = !urlHash || urlHash === 'all';
     const readCache = async () => (allPages ? await CacheManager.getAllComments()
       : await CacheManager.getCommentsForUrl(urlHash!)).filter(c => CacheManager.belongsToProject(c, repo));
-    if (!settings.githubToken || !repo) return readCache();
+    if (!hasProjectAccess(settings) || !repo) return readCache();
     const baseline = await readCache();
     try {
       const remote: WebComment[] = [];
@@ -123,7 +126,7 @@ export class GitHubBackend {
       this.errors.set(repo, error instanceof Error ? error.message : 'Connexion indisponible. Vos messages restent sur cet appareil.');
     }
     const comments = await readCache();
-    for (const comment of comments) {
+    for (const comment of retryPending ? comments : []) {
       if (!comment.issueNumber || comment.pendingChanges?.length) {
         void this.queue(settings, comment.id, comment.urlHash, () => this.syncComment(settings, comment.id, comment.urlHash));
       }
@@ -140,7 +143,7 @@ export class GitHubBackend {
   }
 
   private static issueBody(comment: WebComment): string {
-    const { pendingChanges: _pending, ...shared } = comment;
+    const { pendingChanges: _pending, createAttemptedAt: _attempt, ...shared } = comment;
     const payload = JSON.stringify(shared).replace(/-->/g, '\\u002d\\u002d>');
     return `### Commyweb Comment on ${comment.url}\n\n**Author:** ${comment.author.name || comment.author.username}\n\n${comment.content}\n\n<!-- COMMYWEB_DATA\n${payload}\n-->`;
   }
@@ -149,9 +152,16 @@ export class GitHubBackend {
     const repo = this.repo(settings);
     const comment = (await CacheManager.getCommentsForUrl(hash)).find(c => c.id === id && CacheManager.belongsToProject(c, repo));
     if (!comment) return { success: false, synced: false, error: 'Discussion introuvable.' };
-    if (!settings.githubToken || !repo) return { success: true, synced: false };
+    if (!hasProjectAccess(settings) || !repo) return { success: true, synced: false };
     if (comment.issueNumber && !comment.pendingChanges?.length) return { success: true, synced: true, issueNumber: comment.issueNumber };
     try {
+      if (!comment.issueNumber && comment.createAttemptedAt) {
+        // A timeout may occur after GitHub accepted the POST. Reconcile before retrying.
+        await this.fetchProject(settings, hash, false);
+        const recovered = (await CacheManager.getCommentsForUrl(hash)).find(c => c.id === id && CacheManager.belongsToProject(c, repo));
+        if (recovered?.issueNumber) return this.syncComment(settings, id, hash);
+        if (Date.now() - comment.createAttemptedAt < 30000) return { success: true, synced: false };
+      }
       let shared = { ...comment };
       if (comment.issueNumber) {
         const remote = this.parseIssue(await (await this.request(settings, `/repos/${repo}/issues/${comment.issueNumber}`)).json());
@@ -162,6 +172,10 @@ export class GitHubBackend {
           ...(pending.has('status') ? { status: comment.status } : {}), updatedAt: comment.updatedAt,
           replies: [...new Map([...remote.replies, ...comment.replies].map(r => [r.id, r])).values()] };
       }
+      if (!comment.issueNumber) {
+        const attemptedAt = Date.now();
+        await CacheManager.mutateComment(hash, id, repo, stored => { stored.createAttemptedAt = attemptedAt; });
+      }
       const response = await this.request(settings,
         `/repos/${repo}/issues${comment.issueNumber ? `/${comment.issueNumber}` : ''}`, comment.issueNumber ? 'PATCH' : 'POST', {
           ...(comment.issueNumber ? { state: shared.status === 'resolved' ? 'closed' : 'open' } : {
@@ -169,57 +183,54 @@ export class GitHubBackend {
           }), body: this.issueBody(shared)
         });
       const issue = await response.json();
-      const pendingResolution = !comment.issueNumber && shared.status === 'resolved';
-      await CacheManager.addComment({ ...shared, issueNumber: issue.number, issueUrl: issue.html_url,
-        pendingChanges: pendingResolution ? ['status'] : [] });
-      if (pendingResolution) return this.syncComment(settings, id, hash);
+      const acknowledged = await CacheManager.acknowledgeSync(comment, { ...shared, issueNumber: issue.number, issueUrl: issue.html_url });
+      if (acknowledged.pendingChanges?.length) return this.syncComment(settings, id, hash);
       this.errors.delete(repo);
       try { this.onSynced?.(settings); } catch { /* A relay failure must not undo a GitHub save. */ }
       return { success: true, synced: true, issueNumber: issue.number };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Synchronisation indisponible.';
       this.errors.set(repo, message);
+      this.onSyncError?.(settings);
       return { success: true, synced: false, error: message };
     }
   }
 
-  static saveComment(settings: UserSettings, comment: WebComment): Promise<SaveResult> {
-    return this.queue(settings, comment.id, comment.urlHash, async () => {
-      const previous = (await CacheManager.getCommentsForUrl(comment.urlHash)).find(c => c.id === comment.id);
-      if (!previous) await CacheManager.addComment({ ...comment, storageRepo: this.repo(settings), pendingChanges: ['content'] });
-      return this.syncComment(settings, comment.id, comment.urlHash);
-    });
+  static async saveComment(settings: UserSettings, comment: WebComment, waitForSync = true): Promise<SaveResult> {
+    await CacheManager.addCommentIfMissing({ ...comment, storageRepo: this.repo(settings), pendingChanges: ['content'] });
+    return this.scheduleSync(settings, comment.id, comment.urlHash, waitForSync);
+  }
+
+  private static scheduleSync(settings: UserSettings, id: string, hash: string, waitForSync: boolean) {
+    const syncing = this.queue(settings, id, hash, () => this.syncComment(settings, id, hash));
+    return waitForSync ? syncing : Promise.resolve({ success: true, synced: false });
   }
 
   private static mutate(settings: UserSettings, id: string, hash: string,
-    field: NonNullable<WebComment['pendingChanges']>[number], change: (comment: WebComment) => void) {
-    return this.queue(settings, id, hash, async () => {
-      const comment = (await CacheManager.getCommentsForUrl(hash)).find(c => c.id === id && CacheManager.belongsToProject(c, this.repo(settings)));
-      if (!comment) return { success: false, synced: false, error: 'Discussion introuvable.' };
+    field: NonNullable<WebComment['pendingChanges']>[number], change: (comment: WebComment) => void, waitForSync: boolean) {
+    return CacheManager.mutateComment(hash, id, this.repo(settings), comment => {
       change(comment);
       comment.updatedAt = new Date().toISOString();
       comment.pendingChanges = [...new Set([...(comment.pendingChanges || []), field])];
-      await CacheManager.addComment(comment);
-      return this.syncComment(settings, id, hash);
-    });
+    }).then(() => this.scheduleSync(settings, id, hash, waitForSync));
   }
 
-  static updateCommentAnchor(settings: UserSettings, comment: WebComment) {
-    return this.mutate(settings, comment.id, comment.urlHash, 'anchor', stored => { stored.anchor = comment.anchor; });
+  static updateCommentAnchor(settings: UserSettings, comment: WebComment, waitForSync = true) {
+    return this.mutate(settings, comment.id, comment.urlHash, 'anchor', stored => { stored.anchor = comment.anchor; }, waitForSync);
   }
 
-  static addReply(settings: UserSettings, id: string, hash: string, reply: CommentReply) {
+  static addReply(settings: UserSettings, id: string, hash: string, reply: CommentReply, waitForSync = true) {
     return this.mutate(settings, id, hash, 'replies', comment => {
       if (!comment.replies.some(r => r.id === reply.id)) comment.replies.push(reply);
-    });
+    }, waitForSync);
   }
 
-  static async toggleResolve(settings: UserSettings, id: string, hash: string) {
+  static async toggleResolve(settings: UserSettings, id: string, hash: string, waitForSync = true) {
     let isResolved = false;
     const result = await this.mutate(settings, id, hash, 'status', comment => {
       comment.status = comment.status === 'resolved' ? 'open' : 'resolved';
       isResolved = comment.status === 'resolved';
-    });
+    }, waitForSync);
     return { ...result, isResolved };
   }
 }

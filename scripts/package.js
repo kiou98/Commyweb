@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import archiver from 'archiver';
+import { prepareEditions } from './editions.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { version } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -26,9 +27,12 @@ function zip(filename, append) {
 
 const filename = `commyweb-extension-v${version}.zip`;
 const size = await zip(filename, archive => archive.directory(dist, false));
-// Preserve old download names while providing one consistent experience to everyone.
-for (const alias of ['commyweb-extension.zip', 'commyweb-admin.zip', 'commyweb-user.zip']) {
-  fs.copyFileSync(path.join(output, filename), path.join(output, alias));
+fs.copyFileSync(path.join(output, filename), path.join(output, 'commyweb-extension.zip'));
+await prepareEditions();
+for (const edition of ['admin', 'user']) {
+  const name = `commyweb-${edition}-v${version}.zip`;
+  await zip(name, archive => archive.directory(path.join(root, `dist-${edition}`), false));
+  fs.copyFileSync(path.join(output, name), path.join(output, `commyweb-${edition}.zip`));
 }
 await zip(`commyweb-source-v${version}.zip`, archive => archive.glob('**/*', {
   cwd: root, dot: true, ignore: ['.git/**', '**/node_modules/**', 'dist/**', 'site-dist/**', 'dist-admin/**', 'dist-user/**', 'release/**', 'test-results/**', '.test-profile/**']
@@ -37,4 +41,4 @@ await zip(`commyweb-realtime-relay-v${version}.zip`, archive => archive.glob('**
   cwd: path.join(root, 'relay'), dot: true, ignore: ['node_modules/**', '*.log']
 }));
 console.log(`Commyweb ${version}: ${(size / 1024).toFixed(1)} KB — ${path.join(output, filename)}`);
-console.log('One extension for everyone. Legacy Admin/User download names remain available.');
+console.log('Separate Admin and Utilisateur editions built in dist-admin/ and dist-user/.');
