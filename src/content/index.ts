@@ -32,6 +32,8 @@ class CommywebContentApp {
   constructor() {
     this.cursor = new CursorManager(this.host.shadowRoot);
     this.modal = new ThreadModal({
+      getAuthorName: () => this.authorName(),
+      onAuthorName: name => this.saveAuthorName(name),
       onReply: (id, text) => this.reply(id, text),
       onToggleResolve: id => this.resolve(id),
       onCreateNew: text => this.createComment(text), onClose: () => this.closeModal()
@@ -183,8 +185,23 @@ class CommywebContentApp {
     this.modal.renderNewCommentBox(x, y);
   }
 
+  private authorName(): string {
+    return this.currentUser.name?.trim() || this.currentUser.email?.split('@')[0]?.trim()
+      || (this.currentUser.id !== 'anonymous' ? this.currentUser.username?.trim() : '') || '';
+  }
+
+  private async saveAuthorName(name: string) {
+    name = name.trim();
+    if (!name) throw new Error('Indiquez votre nom avant de publier.');
+    const stored = await chrome.storage.local.get('commyweb_user');
+    const user = { ...(stored.commyweb_user || this.currentUser), name, username: name };
+    await chrome.storage.local.set({ commyweb_user: user });
+    this.currentUser = user;
+  }
+
   private async createComment(text: string) {
     if (this.joining) throw new Error('La connexion au projet est en cours. Réessayez dans un instant.');
+    if (!this.authorName()) throw new Error('Indiquez votre nom avant de publier.');
     if (!this.pendingAnchor) throw new Error('Choisissez un endroit sur la page.');
     const settings = await CacheManager.getSettings(this.currentUrl);
     const comment: WebComment = {
@@ -202,6 +219,7 @@ class CommywebContentApp {
   }
 
   private async reply(id: string, text: string) {
+    if (!this.authorName()) throw new Error('Indiquez votre nom avant de publier.');
     const response = await this.message('ADD_REPLY', { commentId: id, urlHash: hashUrl(this.currentUrl), reply: {
       id: generateId(), author: { ...this.currentUser }, content: text, createdAt: new Date().toISOString()
     } });

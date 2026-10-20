@@ -34,25 +34,25 @@
 
     <section class="drawer" id="settings-drawer" aria-labelledby="settings-title" hidden>
       <div class="drawer-heading"><h2 id="settings-title">Connecter votre équipe</h2><button class="text-button" data-close>Fermer</button></div>
-      <p class="muted">Trois étapes, une seule fois pour ce site.</p>
-      <button type="button" class="secondary" id="btn-keep-open" hidden disabled>Garder la configuration ouverte</button>
-      <p class="helper" id="setup-persistence-hint">Gardez ce panneau ouvert pendant vos recherches sur GitHub. Même si vous fermez Commyweb, vos saisies sont conservées sur cet appareil.</p>
+      <p class="muted">Partagez les commentaires de ce site avec votre équipe.</p>
       <form id="settings-form">
-        <label for="input-storage-repo"><span class="step-number">1</span> Choisir le projet GitHub</label>
+        <label for="input-storage-repo">Projet GitHub</label>
         <input id="input-storage-repo" placeholder="propriétaire/projet ou URL GitHub" autocomplete="off">
-        <div class="setup-links"><a id="link-github-project" href="https://github.com/" target="_blank" rel="noreferrer">Retrouver mon projet sur GitHub ↗</a><a href="https://github.com/new" target="_blank" rel="noreferrer">Créer un projet ↗</a></div>
-        <label><span class="step-number">2</span> Créer votre accès</label>
+        <label for="input-github-token">Jeton d’accès GitHub</label>
+        <div class="password-input-group"><input type="password" id="input-github-token" placeholder="Collez votre jeton" autocomplete="off"><button type="button" class="text-button" id="btn-toggle-github-eye" aria-label="Afficher le jeton" aria-pressed="false">Afficher</button></div>
+        <p class="helper">Conservé sur cet appareil. Transmis au service d’invitation lorsque vous invitez un collaborateur.</p>
+        <div class="form-actions"><button class="primary" type="submit" id="btn-save-settings">Connecter</button><button type="button" class="text-button" id="btn-local-mode">Continuer sans équipe</button></div>
+        <details id="realtime-settings"><summary>Réglages avancés</summary><p class="helper">Renseignez l’adresse du relais une fois. Elle sera incluse dans les invitations ; les collaborateurs n’auront rien à configurer ici.</p><label for="input-realtime-endpoint">Adresse du relais WebSocket</label><input id="input-realtime-endpoint" placeholder="wss://votre-relais.example/sync" autocomplete="off"><p class="helper">Sans relais, actualisation de secours toutes les 15 secondes.</p></details>
+        <details id="setup-help"><summary>Besoin d’aide pour vous connecter ?</summary><div class="settings-extra">        <div class="setup-links"><a id="link-github-project" href="https://github.com/" target="_blank" rel="noreferrer">Retrouver mon projet sur GitHub ↗</a><a href="https://github.com/new" target="_blank" rel="noreferrer">Créer un projet ↗</a></div>
         <a class="secondary" id="link-create-token" href="https://github.com/settings/personal-access-tokens/new?name=Commyweb&amp;expires_in=30&amp;issues=write&amp;metadata=read" target="_blank" rel="noreferrer">Créer mon jeton GitHub ↗</a>
-        <p class="helper" id="token-project-hint">Sur GitHub, choisissez « Only select repositories » puis le projet de l’étape 1. Les permissions utiles sont préremplies.</p>
-        <label for="input-github-token"><span class="step-number">3</span> Coller le jeton et se connecter</label>
-        <div class="password-input-group"><input type="password" id="input-github-token" placeholder="github_pat_…" autocomplete="off"><button type="button" class="text-button" id="btn-toggle-github-eye" aria-label="Afficher le jeton" aria-pressed="false">Afficher</button></div>
-        <p class="helper">Enregistré sur cet appareil. À l’invitation, il est aussi confié au service Netlify pour connecter les utilisateurs. Il n’est jamais inclus dans leur lien.</p>
+        <p class="helper" id="token-project-hint">Sur GitHub, choisissez « Only select repositories » puis votre projet. Les permissions utiles sont préremplies.</p>
         <button type="button" class="text-button" id="btn-load-repositories">Choisir parmi mes projets GitHub</button>
         <label for="select-github-repo" id="label-github-repo" hidden>Projets accessibles avec ce jeton</label>
         <select id="select-github-repo" hidden><option value="">Choisir le projet à connecter…</option></select>
         <p class="helper" id="repository-result" role="status" hidden></p>
-        <details id="realtime-settings"><summary>Temps réel · configuration du responsable</summary><p class="helper">Renseignez l’adresse du relais une fois. Elle sera incluse dans les invitations ; les collaborateurs n’auront rien à configurer ici.</p><label for="input-realtime-endpoint">Adresse du relais WebSocket</label><input id="input-realtime-endpoint" placeholder="wss://votre-relais.example/sync" autocomplete="off"><p class="helper">Sans relais, actualisation de secours toutes les 15 secondes.</p></details>
-        <div class="form-actions"><button class="primary" type="submit" id="btn-save-settings">Vérifier et connecter</button><button type="button" class="text-button" id="btn-local-mode">Utiliser le mode local</button></div>
+      <button type="button" class="secondary" id="btn-keep-open" hidden disabled>Garder la configuration ouverte</button>
+      <p class="helper" id="setup-persistence-hint">Gardez ce panneau ouvert pendant vos recherches sur GitHub. Même si vous fermez Commyweb, vos saisies sont conservées sur cet appareil.</p>
+</div></details>
       </form>
     </section>
 

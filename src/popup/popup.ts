@@ -326,7 +326,7 @@ class PopupController {
       await this.refresh();
       this.toast('Projet connecté : lecture GitHub vérifiée. Vous pouvez commenter ou inviter votre équipe.');
     } catch (error) { this.toast((error as Error).message); }
-    finally { button.disabled = false; button.textContent = 'Vérifier et connecter'; }
+    finally { button.disabled = false; button.textContent = 'Connecter'; }
   }
 
   private async useLocal() {

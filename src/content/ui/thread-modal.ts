@@ -8,6 +8,8 @@ export interface ThreadModalCallbacks {
   onCreateNew: (text: string) => void | Promise<void>;
   onClose: () => void;
   onInvite?: () => void;
+  getAuthorName?: () => string;
+  onAuthorName?: (name: string) => Promise<void>;
 }
 
 export class ThreadModal {
@@ -83,6 +85,7 @@ export class ThreadModal {
         </div>
       </div>
       <div class="commyweb-modal-footer">
+        ${this.authorNameHtml()}
         <textarea class="commyweb-input" id="reply-input" placeholder="${t('reply')}" rows="1"></textarea>
         <button class="commyweb-btn-send" id="btn-send-reply">${t('send')}</button>
       </div>
@@ -108,7 +111,7 @@ export class ThreadModal {
     const handleSend = () => {
       const text = replyInput?.value.trim();
       if (text) {
-        void this.submit(() => this.callbacks.onReply(comment.id, text), replyInput);
+        void this.submit(async () => { await this.saveAuthorName(); await this.callbacks.onReply(comment.id, text); }, replyInput);
       }
     };
 
@@ -146,6 +149,7 @@ export class ThreadModal {
         </button>
       </div>
       <div class="commyweb-modal-body">
+        ${this.authorNameHtml()}
         <textarea class="commyweb-input" id="new-comment-input" placeholder="${t('addComment')}" rows="3" style="min-height: 70px;"></textarea>
       </div>
       <div class="commyweb-modal-footer" style="justify-content: flex-end;">
@@ -170,7 +174,7 @@ export class ThreadModal {
     const submitAction = () => {
       const text = input?.value.trim();
       if (text) {
-        void this.submit(() => this.callbacks.onCreateNew(text), input);
+        void this.submit(async () => { await this.saveAuthorName(); await this.callbacks.onCreateNew(text); }, input);
       }
     };
 
@@ -185,6 +189,23 @@ export class ThreadModal {
     setTimeout(() => {
       input?.focus();
     }, 50);
+  }
+
+  private authorNameHtml(): string {
+    return `<label style="display:block;font-size:12px;">Votre nom (obligatoire)
+      <input class="commyweb-input" id="author-name" autocomplete="name" required maxlength="100"
+        value="${escapeHtml(this.callbacks.getAuthorName?.() || '')}" placeholder="Votre nom" style="min-height:36px;" />
+    </label>`;
+  }
+
+  private async saveAuthorName() {
+    const input = this.element.querySelector<HTMLInputElement>('#author-name');
+    const name = input?.value.trim() || '';
+    if (!name) {
+      input?.focus();
+      throw new Error('Indiquez votre nom avant de publier.');
+    }
+    await this.callbacks.onAuthorName?.(name);
   }
 
   private renderReplyHtml(reply: CommentReply): string {

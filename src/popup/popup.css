@@ -107,3 +107,7 @@ body.side-panel { width:100%; margin:0; }
 .member-row button { flex-shrink:0; }
 .side-panel.settings-open #page-path { margin-bottom:0; }
 @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
+
+.settings-extra { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+#settings-form > details { background:transparent; }
+#settings-form .form-actions { margin:8px 0; }

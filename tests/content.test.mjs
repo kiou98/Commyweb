@@ -34,3 +34,21 @@ test('an in-flight page response cannot restore a marker after resolution', asyn
   await loading;
   assert.equal(app.comments[0].status, 'resolved');
 });
+
+test('author name falls back to email but never to the anonymous guest label', () => {
+  const app = Object.create(CommywebContentApp.prototype);
+  app.currentUser = { id: 'anonymous', username: 'Invite' };
+  assert.equal(app.authorName(), '');
+  app.currentUser.email = 'vincent@example.test';
+  assert.equal(app.authorName(), 'vincent');
+  app.currentUser.name = ' Vincent Lavergne ';
+  assert.equal(app.authorName(), 'Vincent Lavergne');
+});
+
+test('comments and replies reject missing names before saving', async () => {
+  const app = Object.assign(Object.create(CommywebContentApp.prototype), {
+    currentUser: { id: 'anonymous', username: 'Invite' }, joining: false
+  });
+  await assert.rejects(app.createComment('Bonjour'), /nom avant de publier/);
+  await assert.rejects(app.reply('thread', 'Bonjour'), /nom avant de publier/);
+});
