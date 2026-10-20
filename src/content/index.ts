@@ -23,6 +23,7 @@ class CommywebContentApp {
   private activeCommentId: string | null = null;
   private loading = false;
   private refreshRequested = false;
+  private cacheReadVersion = 0;
   private positionFrame = 0;
   private lastRightClick: { x: number; y: number; target: Element } | null = null;
   private focusId: string | null = null;
@@ -274,9 +275,10 @@ class CommywebContentApp {
 
   private async loadComments(cacheOnly = false) {
     const url = this.currentUrl;
+    const readVersion = ++this.cacheReadVersion;
     const settings = await CacheManager.getSettings(url);
     const cached = (await CacheManager.getCommentsForUrl(hashUrl(url))).filter(c => CacheManager.belongsToProject(c, settings.storageRepo));
-    if (url === this.currentUrl) {
+    if (url === this.currentUrl && readVersion === this.cacheReadVersion) {
       this.comments = cached; this.renderPins();
       const open = cached.find(c => c.id === this.activeCommentId);
       if (open) this.modal.updateRepliesIfActive(open);
@@ -285,10 +287,12 @@ class CommywebContentApp {
     if (this.loading) { this.refreshRequested = true; return; }
     this.loading = true;
     try {
-      const response = await this.message('GET_PAGE_COMMENTS', { urlHash: hashUrl(url) });
+      await this.message('GET_PAGE_COMMENTS', { urlHash: hashUrl(url) });
       if (url !== this.currentUrl) return;
-      this.comments = response.comments;
-      this.renderPins();
+      // A response may predate a local resolution or reply. The background
+      // merges remote data into storage; render the latest cache instead.
+      await this.loadComments(true);
+      if (url !== this.currentUrl) return;
       const open = this.comments.find(c => c.id === this.activeCommentId);
       if (open) this.modal.updateRepliesIfActive(open);
       if (this.focusId) {
