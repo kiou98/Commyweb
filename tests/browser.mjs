@@ -97,6 +97,10 @@ try {
   await expect(page.locator('.commyweb-reply-item')).toHaveCount(1);
   await expect(page.locator('#reply-input')).toHaveValue('');
   await page.screenshot({ path: join(output, 'thread.png'), fullPage: false });
+  if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
+    await page.screenshot({ path: 'site/screenshots/discussion.png' });
+    await page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/echanger.png' });
+  }
   console.log('PASS: keyboard opening, draft preservation and replying work');
 
   await page.locator('#btn-toggle-resolve').click();
@@ -155,6 +159,7 @@ try {
   await popup.locator('#btn-local-mode').click();
   await expect(popup.locator('#count-all')).toHaveText('1');
   await popup.screenshot({ path: join(output, 'popup-comments.png'), fullPage: true });
+  if (process.env.COMMYWEB_CAPTURE_SITE === '1') await popup.screenshot({ path: 'site/screenshots/suivi.png', fullPage: true });
   await popup.close();
   await page.locator('#spa').click();
   await expect(page.locator('.commyweb-pin')).toHaveCount(0, { timeout: 4000 });
