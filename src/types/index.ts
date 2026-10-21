@@ -77,6 +77,7 @@ export interface ExtensionMessage {
     | 'TOGGLE_COMMENT_MODE'
     | 'GET_COMMENT_MODE'
     | 'GET_PAGE_COMMENTS'
+    | 'MARK_MESSAGES_READ'
     | 'ADD_COMMENT'
     | 'UPDATE_COMMENT_ANCHOR'
     | 'ADD_REPLY'

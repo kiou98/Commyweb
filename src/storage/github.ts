@@ -45,7 +45,7 @@ export class GitHubBackend {
    * Uses direct issues endpoint with labels and ETag conditional GET
    * Sorts newest comments first (Derniers commentaires en priorité)
    */
-  static async fetchComments(settings: UserSettings, urlHash?: string): Promise<WebComment[]> {
+  static async fetchComments(settings: UserSettings, urlHash?: string, syncPending = true): Promise<WebComment[]> {
     const isAllPages = !urlHash || urlHash === 'all';
     const cached = isAllPages ? await CacheManager.getAllComments() : await CacheManager.getCommentsForUrl(urlHash!);
 
@@ -61,7 +61,7 @@ export class GitHubBackend {
       const { owner, repo } = repoInfo;
 
       // 1. Recover and push any unsynced local comments in background (non-blocking)
-      const unsynced = cached.filter(c => !c.issueNumber && c.status !== 'resolved' && !this.savingCommentIds.has(c.id));
+      const unsynced = syncPending ? cached.filter(c => !c.issueNumber && c.status !== 'resolved' && !this.savingCommentIds.has(c.id)) : [];
       for (const pendingComment of unsynced) {
         this.saveComment(settings, pendingComment).catch(() => {});
       }
@@ -72,7 +72,7 @@ export class GitHubBackend {
       const directUrl = `https://api.github.com/repos/${owner}/${repo}/issues?labels=${labelQuery}&state=all&per_page=100`;
 
       const headers: Record<string, string> = await this.getHeaders(settings.githubToken);
-      const cacheKey = urlHash || 'all';
+      const cacheKey = settings.storageRepo + ':' + (urlHash || 'all');
       const lastEtag = this.etagByUrlHash.get(cacheKey);
       if (lastEtag) {
         headers['If-None-Match'] = lastEtag;
@@ -215,8 +215,8 @@ export class GitHubBackend {
         comment.issueUrl = issue.html_url;
 
         // Invalidate ETag so next poll fetches fresh state immediately
-        this.etagByUrlHash.delete(comment.urlHash);
-        this.etagByUrlHash.delete('all');
+        this.etagByUrlHash.delete(settings.storageRepo + ':' + comment.urlHash);
+        this.etagByUrlHash.delete(settings.storageRepo + ':all');
 
         // Update cache with issue info
         const cachedList = await CacheManager.getCommentsForUrl(comment.urlHash);
@@ -284,8 +284,8 @@ export class GitHubBackend {
     comment.replies.push(reply);
     await CacheManager.saveCommentsForUrl(urlHash, comments);
 
-    this.etagByUrlHash.delete(urlHash);
-    this.etagByUrlHash.delete('all');
+    this.etagByUrlHash.delete(settings.storageRepo + ':' + urlHash);
+    this.etagByUrlHash.delete(settings.storageRepo + ':all');
 
     if (!settings.githubToken || !settings.storageRepo || !comment.issueNumber) return;
 
@@ -331,8 +331,8 @@ export class GitHubBackend {
     comment.status = comment.status === 'resolved' ? 'open' : 'resolved';
     await CacheManager.saveCommentsForUrl(urlHash, comments);
 
-    this.etagByUrlHash.delete(urlHash);
-    this.etagByUrlHash.delete('all');
+    this.etagByUrlHash.delete(settings.storageRepo + ':' + urlHash);
+    this.etagByUrlHash.delete(settings.storageRepo + ':all');
 
     if (settings.githubToken && settings.storageRepo && comment.issueNumber) {
       try {

@@ -1,6 +1,7 @@
 import { WebComment, CommentReply } from '../../types';
 import { formatRelativeTime, t } from '../../utils/i18n';
 import { escapeHtml, getUserColor } from '../../utils/security';
+import { READ_MESSAGES_KEY, unreadKeys } from '../../utils/unread';
 
 export interface ThreadModalCallbacks {
   onReply: (commentId: string, text: string) => void;
@@ -15,6 +16,8 @@ export class ThreadModal {
   public currentCommentId: string | null = null;
   public isCreatingNew: boolean = false;
   private callbacks: ThreadModalCallbacks;
+  private highlightedMessages = new Set<string>();
+  private readRevision = 0;
 
   constructor(callbacks: ThreadModalCallbacks) {
     this.callbacks = callbacks;
@@ -38,6 +41,7 @@ export class ThreadModal {
    * Render existing comment thread in pure Black & White DA
    */
   public renderThread(comment: WebComment, pinX: number, pinY: number) {
+    this.highlightedMessages.clear();
     this.currentCommentId = comment.id;
     this.isCreatingNew = false;
     const isResolved = comment.status === 'resolved';
@@ -84,6 +88,7 @@ export class ThreadModal {
     `;
 
     this.positionNear(pinX, pinY);
+    void this.highlightAndRead(comment).catch(console.warn);
 
     const resolveBtn = this.element.querySelector('#btn-toggle-resolve');
     resolveBtn?.addEventListener('click', () => {
@@ -121,6 +126,7 @@ export class ThreadModal {
    * Render creation box for a new comment
    */
   public renderNewCommentBox(x: number, y: number) {
+    this.readRevision++;
     this.currentCommentId = null;
     this.isCreatingNew = true;
     this.element.innerHTML = `
@@ -183,7 +189,7 @@ export class ThreadModal {
     const initial = (authorId.charAt(0) || 'U').toUpperCase();
 
     return `
-      <div class="commyweb-reply-item">
+      <div class="commyweb-reply-item" data-message-id="${escapeHtml(reply.id)}">
         <div style="width: 22px; height: 22px; border-radius: 50%; background-color: ${userColor}; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
           ${escapeHtml(initial)}
         </div>
@@ -196,6 +202,36 @@ export class ThreadModal {
         </div>
       </div>
     `;
+  }
+
+  private async highlightAndRead(comment: WebComment) {
+    const revision = ++this.readRevision;
+    // Capture only the messages displayed by this render, before storage/network awaits.
+    const snapshot = { ...comment, replies: [...(comment.replies || [])] };
+    const data = await chrome.storage.local.get([READ_MESSAGES_KEY, 'commyweb_user', 'commyweb_settings']);
+    if (revision !== this.readRevision || this.currentCommentId !== comment.id ||
+      !this.element.isConnected || document.visibilityState !== 'visible') return;
+    const keys = unreadKeys(snapshot, new Set<string>(data[READ_MESSAGES_KEY] || []),
+      data.commyweb_user, data.commyweb_settings?.userEmail);
+    keys.forEach(key => this.highlightedMessages.add(key));
+    const elements = [this.element.querySelector<HTMLElement>('.commyweb-modal-body > .commyweb-comment-text'),
+      ...this.element.querySelectorAll<HTMLElement>('[data-message-id]')];
+    for (const element of elements) {
+      if (!element || element.dataset.unreadHighlighted) continue;
+      const key = comment.urlHash + ':' + comment.id + (element.dataset.messageId ? ':' + element.dataset.messageId : '');
+      if (!this.highlightedMessages.has(key)) continue;
+      element.dataset.unreadHighlighted = 'true';
+      element.style.background = '#eff6ff';
+      element.style.borderLeft = '3px solid #2563eb';
+      element.style.padding = '8px';
+      const label = document.createElement('div');
+      label.textContent = 'Nouveau message';
+      label.style.cssText = 'color:#1d4ed8;font-weight:700;font-size:11px;margin-bottom:4px';
+      element.prepend(label);
+    }
+    if (keys.length) {
+      await chrome.runtime.sendMessage({ type: 'MARK_MESSAGES_READ', payload: { keys } });
+    }
   }
 
   private positionNear(x: number, y: number) {
@@ -229,6 +265,7 @@ export class ThreadModal {
     const repliesContainer = this.element.querySelector('#replies-container');
     if (repliesContainer) {
       repliesContainer.innerHTML = (comment.replies || []).map(r => this.renderReplyHtml(r)).join('');
+      void this.highlightAndRead(comment).catch(console.warn);
     }
   }
 }

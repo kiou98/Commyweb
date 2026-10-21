@@ -1,3 +1,4 @@
+import { READ_MESSAGES_KEY, unreadKeys } from '../utils/unread';
 import { CacheManager } from '../storage/cache';
 import { GitHubBackend } from '../storage/github';
 import { ExtensionMessage, Author, UserSettings } from '../types';
@@ -103,6 +104,58 @@ function broadcastCommentsUpdated(urlHash?: string) {
   });
 }
 
+// Badge follows the persisted cache, including replies synchronized by open pages.
+async function refreshUnreadBadge() {
+  const [comments, data] = await Promise.all([
+    CacheManager.getAllComments(),
+    chrome.storage.local.get([READ_MESSAGES_KEY, 'commyweb_user', 'commyweb_settings'])
+  ]);
+  const read = new Set<string>(data[READ_MESSAGES_KEY] || []);
+  const count = comments.reduce((total, comment) => total + unreadKeys(comment, read, data.commyweb_user, data.commyweb_settings?.userEmail).length, 0);
+  await chrome.action.setBadgeBackgroundColor({ color: '#2563eb' });
+  await chrome.action.setBadgeText({ text: count ? (count > 99 ? '99+' : String(count)) : '' });
+  await chrome.action.setTitle({ title: count ? 'Commyweb · ' + count + ' message(s) non lu(s)' : 'Commyweb' });
+}
+let unreadQueue = Promise.resolve();
+function queueUnread(task: () => Promise<void>) {
+  unreadQueue = unreadQueue.then(task).catch(error => console.warn('[Commyweb] Unread update failed', error));
+  return unreadQueue;
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && Object.keys(changes).some(key => key.startsWith('commyweb_comments_') || key === READ_MESSAGES_KEY || key === 'commyweb_user' || key === 'commyweb_settings')) {
+    queueUnread(refreshUnreadBadge);
+  }
+});
+queueUnread(refreshUnreadBadge);
+
+let syncingNotifications = false;
+async function syncNotifications() {
+  if (syncingNotifications) return;
+  syncingNotifications = true;
+  try {
+    const settings = await CacheManager.getSettings();
+    const projects = [settings, ...await Promise.all(
+      (await CacheManager.getAllSiteProjects()).map(project => CacheManager.getSettings(project.domain))
+    )];
+    const repos = new Set<string>();
+    for (const project of projects) {
+      if (!project.storageRepo || !project.githubToken || repos.has(project.storageRepo)) continue;
+      repos.add(project.storageRepo);
+      // Notification polling must not upload another project's pending local comments.
+      await GitHubBackend.fetchComments(project, 'all', false);
+    }
+    await queueUnread(refreshUnreadBadge);
+    broadcastCommentsUpdated();
+  } finally {
+    syncingNotifications = false;
+  }
+}
+chrome.alarms.create('commyweb-notifications', { periodInMinutes: 2 });
+chrome.alarms.onAlarm.addListener(alarm => {
+  if (alarm.name === 'commyweb-notifications') void syncNotifications().catch(console.warn);
+});
+void syncNotifications().catch(console.warn);
+
 // Central message broker
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
   (async () => {
@@ -115,6 +168,21 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       const settings = await CacheManager.getSettings(urlOrDomain);
 
       switch (message.type) {
+        case 'MARK_MESSAGES_READ': {
+          const keys = message.payload?.keys;
+          if (!Array.isArray(keys) || !keys.every(key => typeof key === 'string')) {
+            sendResponse({ success: false });
+            break;
+          }
+          await queueUnread(async () => {
+            const data = await chrome.storage.local.get(READ_MESSAGES_KEY);
+            const read = new Set<string>(data[READ_MESSAGES_KEY] || []);
+            keys.forEach(key => read.add(key));
+            await chrome.storage.local.set({ [READ_MESSAGES_KEY]: [...read] });
+          });
+          sendResponse({ success: true });
+          break;
+        }
         case 'GET_PAGE_COMMENTS': {
           const urlHash = message.payload?.urlHash;
           const comments = await GitHubBackend.fetchComments(settings, urlHash);

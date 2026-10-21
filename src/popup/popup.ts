@@ -1,3 +1,4 @@
+import { READ_MESSAGES_KEY, unreadKeys, compareConversations } from '../utils/unread';
 import { WebComment, UserSettings, Author, ProjectMember } from '../types';
 import { normalizeUrl, hashUrl, escapeHtml, getUserColor, extractDomain } from '../utils/security';
 import { formatRelativeTime, t } from '../utils/i18n';
@@ -14,6 +15,9 @@ class PopupController {
   private comments: WebComment[] = [];
   private activeFilter: 'all' | 'open' | 'resolved' = 'all';
   private currentAuthorName: string = 'Vincent';
+  private readMessages = new Set<string>();
+  private notificationUser?: Author;
+  private notificationEmail?: string;
   private autoSaveTimer?: number;
   private pollTimer?: number;
 
@@ -1211,11 +1215,15 @@ class PopupController {
   }
 
   private async fetchComments() {
+    const data = await chrome.storage.local.get([READ_MESSAGES_KEY, 'commyweb_user', 'commyweb_settings']);
+    this.readMessages = new Set<string>(data[READ_MESSAGES_KEY] || []);
+    this.notificationUser = data.commyweb_user;
+    this.notificationEmail = data.commyweb_settings?.userEmail;
     const targetHash = this.currentScope === 'all' ? 'all' : this.currentUrlHash;
     if (!targetHash && this.currentScope !== 'all') return;
 
     chrome.runtime.sendMessage(
-      { type: 'GET_PAGE_COMMENTS', payload: { urlHash: targetHash } },
+      { type: 'GET_PAGE_COMMENTS', payload: { urlHash: targetHash, url: this.currentTabUrl } },
       (res) => {
         void chrome.runtime.lastError;
         if (res && res.comments) {
@@ -1246,12 +1254,9 @@ class PopupController {
     const emptyState = document.getElementById('empty-state');
     if (!container || !emptyState) return;
 
-    // Sort newest comments first (priority to most recent comments)
-    const sorted = [...this.comments].sort((a, b) => {
-      const timeA = new Date(a.createdAt).getTime();
-      const timeB = new Date(b.createdAt).getTime();
-      return timeB - timeA;
-    });
+    // Unread conversations first, then most recent activity (including replies).
+    const sorted = [...this.comments].sort((a, b) =>
+      compareConversations(a, b, this.readMessages, this.notificationUser, this.notificationEmail));
 
     const filtered = sorted.filter((c) => {
       if (this.activeFilter === 'all') return true;
@@ -1273,7 +1278,11 @@ class PopupController {
     filtered.forEach((comment, index) => {
       const card = document.createElement('div');
       const isResolved = comment.status === 'resolved';
-      card.className = `comment-card ${isResolved ? 'resolved' : ''}`;
+      const unread = unreadKeys(comment, this.readMessages, this.notificationUser, this.notificationEmail);
+      card.className = `comment-card ${isResolved ? 'resolved' : ''} ${unread.length ? 'has-unread' : ''}`;
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.addEventListener('keydown', event => { if (event.target === card && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); card.click(); } });
 
       const authorId = comment.author.name || comment.author.username || comment.author.id || 'User';
       const userColor = getUserColor(authorId);
@@ -1298,6 +1307,7 @@ class PopupController {
           </div>
           <span class="card-time">${formatRelativeTime(comment.createdAt)}</span>
         </div>
+        ${unread.length ? `<span class="unread-label">${unread.length} nouveau${unread.length > 1 ? 'x' : ''} message${unread.length > 1 ? 's' : ''}</span>` : ''}
         <div class="card-text">${escapeHtml(comment.content)}</div>
         <div class="card-footer">
           <div style="display: flex; align-items: center; gap: 6px;">
