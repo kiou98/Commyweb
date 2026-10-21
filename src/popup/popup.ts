@@ -43,7 +43,7 @@ class PopupController {
       element('btn-toggle-invite').hidden = true;
       const join = element<HTMLDetailsElement>('join-details');
       join.classList.add('join-card');
-      element('project-status-bar').after(join);
+      element('page-path').after(join);
     }
     this.setupEvents();
     const target = Number(new URLSearchParams(location.search).get('tabId'));
@@ -230,8 +230,8 @@ class PopupController {
     element<HTMLAnchorElement>('link-github-project').href = githubProjectUrl(repo?.fullName) || 'https://github.com/';
     element('link-github-project').textContent = repo ? `Ouvrir ${repo.fullName} ↗` : 'Retrouver mon projet sur GitHub ↗';
     element('token-project-hint').textContent = repo
-      ? `Sur GitHub : « Only select repositories » → ${repo.repo}. Le propriétaire ${repo.owner} et les permissions Issues sont préremplis. Vérifiez-les, puis cliquez sur « Generate token ».`
-      : 'Sur GitHub, choisissez « Only select repositories » puis votre projet. Les permissions Issues sont préremplies.';
+      ? `Sur GitHub : « Only select repositories » → ${repo.repo}. Le propriétaire ${repo.owner} et les permissions Issues sont préremplis. Vérifiez-les, puis cliquez sur « Generate token ». Copiez le token et collez-le ci-dessous.`
+      : 'Sur GitHub, choisissez « Only select repositories » puis votre projet. Les permissions Issues sont préremplies. Cliquez sur « Generate token », puis copiez le token ici.';
   }
 
   private async saveSetupDraft() {
@@ -326,7 +326,7 @@ class PopupController {
       await this.refresh();
       this.toast('Projet connecté : lecture GitHub vérifiée. Vous pouvez commenter ou inviter votre équipe.');
     } catch (error) { this.toast((error as Error).message); }
-    finally { button.disabled = false; button.textContent = 'Connecter'; }
+    finally { button.disabled = false; button.textContent = 'Vérifier et connecter'; }
   }
 
   private async useLocal() {

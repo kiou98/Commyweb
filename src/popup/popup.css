@@ -111,3 +111,30 @@ body.side-panel { width:100%; margin:0; }
 .settings-extra { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
 #settings-form > details { background:transparent; }
 #settings-form .form-actions { margin:8px 0; }
+
+/* Task-oriented cards: one chronological reading order at popup widths. */
+body { width:420px; background:#f6f6f8; }
+.popup-container { background:#fff; }
+.setup-grid { gap:12px; }
+.setup-card { min-width:0; background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:9px; }
+.setup-card h3 { display:flex; align-items:center; font-size:14px; margin:0 0 3px; letter-spacing:-.2px; }
+.setup-card .helper { margin:0; line-height:1.65; }
+.setup-card label { margin:4px 0 0; }
+.setup-card-primary { border-color:#d1d6e8; background:#f8f9ff; }
+.setup-links a,.setup-footer a { text-underline-offset:3px; line-height:1.6; }
+.setup-links { margin:0; gap:8px 16px; }
+.setup-utility { margin-bottom:12px; }
+.setup-utility .secondary { margin-bottom:8px; }
+.setup-footer { display:flex; flex-direction:column; gap:8px; align-items:center; font-size:11px; padding:4px 0; }
+.page-summary .identity { padding:0; margin:0 0 14px; align-items:center; }
+.identity label .helper { display:block; font-size:10px; font-weight:400; margin-top:3px; }
+.identity input { padding:10px; }
+.drawer-heading h2 { font-size:17px; letter-spacing:-.4px; }
+.drawer { padding:18px 16px; }
+.join-card { padding:16px; border-radius:14px; background:#f8f9ff; border-color:#d1d6e8; }
+#join-form { margin-top:10px; padding-top:0; border:0; gap:10px; }
+button,input,select,summary { min-height:36px; }
+.text-button { min-height:32px; }
+input:focus-visible,select:focus-visible { outline:3px solid #9ba9ef; outline-offset:2px; }
+
+.header-actions .icon-btn { width:auto; padding:0 10px; display:flex; gap:6px; font-size:11px; font-weight:600; }

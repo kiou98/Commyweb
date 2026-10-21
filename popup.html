@@ -11,8 +11,8 @@
     <header class="popup-header">
       <a class="brand" href="#" aria-label="Accueil Commyweb"><img src="/icons/logotype.png" alt="Commyweb"></a>
       <div class="header-actions">
-        <button class="icon-btn" id="btn-toggle-invite" aria-label="Inviter un collaborateur par email" title="Inviter un collaborateur par email"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg></button>
-        <button class="icon-btn" id="btn-toggle-settings" aria-label="Réglages" title="Réglages">⚙</button>
+        <button class="icon-btn" id="btn-toggle-invite" aria-label="Inviter un collaborateur par email" title="Inviter un collaborateur par email"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7.5" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg><span>Inviter</span></button>
+        <button class="icon-btn" id="btn-toggle-settings" aria-label="Réglages" title="Réglages"><span>Réglages</span></button>
       </div>
     </header>
     <section class="page-summary">
@@ -20,6 +20,7 @@
       <h1 id="active-site-domain">Cette page</h1>
       <p id="page-path" class="muted"></p>
       <label class="visibility-control" id="comment-visibility" for="toggle-comments"><span>Activer les commentaires</span><input type="checkbox" role="switch" id="toggle-comments" checked disabled></label>
+    <div class="identity"><label for="quick-author-name">Votre nom <span class="helper">Visible par l’équipe</span></label><input id="quick-author-name" type="text" placeholder="Prénom et nom" maxlength="80" autocomplete="name" aria-required="true"></div>
       <button class="primary" id="btn-add-comment">＋ Ajouter un commentaire</button>
       <p class="shortcut" id="mode-hint">Choisissez un endroit sur la page · Alt + C</p>
     </section>
@@ -30,31 +31,40 @@
     </button>
     <div class="sync-indicator" id="realtime-status" role="status">Mode local · sur cet appareil</div>
     <div class="notice" id="sync-status" role="status" aria-live="polite" hidden></div>
-    <div class="identity"><label for="quick-author-name">Votre nom</label><input id="quick-author-name" type="text" placeholder="Comment souhaitez-vous apparaître ?" maxlength="80" autocomplete="name"></div>
 
     <section class="drawer" id="settings-drawer" aria-labelledby="settings-title" hidden>
       <div class="drawer-heading"><h2 id="settings-title">Connecter votre équipe</h2><button class="text-button" data-close>Fermer</button></div>
       <p class="muted">Partagez les commentaires de ce site avec votre équipe.</p>
-      <form id="settings-form">
-        <label for="input-storage-repo">Projet GitHub</label>
-        <input id="input-storage-repo" placeholder="propriétaire/projet ou URL GitHub" autocomplete="off">
-        <label for="input-github-token">Jeton d’accès GitHub</label>
-        <div class="password-input-group"><input type="password" id="input-github-token" placeholder="Collez votre jeton" autocomplete="off"><button type="button" class="text-button" id="btn-toggle-github-eye" aria-label="Afficher le jeton" aria-pressed="false">Afficher</button></div>
-        <p class="helper">Conservé sur cet appareil. Transmis au service d’invitation lorsque vous invitez un collaborateur.</p>
-        <div class="form-actions"><button class="primary" type="submit" id="btn-save-settings">Connecter</button><button type="button" class="text-button" id="btn-local-mode">Continuer sans équipe</button></div>
-        <details id="realtime-settings"><summary>Réglages avancés</summary><p class="helper">Renseignez l’adresse du relais une fois. Elle sera incluse dans les invitations ; les collaborateurs n’auront rien à configurer ici.</p><label for="input-realtime-endpoint">Adresse du relais WebSocket</label><input id="input-realtime-endpoint" placeholder="wss://votre-relais.example/sync" autocomplete="off"><p class="helper">Sans relais, actualisation de secours toutes les 15 secondes.</p></details>
-        <details id="setup-help"><summary>Besoin d’aide pour vous connecter ?</summary><div class="settings-extra">        <div class="setup-links"><a id="link-github-project" href="https://github.com/" target="_blank" rel="noreferrer">Retrouver mon projet sur GitHub ↗</a><a href="https://github.com/new" target="_blank" rel="noreferrer">Créer un projet ↗</a></div>
-        <a class="secondary" id="link-create-token" href="https://github.com/settings/personal-access-tokens/new?name=Commyweb&amp;expires_in=30&amp;issues=write&amp;metadata=read" target="_blank" rel="noreferrer">Créer mon jeton GitHub ↗</a>
-        <p class="helper" id="token-project-hint">Sur GitHub, choisissez « Only select repositories » puis votre projet. Les permissions utiles sont préremplies.</p>
-        <button type="button" class="text-button" id="btn-load-repositories">Choisir parmi mes projets GitHub</button>
-        <label for="select-github-repo" id="label-github-repo" hidden>Projets accessibles avec ce jeton</label>
-        <select id="select-github-repo" hidden><option value="">Choisir le projet à connecter…</option></select>
-        <p class="helper" id="repository-result" role="status" hidden></p>
-      <button type="button" class="secondary" id="btn-keep-open" hidden disabled>Garder la configuration ouverte</button>
-      <p class="helper" id="setup-persistence-hint">Gardez ce panneau ouvert pendant vos recherches sur GitHub. Même si vous fermez Commyweb, vos saisies sont conservées sur cet appareil.</p>
-</div></details>
-      </form>
-    </section>
+      <div class="setup-utility">
+        <button type="button" class="secondary" id="btn-keep-open" hidden disabled>Garder la configuration ouverte</button>
+        <p class="helper" id="setup-persistence-hint">Vos saisies sont conservées sur cet appareil. Vous pouvez aller sur GitHub puis revenir ici.</p>
+      </div>
+      <form id="settings-form" class="setup-grid">
+        <section class="setup-card" aria-labelledby="project-step">
+          <h3 id="project-step"><span class="step-number">1</span> Choisir le projet</h3>
+          <p class="helper" id="repo-help">Un dépôt GitHub conserve les commentaires de votre équipe. Créez-en un ou utilisez un dépôt existant avec les Issues activées.</p>
+          <div class="setup-links"><a href="https://github.com/new" target="_blank" rel="noreferrer">Créer un dépôt ↗</a><a id="link-github-project" href="https://github.com/" target="_blank" rel="noreferrer">Retrouver mon projet ↗</a></div>
+          <label for="input-storage-repo">Adresse du dépôt GitHub</label>
+          <input id="input-storage-repo" placeholder="https://github.com/equipe/projet" autocomplete="off" aria-describedby="repo-help">
+        </section>
+        <section class="setup-card" aria-labelledby="token-step">
+          <h3 id="token-step"><span class="step-number">2</span> Autoriser Commyweb</h3>
+          <p class="helper">Le token est une clé d'accès qui permet à Commyweb de lire et publier les commentaires dans ce dépôt.</p>
+          <a class="secondary" id="link-create-token" href="https://github.com/settings/personal-access-tokens/new?name=Commyweb&amp;expires_in=30&amp;issues=write&amp;metadata=read" target="_blank" rel="noreferrer">Créer mon token sur GitHub ↗</a>
+          <p class="helper" id="token-project-hint">Choisissez « Only select repositories », sélectionnez votre dépôt, puis cliquez sur « Generate token ». Copiez le token et revenez ici.</p>
+          <label for="input-github-token">Token d'accès GitHub</label>
+          <div class="password-input-group"><input type="password" id="input-github-token" placeholder="Collez le token copié sur GitHub" autocomplete="off" aria-describedby="token-storage-help"><button type="button" class="text-button" id="btn-toggle-github-eye" aria-label="Afficher le jeton" aria-pressed="false">Afficher</button></div>
+          <p class="helper" id="token-storage-help">Conservé sur cet appareil. Transmis au service d'invitation lorsque vous invitez un collaborateur.</p>
+          <details id="setup-help"><summary>Je ne retrouve pas mon dépôt</summary><p class="helper">Collez d'abord votre token, puis chargez les dépôts auxquels il donne accès.</p><button type="button" class="text-button" id="btn-load-repositories">Choisir parmi mes projets GitHub</button><label for="select-github-repo" id="label-github-repo" hidden>Projets accessibles avec ce jeton</label><select id="select-github-repo" hidden><option value="">Choisir le projet à connecter.</option></select><p class="helper" id="repository-result" role="status" hidden></p></details>
+        </section>
+        <section class="setup-card setup-card-primary" aria-labelledby="connect-step">
+          <h3 id="connect-step"><span class="step-number">3</span> Connecter l'équipe</h3>
+          <p class="helper">Vérifiez la connexion, puis utilisez « Inviter » en haut pour partager un accès personnel avec vos collaborateurs.</p>
+          <div class="form-actions"><button class="primary" type="submit" id="btn-save-settings">Vérifier et connecter</button></div>
+        </section>
+        <details id="realtime-settings"><summary>Options avancées · synchronisation</summary><p class="helper">Renseignez l'adresse du relais une fois. Elle sera incluse dans les invitations ; les collaborateurs n'auront rien à configurer ici.</p><label for="input-realtime-endpoint">Adresse du relais WebSocket</label><input id="input-realtime-endpoint" placeholder="wss://votre-relais.example/sync" autocomplete="off"><p class="helper">Sans relais, actualisation de secours toutes les 15 secondes.</p></details>
+        <div class="setup-footer"><a href="https://commyweb.neonea.nc/installation-admin.html" target="_blank" rel="noreferrer">Guide d'installation administrateur ↗</a><button type="button" class="text-button" id="btn-local-mode">Continuer sans équipe</button></div>
+      </form></section>
 
     <section class="drawer" id="invite-drawer" aria-labelledby="invite-title" hidden>
       <div class="drawer-heading"><h2 id="invite-title">Inviter un collaborateur par email</h2><button class="text-button" data-close>Fermer</button></div>
@@ -66,7 +76,7 @@
       <details><summary>Voir le message avant de l’envoyer</summary><label for="invite-email-preview">Message d’invitation</label><textarea id="invite-email-preview" rows="8" readonly></textarea></details>
       <div class="invite-alternatives"><button class="secondary" id="btn-copy-invite-email">Copier l’email complet</button><button class="text-button" id="btn-copy-invite-link">Copier seulement le lien</button></div>
       <section class="members-section" aria-labelledby="members-title"><h3 id="members-title">Invitations en cours</h3><p class="helper">Liens personnels valables 30 jours. Vous pouvez retirer un accès ici.</p><div id="members-list" role="status"></div><button class="text-button" id="btn-refresh-members">Actualiser les invitations</button></section>
-      <details id="join-details"><summary>J’ai reçu une invitation</summary><form id="join-form"><label for="input-join-link">Lien reçu par email</label><input type="url" id="input-join-link" placeholder="Collez le lien Commyweb" required><button class="secondary" type="submit">Ouvrir ce projet</button></form></details>
+      <details id="join-details"><summary>J’ai reçu une invitation</summary><p class="helper">1. Ouvrez le lien personnel reçu par email, ou collez-le ci-dessous. Aucun compte GitHub ni token nécessaire.</p><form id="join-form"><label for="input-join-link">Lien reçu par email</label><input type="url" id="input-join-link" placeholder="Collez le lien Commyweb" required><button class="primary" type="submit">Rejoindre le projet</button><p class="helper">2. Renseignez votre nom, puis ajoutez votre premier commentaire sur la page.</p><a class="helper" href="https://commyweb.neonea.nc/installation-user.html" target="_blank" rel="noreferrer">Guide utilisateur pas à pas ↗</a></form></details>
     </section>
 
     <div class="list-toolbar"><h2>Discussions <span id="count-all">0</span></h2><button class="text-button" id="btn-refresh" aria-label="Actualiser les discussions">Actualiser</button></div>
