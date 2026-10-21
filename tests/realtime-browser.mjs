@@ -71,7 +71,7 @@ const errors = [];
 try {
   const launch = async (name, edition = 'dist', invitation) => {
     const context = await chromium.launchPersistentContext(await mkdtemp(join(tmpdir(), 'commyweb-live-')), {
-      channel: 'chromium', headless: true, locale: 'fr-FR', viewport: { width: 1100, height: 800 },
+      channel: 'chromium', headless: true, locale: 'fr-FR', deviceScaleFactor: process.env.COMMYWEB_CAPTURE_SITE === '1' ? 3 : 1, viewport: { width: 1100, height: 800 },
       ignoreDefaultArgs: ['--disable-extensions'],
       args: [`--disable-extensions-except=${resolve(edition)}`, `--load-extension=${resolve(edition)}`]
     });

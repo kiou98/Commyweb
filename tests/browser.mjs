@@ -26,7 +26,7 @@ const profile = await mkdtemp(join(tmpdir(), 'commyweb-test-'));
 let context;
 try {
   context = await chromium.launchPersistentContext(profile, {
-    channel: 'chromium', headless: true, locale: 'fr-FR', viewport: { width: 1280, height: 900 },
+    channel: 'chromium', headless: true, locale: 'fr-FR', deviceScaleFactor: process.env.COMMYWEB_CAPTURE_SITE === '1' ? 3 : 1, viewport: { width: 1280, height: 900 },
     ignoreDefaultArgs: ['--disable-extensions'],
     args: [`--disable-extensions-except=${resolve(root, 'dist')}`, `--load-extension=${resolve(root, 'dist')}`]
   });
@@ -98,7 +98,7 @@ try {
   await expect(page.locator('#reply-input')).toHaveValue('');
   await page.screenshot({ path: join(output, 'thread.png'), fullPage: false });
   if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
-    await page.screenshot({ path: 'site/screenshots/discussion.png' });
+    await page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/discussion.png' });
     await page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/echanger.png' });
   }
   console.log('PASS: keyboard opening, draft preservation and replying work');
@@ -159,7 +159,10 @@ try {
   await popup.locator('#btn-local-mode').click();
   await expect(popup.locator('#count-all')).toHaveText('1');
   await popup.screenshot({ path: join(output, 'popup-comments.png'), fullPage: true });
-  if (process.env.COMMYWEB_CAPTURE_SITE === '1') await popup.screenshot({ path: 'site/screenshots/suivi.png', fullPage: true });
+  if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
+    await expect(popup.locator('#toast')).not.toBeVisible();
+    await popup.screenshot({ path: 'site/screenshots/suivi.png', fullPage: true });
+  }
   await popup.close();
   await page.locator('#spa').click();
   await expect(page.locator('.commyweb-pin')).toHaveCount(0, { timeout: 4000 });
