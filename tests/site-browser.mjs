@@ -43,9 +43,9 @@ try {
   await expect(page.getByRole('link', { name: 'Aller au contenu', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.locator('main')).toBeFocused();
-  await page.getByText('Afficher les étapes d’installation', { exact: true }).click();
-  await expect(page.getByText('edge://extensions', { exact: true })).toBeVisible();
-  await page.getByText('Afficher les étapes d’installation', { exact: true }).click();
+  await page.getByText('Choisir mon guide d’installation', { exact: true }).click();
+  await expect(page.locator('.install-note a[href="/installation-admin.html"]')).toBeVisible();
+  await page.getByText('Choisir mon guide d’installation', { exact: true }).click();
   for (const capture of await page.locator('.walkthrough img').all()) {
     await capture.scrollIntoViewIfNeeded();
     await expect.poll(() => capture.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
@@ -66,8 +66,25 @@ try {
   await audit('mobile home');
   await page.screenshot({ path: 'test-results/site-neonea-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1280, height: 900 });
+  for (const edition of ['admin', 'user']) {
+    await page.goto(origin + '/installation-' + edition + '.html');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    await expect(page.locator('.guide-step')).toHaveCount(edition === 'admin' ? 9 : 8);
+    await expect(page.locator('.guide-body')).toContainText('manifest.json');
+    for (const capture of await page.locator('.guide-capture img').all()) {
+      await capture.scrollIntoViewIfNeeded();
+      await expect.poll(() => capture.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    }
+    await audit('installation ' + edition);
+    for (const width of [320, 375, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), edition + ' guide overflows at ' + width);
+    }
+    await page.screenshot({ path: 'test-results/installation-' + edition + '.png', fullPage: true });
+  }
+  await page.goto(origin + '/installation-admin.html');
   const download = page.waitForEvent('download');
-  await page.getByRole('link', { name: /Télécharger Commyweb/ }).click();
+  await page.getByRole('link', { name: 'Télécharger la version Admin', exact: true }).click();
   const file = await download;
   const bytes = await readFile(await file.path());
   assert.equal(bytes.subarray(0, 2).toString(), 'PK');
@@ -82,7 +99,7 @@ try {
   const staticPage = await noScript.newPage();
   await staticPage.goto(origin);
   await expect(staticPage.getByRole('heading', { name: /Commentez vos pages web/ })).toBeVisible();
-  await expect(staticPage.getByRole('link', { name: /Télécharger Commyweb/ })).toBeVisible();
+  await expect(staticPage.getByRole('link', { name: 'Je configure le projet →' })).toBeVisible();
   await staticPage.getByText('Faut-il un compte GitHub pour utiliser Commyweb ?', { exact: true }).click();
   await expect(staticPage.getByText(/Vous pouvez prendre des notes en mode local/)).toBeVisible();
   await noScript.close();
