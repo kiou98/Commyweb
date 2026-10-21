@@ -119,7 +119,7 @@ try {
   const command = (client, type, payload = {}) => client.worker.evaluate(({ tabId, type, payload }) => chrome.tabs.sendMessage(tabId, { type, payload }), { tabId: client.tabId, type, payload });
   await command(first, 'SET_COMMENT_MODE', { active: true });
   await first.page.locator('#target').click();
-  await first.page.locator('#new-comment-input').fill('Ce retour doit apparaître sans attendre le polling.');
+  await first.page.locator('#new-comment-input').fill('Peux-tu rendre ce titre plus clair et garder un ton accueillant ?');
   const sentAt = Date.now();
   await first.page.locator('#btn-submit-new').click();
   await expect(second.page.locator('.commyweb-pin')).toHaveCount(1, { timeout: 4000 });
@@ -129,9 +129,15 @@ try {
 
   await second.page.locator('.commyweb-pin').click();
   await first.page.locator('.commyweb-pin').click();
-  await first.page.locator('#reply-input').fill('Une réponse reçue en direct.');
-  await first.page.locator('#btn-send-reply').click();
-  await expect(second.page.locator('.commyweb-reply-item')).toHaveCount(1, { timeout: 4000 });
+  await second.page.locator('#reply-input').fill('Je propose : « Parlons de votre projet ». Qu’en penses-tu ?');
+  await second.page.locator('#btn-send-reply').click();
+  await expect(first.page.locator('.commyweb-reply-item')).toHaveCount(1, { timeout: 4000 });
+  await expect(first.page.locator('.commyweb-reply-author')).toHaveText('Alex');
+  if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
+    await mkdir('site/screenshots', { recursive: true });
+    await first.page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/discussion.png' });
+    await first.page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/echanger.png' });
+  }
   console.log('PASS: an open discussion receives replies through the relay');
 
   await first.page.locator('#btn-toggle-resolve').click();

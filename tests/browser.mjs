@@ -88,13 +88,15 @@ try {
 
   await page.locator('.commyweb-pin').click();
   await expect(page.locator('.commyweb-comment-text').first()).toContainText('Rendre ce titre');
-  await page.locator('#reply-input').fill('Brouillon à conserver');
+  await page.locator('#reply-input').fill('Je propose : « Parlons de votre projet ». Qu’en penses-tu ?');
   await page.locator('#reply-input').press('Escape');
   await expect(page.locator('.commyweb-modal')).toHaveCount(0);
   await page.locator('.commyweb-pin').press('Enter');
-  await expect(page.locator('#reply-input')).toHaveValue('Brouillon à conserver');
+  await expect(page.locator('#reply-input')).toHaveValue('Je propose : « Parlons de votre projet ». Qu’en penses-tu ?');
+  await page.locator('#author-name').fill('Alex');
   await page.locator('#btn-send-reply').click();
   await expect(page.locator('.commyweb-reply-item')).toHaveCount(1);
+  await expect(page.locator('.commyweb-reply-author')).toHaveText('Alex');
   await expect(page.locator('#reply-input')).toHaveValue('');
   await page.screenshot({ path: join(output, 'thread.png'), fullPage: false });
   if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
