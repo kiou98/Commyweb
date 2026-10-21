@@ -176,7 +176,9 @@ try {
   await expect(popup.getByRole('button', { name: 'Inviter un collaborateur par email', exact: true }).locator('svg')).toBeVisible();
   await popup.locator('#input-storage-repo').fill('team/draft-project');
   await popup.locator('#input-github-token').fill('draft-token-not-verified');
+  await popup.locator('#btn-toggle-comments').click();
   await popup.locator('#quick-author-name').fill('Camille en cours');
+  await popup.locator('#btn-toggle-settings').click();
   await popup.locator('#realtime-settings summary').click();
   await popup.locator('#input-realtime-endpoint').fill('');
   await expect.poll(() => first.worker.evaluate(async domain => (await chrome.storage.local.get(`commyweb_setup_draft:${domain}`))[`commyweb_setup_draft:${domain}`]?.token, new URL(origin).host)).toBe('draft-token-not-verified');
