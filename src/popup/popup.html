@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -107,7 +107,7 @@
     <!-- Invite Collaborators Drawer -->
     <div class="drawer" id="invite-drawer">
       <div class="drawer-header">
-        <div class="drawer-title" id="lbl-invite-title">Inviter par Email</div>
+        <div class="drawer-title" id="lbl-invite-title">Inviter votre équipe</div>
       </div>
 
       <!-- Scope Notice (One Project & One URL) -->
@@ -134,11 +134,13 @@
         Ajoutez l'adresse email de votre collaborateur pour autoriser son accès, puis copiez l'invitation pour l'envoyer depuis votre boîte mail (Gmail, Outlook...) ou Slack :
       </div>
 
+      <div class="setup-tile"><h3>1. Autoriser une personne</h3><p>Indiquez son adresse e-mail, puis cliquez sur « Autoriser &amp; Préparer ».</p></div>
       <div class="invite-input-row">
         <input type="email" class="input-text" id="input-invite-email" placeholder="collaborateur@entreprise.com">
         <button class="btn-black" id="btn-send-invite">Autoriser &amp; Préparer</button>
       </div>
 
+      <div class="setup-tile"><h3>2. Transmettre l’invitation</h3><p>Copiez l’e-mail ou le lien, puis envoyez-le depuis votre messagerie. Le collaborateur suit les étapes de l’invitation pour vous rejoindre.</p></div>
       <div style="display: flex; gap: 6px;">
         <button class="btn-secondary" style="flex: 1;" id="btn-copy-html-email" title="Copier l'email complet formaté en HTML pour le coller dans Gmail ou Outlook">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -169,7 +171,7 @@
     <!-- Settings Drawer -->
     <div class="drawer" id="settings-drawer">
       <div class="drawer-header">
-        <div class="drawer-title">Stockage Collaboratif (No-DB)</div>
+        <div class="drawer-title">Configurer votre espace de travail</div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span id="auto-save-indicator" style="font-size: 10px; color: #16a34a; font-weight: 700; opacity: 0; transition: opacity 0.2s; white-space: nowrap;">✓ Sauvegardé</span>
           <button type="button" class="btn-icon-subtle" id="btn-open-settings-tab" title="Ouvrir les paramètres dans un onglet séparé (ne se fermera pas en changeant d'onglet)">
@@ -243,6 +245,18 @@
         </div>
       </details>
 
+      <section class="setup-tile"><h3>1. Choisir le projet</h3><p>Créez un dépôt privé pour conserver les commentaires de votre équipe.</p><a class="setup-link" href="https://github.com/new" target="_blank" rel="noopener noreferrer">Créer un dépôt sur GitHub ↗</a>
+      <!-- Storage Repo -->
+      <div class="form-group">
+        <label for="input-storage-repo">Dépôt GitHub du projet (owner/repo ou URL)</label>
+        <input type="text" class="input-text" id="input-storage-repo" placeholder="mon-compte/mon-projet ou https://github.com/...">
+        <div style="font-size: 11px; color: #71717a; margin-top: 4px; line-height: 1.3;">
+          Collez le format <code>owner/repo</code> (ex: <code>kiou98/Commyweb</code>) ou l'URL complète de votre projet GitHub.
+        </div>
+      </div>
+
+      </section>
+      <section class="setup-tile"><h3>2. Autoriser la synchronisation</h3><p>Sélectionnez ce dépôt uniquement, puis accordez la permission <strong>Issues : Read and write</strong>. Copiez le jeton généré ci-dessous.</p><a class="setup-link" href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer">Créer le jeton d’accès GitHub ↗</a>
       <!-- GitHub Token (Masked with Eye Toggle) -->
       <div class="form-group">
         <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -265,15 +279,8 @@
         </div>
       </div>
 
-      <!-- Storage Repo -->
-      <div class="form-group">
-        <label for="input-storage-repo">Dépôt GitHub du projet (owner/repo ou URL)</label>
-        <input type="text" class="input-text" id="input-storage-repo" placeholder="mon-compte/mon-projet ou https://github.com/...">
-        <div style="font-size: 11px; color: #71717a; margin-top: 4px; line-height: 1.3;">
-          Collez le format <code>owner/repo</code> (ex: <code>kiou98/Commyweb</code>) ou l'URL complète de votre projet GitHub.
-        </div>
-      </div>
-
+      </section>
+      <div class="setup-tile"><h3>3. Enregistrer puis inviter</h3><p>Enregistrez ces paramètres, puis ouvrez « Inviter » pour autoriser chaque collaborateur et lui transmettre son lien.</p></div>
       <button class="btn-black" id="btn-save-settings" style="margin-top: 4px;">Enregistrer les paramètres</button>
     </div>
 

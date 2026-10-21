@@ -372,7 +372,21 @@ class CommywebContentApp {
     this.threadModal.renderNewCommentBox(x, y);
   }
 
+  private ensureAuthor(): boolean {
+    const existing = (this.currentUser.name || this.currentUser.username || '').trim();
+    if (existing && existing !== 'Guest User') return true;
+    const name = window.prompt('Quel nom souhaitez-vous afficher sur vos commentaires ?', this.currentUser.email?.split('@')[0] || '')?.trim();
+    if (!name) {
+      this.showToastBanner('Renseignez votre nom pour publier un message.', '#991b1b');
+      return false;
+    }
+    this.currentUser = { ...this.currentUser, id: this.currentUser.id === 'anonymous' ? generateId() : this.currentUser.id, name, username: name };
+    void chrome.storage.local.set({ commyweb_user: this.currentUser });
+    return true;
+  }
+
   private handleCreateNewComment(text: string) {
+    if (!this.ensureAuthor()) return;
     if (!this.pendingNewAnchor) return;
 
     const newComment: WebComment = {
@@ -417,6 +431,7 @@ class CommywebContentApp {
   }
 
   private handleReply(commentId: string, text: string) {
+    if (!this.ensureAuthor()) return;
     const comment = this.comments.find(c => c.id === commentId);
     if (!comment) return;
 

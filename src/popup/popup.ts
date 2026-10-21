@@ -14,7 +14,7 @@ class PopupController {
   private currentScope: 'page' | 'all' = 'page';
   private comments: WebComment[] = [];
   private activeFilter: 'all' | 'open' | 'resolved' = 'all';
-  private currentAuthorName: string = 'Vincent';
+  private currentAuthorName: string = '';
   private readMessages = new Set<string>();
   private notificationUser?: Author;
   private notificationEmail?: string;
