@@ -4,11 +4,13 @@ import { escapeHtml, getUserColor } from '../../utils/security';
 import { READ_MESSAGES_KEY, unreadKeys } from '../../utils/unread';
 
 export interface ThreadModalCallbacks {
-  onReply: (commentId: string, text: string) => void;
-  onToggleResolve: (commentId: string) => void;
-  onCreateNew: (text: string) => void;
+  onReply: (commentId: string, text: string) => void | Promise<void>;
+  onToggleResolve: (commentId: string) => void | Promise<void>;
+  onCreateNew: (text: string) => void | Promise<void>;
   onClose: () => void;
   onInvite?: () => void;
+  getAuthorName?: () => string;
+  onAuthorName?: (name: string) => Promise<void>;
 }
 
 export class ThreadModal {
@@ -16,6 +18,8 @@ export class ThreadModal {
   public currentCommentId: string | null = null;
   public isCreatingNew: boolean = false;
   private callbacks: ThreadModalCallbacks;
+  private submitting = false;
+  private drafts = new Map<string, string>();
   private highlightedMessages = new Set<string>();
   private readRevision = 0;
 
@@ -23,6 +27,8 @@ export class ThreadModal {
     this.callbacks = callbacks;
     this.element = document.createElement('div');
     this.element.className = 'commyweb-modal';
+    this.element.setAttribute('role', 'dialog');
+    this.element.setAttribute('aria-label', t('addComment'));
     this.element.style.position = 'absolute';
     this.element.style.width = '320px';
     this.element.style.maxWidth = '90vw';
@@ -41,6 +47,7 @@ export class ThreadModal {
    * Render existing comment thread in pure Black & White DA
    */
   public renderThread(comment: WebComment, pinX: number, pinY: number) {
+    this.rememberDraft();
     this.highlightedMessages.clear();
     this.currentCommentId = comment.id;
     this.isCreatingNew = false;
@@ -82,17 +89,19 @@ export class ThreadModal {
         </div>
       </div>
       <div class="commyweb-modal-footer">
+        ${this.authorNameHtml()}
         <textarea class="commyweb-input" id="reply-input" placeholder="${t('reply')}" rows="1"></textarea>
         <button class="commyweb-btn-send" id="btn-send-reply">${t('send')}</button>
       </div>
     `;
 
     this.positionNear(pinX, pinY);
+
     void this.highlightAndRead(comment).catch(console.warn);
 
     const resolveBtn = this.element.querySelector('#btn-toggle-resolve');
     resolveBtn?.addEventListener('click', () => {
-      this.callbacks.onToggleResolve(comment.id);
+      void this.submit(() => this.callbacks.onToggleResolve(comment.id));
     });
 
     const closeBtn = this.element.querySelector('#btn-close-modal');
@@ -101,19 +110,20 @@ export class ThreadModal {
     });
 
     const replyInput = this.element.querySelector('#reply-input') as HTMLTextAreaElement;
+    replyInput.value = this.drafts.get(comment.id) || '';
+    replyInput.setAttribute('aria-label', t('reply'));
     const sendBtn = this.element.querySelector('#btn-send-reply');
 
     const handleSend = () => {
       const text = replyInput?.value.trim();
       if (text) {
-        this.callbacks.onReply(comment.id, text);
-        replyInput.value = '';
+        void this.submit(async () => { await this.saveAuthorName(); await this.callbacks.onReply(comment.id, text); }, replyInput);
       }
     };
 
     sendBtn?.addEventListener('click', handleSend);
     replyInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         handleSend();
       }
@@ -126,6 +136,7 @@ export class ThreadModal {
    * Render creation box for a new comment
    */
   public renderNewCommentBox(x: number, y: number) {
+    this.rememberDraft();
     this.readRevision++;
     this.currentCommentId = null;
     this.isCreatingNew = true;
@@ -145,6 +156,7 @@ export class ThreadModal {
         </button>
       </div>
       <div class="commyweb-modal-body">
+        ${this.authorNameHtml()}
         <textarea class="commyweb-input" id="new-comment-input" placeholder="${t('addComment')}" rows="3" style="min-height: 70px;"></textarea>
       </div>
       <div class="commyweb-modal-footer" style="justify-content: flex-end;">
@@ -159,6 +171,9 @@ export class ThreadModal {
     const cancelBtn = this.element.querySelector('#btn-cancel-new');
     const submitBtn = this.element.querySelector('#btn-submit-new');
     const input = this.element.querySelector('#new-comment-input') as HTMLTextAreaElement;
+    input.value = this.drafts.get('new') || '';
+    input.setAttribute('aria-label', t('addComment'));
+    this.element.querySelector('#btn-close-modal')?.setAttribute('aria-label', t('cancel'));
 
     closeBtn?.addEventListener('click', () => this.callbacks.onClose());
     cancelBtn?.addEventListener('click', () => this.callbacks.onClose());
@@ -166,13 +181,13 @@ export class ThreadModal {
     const submitAction = () => {
       const text = input?.value.trim();
       if (text) {
-        this.callbacks.onCreateNew(text);
+        void this.submit(async () => { await this.saveAuthorName(); await this.callbacks.onCreateNew(text); }, input);
       }
     };
 
     submitBtn?.addEventListener('click', submitAction);
     input?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         submitAction();
       }
@@ -181,6 +196,23 @@ export class ThreadModal {
     setTimeout(() => {
       input?.focus();
     }, 50);
+  }
+
+  private authorNameHtml(): string {
+    return `<label style="display:block;font-size:12px;">Votre nom (obligatoire)
+      <input class="commyweb-input" id="author-name" autocomplete="name" required maxlength="100"
+        value="${escapeHtml(this.callbacks.getAuthorName?.() || '')}" placeholder="Votre nom" style="min-height:36px;" />
+    </label>`;
+  }
+
+  private async saveAuthorName() {
+    const input = this.element.querySelector<HTMLInputElement>('#author-name');
+    const name = input?.value.trim() || '';
+    if (!name) {
+      input?.focus();
+      throw new Error('Indiquez votre nom avant de publier.');
+    }
+    await this.callbacks.onAuthorName?.(name);
   }
 
   private renderReplyHtml(reply: CommentReply): string {
@@ -206,7 +238,6 @@ export class ThreadModal {
 
   private async highlightAndRead(comment: WebComment) {
     const revision = ++this.readRevision;
-    // Capture only the messages displayed by this render, before storage/network awaits.
     const snapshot = { ...comment, replies: [...(comment.replies || [])] };
     const data = await chrome.storage.local.get([READ_MESSAGES_KEY, 'commyweb_user', 'commyweb_settings']);
     if (revision !== this.readRevision || this.currentCommentId !== comment.id ||
@@ -229,14 +260,15 @@ export class ThreadModal {
       label.style.cssText = 'color:#1d4ed8;font-weight:700;font-size:11px;margin-bottom:4px';
       element.prepend(label);
     }
-    if (keys.length) {
-      await chrome.runtime.sendMessage({ type: 'MARK_MESSAGES_READ', payload: { keys } });
-    }
+    if (keys.length) await chrome.runtime.sendMessage({ type: 'MARK_MESSAGES_READ', payload: { keys } });
   }
 
   private positionNear(x: number, y: number) {
-    const modalWidth = 320;
     const padding = 16;
+    this.element.style.width = `${Math.max(0, Math.min(320, window.innerWidth - padding * 2))}px`;
+    this.element.style.maxHeight = `${Math.max(0, window.innerHeight - padding * 2)}px`;
+    const modalWidth = this.element.getBoundingClientRect().width || 320;
+    const modalHeight = this.element.getBoundingClientRect().height || 220;
 
     let targetX = x + 12;
     let targetY = y + 12;
@@ -249,8 +281,8 @@ export class ThreadModal {
     }
 
     const viewportBottom = window.scrollY + window.innerHeight;
-    if (targetY + 220 > viewportBottom - padding) {
-      targetY = Math.max(window.scrollY + padding, y - 220);
+    if (targetY + modalHeight > viewportBottom - padding) {
+      targetY = Math.max(window.scrollY + padding, viewportBottom - padding - modalHeight);
     }
     if (targetY < window.scrollY + padding) {
       targetY = window.scrollY + padding;
@@ -264,8 +296,55 @@ export class ThreadModal {
     if (this.currentCommentId !== comment.id) return;
     const repliesContainer = this.element.querySelector('#replies-container');
     if (repliesContainer) {
-      repliesContainer.innerHTML = (comment.replies || []).map(r => this.renderReplyHtml(r)).join('');
+      const html = (comment.replies || []).map(r => this.renderReplyHtml(r)).join('');
+      if (repliesContainer.innerHTML !== html) repliesContainer.innerHTML = html;
       void this.highlightAndRead(comment).catch(console.warn);
+    }
+    const resolve = this.element.querySelector('#btn-toggle-resolve span');
+    if (resolve) resolve.textContent = comment.status === 'resolved' ? t('reopen') : t('resolve');
+  }
+
+  private rememberDraft() {
+    const field = this.element.querySelector('textarea');
+    if (field) this.drafts.set(this.currentCommentId || 'new', field.value);
+  }
+
+  public hasDraft() { return this.element.isConnected && !!this.element.querySelector('textarea')?.value.trim(); }
+
+  public focusInput() { this.element.querySelector('textarea')?.focus(); }
+
+  public close() {
+    this.readRevision++;
+    this.rememberDraft();
+    this.element.remove();
+    this.element.replaceChildren();
+    this.currentCommentId = null;
+    this.isCreatingNew = false;
+  }
+
+  public reposition(x: number, y: number) { this.positionNear(x, y); }
+
+  private async submit(action: () => void | Promise<void>, field?: HTMLTextAreaElement) {
+    if (this.submitting) return;
+    this.submitting = true;
+    const key = this.currentCommentId || 'new';
+    const buttons = [...this.element.querySelectorAll('button')];
+    buttons.forEach(button => { button.disabled = true; });
+    if (field) field.disabled = true;
+    this.element.querySelector('[role="alert"]')?.remove();
+    try {
+      await action();
+      if (field) { field.value = ''; this.drafts.delete(key); }
+    } catch (error) {
+      const message = document.createElement('p');
+      message.setAttribute('role', 'alert');
+      message.className = 'commyweb-error';
+      message.textContent = error instanceof Error ? error.message : 'Enregistrement impossible. Réessayez.';
+      this.element.append(message);
+    } finally {
+      this.submitting = false;
+      buttons.forEach(button => { button.disabled = false; });
+      if (field) { field.disabled = false; if (field.isConnected) field.focus(); }
     }
   }
 }

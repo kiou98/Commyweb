@@ -1,167 +1,105 @@
-<p align="center">
-  <img src="icons/logotype.png" alt="Commyweb" width="360" />
-</p>
+# Commyweb
 
-<p align="center">
-  <strong>Extension Chrome collaborative et open-source pour commenter n'importe quel site web façon Figma (sans aucune base de données).</strong>
-</p>
+Des retours précis, directement sur les pages web. Extension Chrome / Edge / Brave, open source. Mode local sans serveur ; collaboration GitHub et relais temps réel facultatif.
 
-<p align="center">
-  <a href="https://github.com/kiou98/Commyweb/releases"><img src="https://img.shields.io/github/v/release/kiou98/Commyweb?color=000000&label=Release" alt="DerniÃ¨re Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-000000.svg" alt="Licence MIT"></a>
-  <a href="https://github.com/kiou98/Commyweb/stargazers"><img src="https://img.shields.io/github/stars/kiou98/Commyweb?color=000000" alt="GitHub Stars"></a>
-</p>
+[English](README.md) · [Architecture](ARCHITECTURE.md) · [Bilan des changements](AUDIT.md)
 
-<p align="center">
-  <a href="README.md">🇬🇧 Read in English</a>
-</p>
+La présentation et le téléchargement sont disponibles sur [commyweb.neonea.nc](https://commyweb.neonea.nc). L’adresse Netlify historique reste disponible pour les anciens liens. Les invitations ouvrent directement la page à commenter avec le projet déjà sélectionné. Toute la configuration du projet se fait dans la modale de l’extension ; seule la création du jeton passe par GitHub. Les anciens liens `/join.html` restent lisibles.
 
----
+## Commencer
 
-Commyweb transforme n'importe quelle page web en un espace de travail collaboratif. Faites un clic droit sur n'importe quel élément pour déposer une pastille noire de commentaire. Collaborez avec votre équipe, répondez dans des fils de discussion et résolvez/archivez les commentaires une fois traités—exactement comme dans **Figma**.
+1. Téléchargez `commyweb-admin.zip` pour gérer le projet, ou `commyweb-user.zip` si vous avez reçu une invitation. Décompressez l’archive. Installez une seule édition par navigateur.
+2. Ouvrez `chrome://extensions`, activez **Mode développeur**, puis **Charger l’extension non empaquetée**.
+3. Sélectionnez le dossier décompressé. Ouvrez une page web puis Commyweb.
+4. Saisissez votre nom, cliquez sur **Ajouter un commentaire**, puis choisissez un endroit sur la page.
 
----
+Le mode local fonctionne immédiatement, sans compte ni configuration. Après l’envoi, vous pouvez naviguer normalement ; les pastilles restent visibles.
 
-## ✨ Fonctionnalités
+Pour utiliser une version compilée localement, chargez `dist-admin` ou `dist-user` (`dist` conserve l’édition de développement avec réglages). Pour mettre à jour une installation existante, remplacez les fichiers dans **le même dossier**, puis cliquez sur Recharger dans la page des extensions. Une installation dans un autre dossier peut recevoir un autre identifiant et ne pas retrouver le stockage local précédent.
 
-- 🖱️ **Commentaires au Clic Droit :** Faites un clic droit sur n'importe quel élément du site et sélectionnez *"💬 Ajouter un commentaire Commyweb"* (ou faites <kbd>Alt</kbd> + <kbd>C</kbd>) pour déposer une pastille noire de commentaire.
-- 🎯 **Ancrage spatial façon Figma :** Les pastilles restent attachées aux éléments HTML et conservent leur position relative exacte même lors du redimensionnement d'écran et du défilement (scroll).
-- 💬 **Fils de discussion imbriqués :** Échangez des réponses chronologiques avec les avatars des auteurs et l'heure relative.
-- ✅ **Résoudre & Archiver :** Nettoyez la vue en marquant les commentaires résolus. Basculez à tout moment entre les commentaires actifs et archivés.
-- ✉️ **Invitations en 1 clic (Copier-Coller Email HTML & Lien Direct) :** Invitez vos collaborateurs sans configuration de serveur d'envoi. Un clic copie l'email d'invitation HTML préformaté (avec guide d'installation étape par étape) prêt à être collé dans Gmail/Outlook, ou le lien direct pour Slack/Teams.
-- 🔒 **Clés d'API Masquées (Bouton Œil) :** Votre jeton GitHub PAT est masqué par défaut (`••••••••`) avec un bouton interactif pour afficher/masquer et un badge d'état clair (Configuré / Non configuré).
-- 🎯 **Portée Équipe restreinte (1 Projet & 1 URL) :** Verrouillage strict garantissant que les membres invités ont uniquement accès à la page et au projet concernés.
-- 🚫 **Révocation d'accès :** Tout membre autorisé du projet peut révoquer un autre collaborateur directement depuis la popup de l'extension.
-- ⚡ **Zéro base de données à gérer (No-DB) :** Fonctionne grâce à l'API GitHub (Issues / Discussions). Aucun serveur ni base de données à configurer, maintenir ou payer. Fonctionne aussi 100 % hors ligne/en local sans compte GitHub.
-- 🎨 **Direction Artistique Noir & Blanc :** Design monochrome élégant et haute lisibilité avec la typographie **Satoshi**.
-- 🌍 **International & Multilingue (i18n) :** Prise en charge native du français et de l'anglais, adaptable à n'importe quelle langue.
-- 🛡️ **Sécurité & Isolation :** Isolation CSS étanche grâce au **Shadow DOM** (aucun conflit avec les styles du site visité), assainissement strict anti-XSS et stockage cloisonné.
-- 💸 **100 % Gratuit & Open Source :** Licence MIT.
+## Au quotidien
 
----
+- **Ajouter** : bouton dans Commyweb, clic droit → Ajouter un commentaire Commyweb, ou `Alt+C`.
+- **Activer les commentaires** : le toggle masque ou affiche les annotations. Son état est conservé après rechargement ; il n’empêche pas la navigation normale.
+- **Envoyer** : Entrée. **Nouvelle ligne** : Maj+Entrée.
+- **Annuler le placement / fermer** : Échap. Les brouillons sont conservés en mémoire pendant la vie de la page.
+- **Consulter** : cliquez sur une pastille, ou utilisez Tab puis Entrée / Espace.
+- **Répondre, résoudre, rouvrir** : depuis la discussion ou la liste de Commyweb. Les discussions résolues restent consultables.
+- **Déplacer** : faites glisser une pastille sur sa nouvelle cible.
+- **Filtrer** : Toutes, À traiter, Résolues.
 
-## 🚀 Deux versions disponibles selon votre rôle
+Les annotations sont associées à l’URL de la page. Les paramètres de suivi marketing et fragments sont ignorés. Les changements d’URL dans les applications web sont détectés en une seconde environ.
 
-Commyweb propose 2 éditions optimisées pour simplifier l'expérience au maximum :
+## Travailler en équipe
 
-| Version | Pour qui ? | Téléchargement | Fonctionnalités |
-|---|---|---|---|
-| 👑 **Commyweb Admin** | Créateur de projet, chef d'équipe | [**commyweb-admin.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-admin.zip) | Accès complet aux **Paramètres ⚙️** (GitHub Token, Dépôt) et volet d'invitation 👥 |
-| 👥 **Commyweb Collaborateur** | Invités, collègues, clients | [**commyweb-user.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip) | **Zéro réglage technique**, pas d'icône d'engrenage, invitation 👥 et synchronisation automatique en 1 clic |
+1. Installez l’édition Admin et créez un dépôt GitHub privé avec les Issues activées. Les collaborateurs n’ont pas besoin d’un compte GitHub.
+2. Sur le site concerné, ouvrez les réglages dans la modale Commyweb. Cliquez sur **Garder la configuration ouverte** pour utiliser le panneau latéral pendant vos recherches sur GitHub : il reste associé au site de départ, même si vous changez d’onglet. Collez l’URL du projet GitHub. Les saisies et la vue ouverte sont conservées sur cet appareil à chaque modification ; un brouillon ne connecte pas encore le projet.
+3. Cliquez sur **Créer mon jeton GitHub** : le propriétaire et les permissions **Issues : Read and write** sont préremplis. Dans GitHub, choisissez **Only select repositories**, sélectionnez précisément le projet indiqué et générez le jeton.
+4. Collez votre jeton dans Commyweb. **Choisir parmi mes projets GitHub** permet de retrouver les dépôts accessibles sans recopier leur nom. Cliquez sur **Vérifier et connecter** : la lecture du projet et des Issues est contrôlée sans créer de données de test. Les droits d’écriture seront nécessaires pour commenter.
+5. Cliquez sur l’icône **Inviter un collaborateur** (personne avec un signe +), saisissez l’email du collaborateur puis **Préparer l’email d’invitation**. Un brouillon s’ouvre dans votre messagerie : **vérifiez-le puis cliquez sur Envoyer**. Si votre messagerie ne s’ouvre pas, utilisez **Copier l’email complet**. Aucun email ne part automatiquement.
 
-### Installation en 30 secondes (sans coder)
+L’email contient l’extension Utilisateur et un lien magique personnel. Le collaborateur installe cette édition puis ouvre le lien : le projet se connecte automatiquement, sans jeton ni réglage GitHub. Les invitations en cours sont visibles dans le volet Inviter ; **Retirer l’accès** invalide le lien côté serveur. Les liens expirent après 30 jours.
 
-1. Téléchargez la version adaptée à votre rôle :
-   - Pour l'admin : [**commyweb-admin.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-admin.zip)
-   - Pour les collaborateurs : [**commyweb-user.zip**](https://github.com/kiou98/Commyweb/releases/latest/download/commyweb-user.zip)
-2. Décompressez le fichier zip sur votre ordinateur.
-3. Ouvrez Google Chrome (ou Brave, Edge, Opera) et accédez à `chrome://extensions/`.
-4. Activez l'interrupteur **"Mode développeur"** en haut à droite.
-5. Cliquez sur le bouton **"Charger l'extension non empaquetée"** en haut à gauche et sélectionnez le dossier décompressé.
+Chaque site peut utiliser un dépôt et un jeton différents. Le bouton **Utiliser le mode local** revient aux annotations locales sans effacer les annotations d’équipe. Les commentaires créés en local restent locaux : ils ne sont pas envoyés automatiquement à un dépôt que vous venez de connecter.
 
-*C'est tout ! L'icône noire Commyweb apparaît immédiatement dans votre barre d'extensions.*
+**Le lien est une autorisation personnelle : gardez-le privé.** Il donne accès aux discussions Commyweb du site concerné via le service Netlify, pas au dépôt GitHub en général. Il ne contient jamais le jeton GitHub de l’admin. Les anciens liens qui contenaient ce jeton ne sont pas réactivés : renvoyez une nouvelle invitation depuis Admin.
 
----
+## Stockage et synchronisation
 
-## ⌨️ Utilisation
+Les commentaires sont d’abord enregistrés dans `chrome.storage.local`. Les discussions d’équipe sont ensuite stockées dans les Issues du dépôt choisi. Les réponses et coordonnées sont sérialisées dans le corps de l’Issue ; résoudre une discussion ferme l’Issue.
 
-1. Rendez-vous sur n'importe quel site web.
-2. Faites un **clic droit** sur n'importe quel élément et choisissez **"💬 Ajouter un commentaire Commyweb"** (ou faites <kbd>Alt</kbd> + <kbd>C</kbd>).
-3. Rédigez votre commentaire et cliquez sur **Envoyer** (ou appuyez sur <kbd>Entrée</kbd>). Une pastille noire Commyweb s'affiche à cet endroit exact !
-4. Cliquez sur n'importe quelle pastille pour consulter la discussion, répondre ou cliquer sur **Résoudre**.
+Les créations, réponses, résolutions et déplacements sont confirmés après la sauvegarde locale, sans attendre GitHub. La synchronisation continue en arrière-plan. Une réponse tardive ne doit pas effacer une modification faite entre-temps ; un POST dont l’accusé a été perdu est recherché dans GitHub avant une nouvelle tentative, avec un délai de reprise.
 
-## 💾 Où sont enregistrés vos messages et commentaires ?
+Le jeton de l’admin reste sur son appareil et, à la création d’une invitation, est aussi enregistré dans Netlify Blobs pour le service d’accès. Netlify chiffre ce stockage au repos et en transit. Les secrets des liens sont stockés sous forme d’empreintes côté serveur. Les jetons GitHub et autorisations de l’extension sont exclus des préférences synchronisées par Chrome. La révocation coupe les futurs accès réseau ; elle ne peut pas supprimer des données déjà consultées ou conservées sur l’appareil du collaborateur.
 
-Commyweb adopte une architecture **Zéro Base de Données (No-DB)** axée sur la confidentialité totale :
+Avec un relais connecté, les changements Commyweb confirmés par GitHub sont signalés immédiatement aux autres navigateurs. Le statut indique **Temps réel actif** seulement après connexion effective. Le relais se reconnecte automatiquement en cas de coupure ; l’affichage dépend aussi du délai de réponse de GitHub.
 
-1. **En local dans votre navigateur (`chrome.storage.local`) :**
-   - Tous vos commentaires sont d'abord enregistrés directement sur votre machine.
-   - Ils restent disponibles immédiatement, même hors ligne, et **ne sont jamais perdus** lors des redémarrages ou des mises à jour de l'extension.
+Le responsable configure une fois l’adresse `wss://…/sync` dans les réglages avancés. Les invitations la transmettent automatiquement aux collaborateurs. Voir le [guide de déploiement du relais autonome](relay/README.md). Aucun jeton ou texte de commentaire n’est transmis au relais.
 
-2. **Dans votre dépôt GitHub privé (Mode collaboratif d'équipe) :**
-   - Dès que vous liez votre dépôt privé (ex. `mon-equipe/projet-secret`), chaque discussion est synchronisée sous forme d'**Issue GitHub** sécurisée.
-   - Les coordonnées d'ancrage, le texte, l'auteur et les réponses y sont conservés.
-   - Résoudre un commentaire dans l'extension ferme automatiquement l'Issue correspondante sur GitHub.
+Sans relais, ou en cas de panne, les pages visibles gardent un rafraîchissement de secours toutes les 15 secondes. Les modifications faites directement dans GitHub sont aussi récupérées par ce filet de sécurité. Les pages internes du navigateur et les pages qui interdisent les extensions ne sont pas annotables.
 
-> 🔒 **Garantie de souveraineté :** Aucune base de données tierce, aucun serveur intermédiaire et aucune entreprise externe n'a accès à vos données. Vous restez 100 % propriétaire de vos échanges.
+## Développement
 
----
-
-## 👥 Qui a besoin d'un compte ? (Zéro contrainte pour l'équipe)
-
-| Rôle | Besoin de compte GitHub ? | Rôle dans le projet |
-| :--- | :---: | :--- |
-| **👑 Vous (Créateur du projet)** | **Oui** (1 jeton PAT pour lier votre dépôt privé) | Crée le dépôt privé gratuit où sont enregistrés les commentaires de l'équipe. |
-| **🚀 Vos Invités / Collaborateurs** | ❌ **AUCUN** | Ils reçoivent votre invitation, installent l'extension, et commentent directement comme sur Figma ! |
-
-> 🔒 **Zéro friction :** Vos clients, collègues ou partenaires n'ont **aucun compte, aucun mot de passe, ni aucune inscription à créer**.
-
----
-
-## 🎯 Comment fonctionne le verrouillage : 1 Projet & 1 URL par Équipe
-
-Pour garantir que vos échanges restent rigoureusement cloisonnés par équipe et par site web :
-
-1. **Portée Projet globale (Dépôt GitHub) :**
-   - Dans Commyweb, **1 Projet = 1 Dépôt GitHub** (`owner/repo`).
-   - Si vous avez plusieurs projets clients distincts (ex. *Client A* et *Client B*), créez simplement un dépôt GitHub pour chacun (ex. `mon-agence/client-a` et `mon-agence/client-b`). Leurs discussions restent 100 % hermétiques.
-2. **Portée Page locale (URL ciblée) :**
-   - Chaque URL de page web est automatiquement normalisée et hachée (`urlHash`).
-   - Les codes d'accès des membres (`authCode`) et les fils de discussion sont indexés sur cette URL exacte (`commyweb_policy_<urlHash>`).
-   - Quand vous invitez un membre depuis une page, il n'a accès **qu'à cette page exacte et à ce projet**.
-
----
-
-## 🤝 Configuration collaborative d'équipe pas-à-pas (Backend GitHub sans BDD)
-
-Pour partager vos commentaires en équipe sans héberger de serveur :
-
-1. **Créer votre dépôt GitHub de projet :**
-   - Allez sur [github.com/new](https://github.com/new).
-   - Donnez-lui un nom (ex. `commyweb-projet-a`).
-   - Définissez-le comme **Privé** pour protéger vos retours.
-2. **Générer un Personal Access Token (PAT) :**
-   - Rendez-vous sur [GitHub Fine-grained tokens](https://github.com/settings/tokens?type=beta).
-   - *Token name :* `Commyweb Extension`
-   - *Repository access :* Sélectionnez **Only select repositories** et choisissez votre dépôt de projet.
-   - *Repository permissions :*
-      - 🟢 **Issues** : choisir **Read and write** (Lecture et Écriture).
-      - *(Metadata : Read-only est inclus automatiquement par GitHub)*.
-   - Cliquez sur **Generate token** et copiez le jeton `github_pat_...`.
-   *(Alternative Token Classic : cochez simplement le scope `repo`)*.
-3. **Configurer l'extension Commyweb :**
-   - Ouvrez la popup, cliquez sur **Paramètres ⚙️**.
-   - Collez votre jeton dans **GitHub Token** (masqué par des ronds avec toggle œil).
-   - Renseignez le nom du dépôt dans **Dépôt de stockage** (`propriétaire/nom-du-repo`).
-   - Saisissez votre adresse email (expéditeur).
-4. **Sauvegarde automatique :** Vos paramètres se sauvegardent en temps réel et vos commentaires se synchronisent immédiatement avec votre équipe !
-
----
-
-## 🛠️ Développement local
+Node.js 20+ et npm.
 
 ```bash
-# Cloner le dépôt
-git clone https://github.com/kiou98/Commyweb.git
-cd Commyweb
-
-# Installer les dépendances
-npm install
-
-# Compiler en continu pour le dev
-npm run dev
-
-# Compiler la version de production
+npm ci
 npm run build
-
-# Générer l'archive zip de distribution
-npm run package
+npm run dev
 ```
 
-Chargez ensuite le dossier `dist` généré dans `chrome://extensions/`.
+`dev` reconstruit à la fois le service worker, la popup et le script injecté. Rechargez l’extension et la page pour utiliser les nouvelles versions des scripts.
 
----
+```bash
+npm test
+npx playwright install chromium
+npm run test:browser
+npm run package
+npm run test:site
+```
 
-## 📄 Licence
+Les essais navigateur chargent réellement l’extension dans un profil Chromium temporaire. Ils ne touchent pas au profil courant et n’accèdent pas à un compte GitHub réel. Les réponses de l’API GitHub sont simulées dans les tests de synchronisation.
 
-Licence MIT. Libre d'utilisation, de modification et de redistribution.
+Les archives se trouvent dans `release/`. Les éditions Admin et Utilisateur ont des interfaces distinctes et sont aussi compilées dans `dist-admin` et `dist-user`. L’édition Utilisateur n’a pas d’autorisation d’accès direct à l’API GitHub. Les sources sont dans `commyweb-source-v*.zip`, le relais autonome dans `commyweb-realtime-relay-v*.zip`.
+
+## Guide public sur Netlify
+
+Le projet Netlify `commyweb` suit la branche `main`. Les pages sont reconstruites uniquement lorsque leurs sources ou leur configuration changent. Les liens `/downloads/commyweb-admin.zip` et `/downloads/commyweb-user.zip` redirigent vers les archives de la dernière release GitHub : une mise à jour de l’extension ne nécessite plus de republier les pages.
+
+Le sous-domaine est rattaché à ce projet Netlify. Dans la zone DNS Cloudflare de `neonea.nc`, le CNAME `commyweb` pointe vers `commyweb.netlify.app`, en mode DNS uniquement. Netlify gère le certificat HTTPS. Les URL canoniques, les métadonnées de partage et le sitemap utilisent le sous-domaine Néonéa.
+
+Le fichier `netlify.toml` compile le guide via `npm run build:site` et publie `site-dist`, avec des redirections permanentes de téléchargement sous `/downloads/`. Le dossier `dist` est une extension de navigateur et ne doit pas servir de site web public. `npm run test:site` vérifie le téléchargement, les invitations, l’affichage mobile et les liens invalides.
+
+Le guide est statique. La fonction `netlify/functions/collaboration.mjs` gère les invitations et les appels GitHub limités au site et au projet autorisés ; Netlify Blobs conserve les autorisations entre les déploiements. Aucun serveur supplémentaire ni variable secrète manuelle n’est requis sur Netlify. Le service dépend des droits et de la validité du jeton de l’admin. Il n’exécute pas le serveur WebSocket du dossier `relay/` : son déploiement et son URL restent nécessaires pour le temps réel entre collaborateurs.
+
+## Limites connues
+
+Les mises à jour d’une même Issue par plusieurs ordinateurs exactement au même moment ne sont pas transactionnelles. Commyweb relit la discussion avant écriture et fusionne les réponses, mais GitHub ne fournit pas de transaction atomique pour ce modèle. Les invitations concernent les discussions du site autorisé, pas une seule page. Leur email identifie l’invité ; la possession du lien fait autorisation et ne constitue pas une preuve d’identité.
+
+La popup est en français ; les commandes des discussions sur la page utilisent les traductions Chrome françaises ou anglaises. Les routes stockées uniquement dans le fragment d’URL partagent actuellement les annotations d’une même URL normalisée.
+
+Licence MIT.
+
+### Publier une version de l’extension
+
+Sur `main`, harmoniser `package.json`, `package-lock.json` et `manifest.json`, puis pousser le tag `vX.Y.Z`. GitHub Actions teste, construit et publie automatiquement les ZIP Admin et Utilisateur. Les anciens tags restent dans l’historique ; les pages proposent toujours la dernière release publiée.

@@ -22,11 +22,11 @@ export function parseGitHubRepo(input?: string | null, fallbackOwner?: string | 
 
   // 1. Matches GitHub URLs (HTTPS, HTTP, SSH, www or no protocol)
   // e.g. https://github.com/owner/repo or git@github.com:owner/repo
-  const urlMatch = str.match(/(?:(?:https?:\/\/)?(?:www\.)?github\.com\/|git@github\.com:)([^/\s#?]+)\/([^/\s#?]+)/i);
+  const urlMatch = str.match(/^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/|git@github\.com:)([\w-]+)\/([\w.-]+)(?:[/?#].*)?$/i);
   if (urlMatch) {
     const owner = urlMatch[1].trim();
     const repo = urlMatch[2].trim().replace(/\.git$/i, '');
-    if (owner && repo) {
+    if (owner && repo && repo !== '.' && repo !== '..') {
       return { owner, repo, fullName: `${owner}/${repo}` };
     }
   }
@@ -35,7 +35,7 @@ export function parseGitHubRepo(input?: string | null, fallbackOwner?: string | 
   const parts = str.split('/').map(p => p.trim()).filter(Boolean);
   if (parts.length === 2) {
     const [owner, repo] = parts;
-    if (owner && repo && !owner.includes(' ') && !repo.includes(' ')) {
+    if (/^[\w-]+$/.test(owner) && /^[\w.-]+$/.test(repo) && repo !== '.' && repo !== '..') {
       return { owner, repo, fullName: `${owner}/${repo}` };
     }
   }
@@ -44,7 +44,7 @@ export function parseGitHubRepo(input?: string | null, fallbackOwner?: string | 
   if (parts.length === 1 && fallbackOwner && fallbackOwner.trim()) {
     const repo = parts[0];
     const owner = fallbackOwner.trim();
-    if (owner && repo && !repo.includes(' ') && !owner.includes(' ')) {
+    if (/^[\w-]+$/.test(owner) && /^[\w.-]+$/.test(repo) && repo !== '.' && repo !== '..') {
       return { owner, repo, fullName: `${owner}/${repo}` };
     }
   }

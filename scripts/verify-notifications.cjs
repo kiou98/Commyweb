@@ -17,7 +17,12 @@ class Element {
   setAttribute() {}
   appendChild(child) { this.children.push(child); }
   prepend(child) { this.children.unshift(child); }
-  querySelector(selector) { return this.nodes?.[selector] || null; }
+  append(child) { this.children.push(child); }
+  replaceChildren() { this.children = []; }
+  querySelector(selector) {
+    if (['.card-open', '.resolve-btn'].includes(selector)) return (this.nodes ||= {})[selector] ||= new Element();
+    return this.nodes?.[selector] || null;
+  }
   querySelectorAll() { return this.replies || []; }
 }
 const own = { id: 'me', username: 'Me', avatarUrl: '', email: 'me@example.com' };
@@ -25,7 +30,7 @@ const other = { id: 'other', username: 'Other', avatarUrl: '' };
 const reply = (id, author = other, createdAt = '2026-10-20T12:00:00Z') => ({ id, author, createdAt, content: id });
 const thread = (id, author = other, replies = []) => ({
   id, author, replies, urlHash: 'page', url: 'https://one.example/', content: id,
-  createdAt: '2026-10-19T12:00:00Z', status: 'open', issueNumber: 1, anchor: {}
+  createdAt: '2026-10-19T12:00:00Z', status: 'open', issueNumber: 1, storageRepo: 'owner/one', anchor: {}
 });
 const data = { commyweb_user: own, commyweb_settings: {
   githubToken: 'test-token', storageRepo: 'owner/one',
@@ -74,7 +79,7 @@ const chrome = {
   tabs: { query(_options, callback) { callback?.([]); return Promise.resolve([]); } },
   i18n: { getMessage(key) { return key; }, getUILanguage() { return 'en'; } }
 };
-const elements = { 'comments-list': new Element(), 'empty-state': new Element() };
+const elements = Object.fromEntries(['comments-list', 'empty-state', 'count-all', 'count-open', 'count-resolved'].map(id => [id, new Element()]));
 const document = {
   visibilityState: 'visible',
   createElement() { return new Element(); }, getElementById(id) { return elements[id] || null; }
@@ -93,7 +98,7 @@ function load(relative) {
   new Function('require', 'module', 'exports', 'chrome', 'document', 'window', 'setTimeout', 'fetch', code)(
     requireLocal, module, module.exports, chrome, document, window, () => {}, async (url, options = {}) => {
       requests.push({ url, ...options });
-      return { ok: true, status: 200, headers: { get: () => url.includes('/one/') ? 'etag-one' : 'etag-two' }, json: async () => [] };
+      return { ok: true, status: 200, headers: { get: name => name === 'ETag' ? (url.includes('/one/') ? 'etag-one' : 'etag-two') : null }, json: async () => [] };
     });
   return module.exports;
 }
@@ -121,7 +126,12 @@ async function settle() {
 
   data.commyweb_comments_page = [comment, thread('pending', own)];
   delete data.commyweb_comments_page[1].issueNumber;
-  load('src/background/index.ts');
+  const { startNotifications, markMessagesRead } = load('src/background/notifications.ts');
+  broker = (message, _sender, respond) => {
+    if (message.type !== 'MARK_MESSAGES_READ') { respond({ success: true }); return; }
+    markMessagesRead(message.payload.keys).then(respond).catch(() => respond({ success: false }));
+  };
+  startNotifications();
   await settle();
   assert.equal(badge, '3');
   assert.equal(alarms[0].periodInMinutes, 2);
@@ -174,11 +184,11 @@ async function settle() {
 
   const { PopupController } = load('src/popup/popup.ts');
   const popup = Object.create(PopupController.prototype);
-  Object.assign(popup, { comments: [newestRead, oldestUnread], readMessages: readNewest, notificationUser: own, activeFilter: 'all' });
-  popup.renderCommentsList();
+  Object.assign(popup, { comments: [newestRead, oldestUnread], readMessages: readNewest, notificationUser: own, filter: 'all', url: 'https://one.example/' });
+  popup.renderComments();
   assert.ok(elements['comments-list'].children[0].innerHTML.includes('unread'));
   const before = sent.length;
-  elements['comments-list'].children[0].listeners.click();
+  elements['comments-list'].children[0].querySelector('.card-open').listeners.click();
   assert.deepEqual(sent.slice(before).map(message => message.type), ['NAVIGATE_OR_FOCUS_COMMENT']);
 
   await chrome.storage.local.set({ commyweb_comments_page: Array.from({ length: 101 }, (_, i) => thread(`many-${i}`)) });

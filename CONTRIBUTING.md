@@ -7,7 +7,7 @@ Thank you for your interest in contributing to Commyweb! We welcome all contribu
 ## 🛠️ Development Setup
 
 1. **Prerequisites:**
-   - Node.js (v18+)
+   - Node.js (v20+)
    - npm (v9+)
    - Google Chrome or Chromium-based browser (Brave, Edge, Arc)
 
@@ -43,7 +43,7 @@ Commyweb uses the Chrome Extension i18n standard:
 ## 📋 Pull Request Guidelines
 
 1. Fork the repository and create your feature branch: `git checkout -b feature/amazing-feature`.
-2. Ensure TypeScript compiles without errors: `npm run build`.
+2. Run `npm test` and `npm run build`. For interaction changes, install Chromium with `npx playwright install chromium`, then run `npm run test:browser`.
 3. Commit your changes with conventional commit messages: `git commit -m 'feat: add emoji reactions'`.
 4. Push to your branch and open a Pull Request.
 

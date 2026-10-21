@@ -21,18 +21,15 @@ export class ShadowHostManager {
     this.hostElement.style.position = 'absolute';
     this.hostElement.style.top = '0';
     this.hostElement.style.left = '0';
-    this.hostElement.style.width = '100%';
-    this.hostElement.style.height = '100%';
+    this.hostElement.style.width = '0';
+    this.hostElement.style.height = '0';
     this.hostElement.style.pointerEvents = 'none';
     this.hostElement.style.zIndex = '2147483640';
-
-    this.hostElement.style.minHeight = '100vh';
-    this.hostElement.style.minWidth = '100vw';
 
     this.shadowRoot = this.hostElement.attachShadow({ mode: 'open' });
     this.injectStyles();
 
-    (document.body || document.documentElement).appendChild(this.hostElement);
+    document.documentElement.appendChild(this.hostElement);
   }
 
   public static getInstance(): ShadowHostManager {
@@ -45,8 +42,6 @@ export class ShadowHostManager {
   private injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
-      @import url('https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,400&display=swap');
-
       :host {
         all: initial;
         font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -241,6 +236,7 @@ export class ShadowHostManager {
         display: flex;
         flex-direction: column;
         gap: 12px;
+        min-height: 0;
       }
 
       .commyweb-comment-text {
@@ -317,6 +313,8 @@ export class ShadowHostManager {
         max-height: 90px;
         color: #000000;
         transition: border-color 0.15s, box-shadow 0.15s;
+        min-width: 0;
+        width: 100%;
       }
 
       .commyweb-input:focus {
@@ -343,6 +341,16 @@ export class ShadowHostManager {
         background: #27272a;
         border-color: #27272a;
       }
+
+      [hidden] { display: none !important; }
+      button:disabled { opacity: .5; cursor: wait; }
+      button:focus-visible, [role="button"]:focus-visible { outline: 3px solid #9ba9ef; outline-offset: 3px; }
+      .commyweb-modal-header, .commyweb-modal-footer { flex-shrink: 0; }
+      .commyweb-header-user, .commyweb-header-name { min-width: 0; overflow-wrap: anywhere; }
+      .commyweb-error { color: #991b1b; padding: 10px 14px; font-size: 12px; }
+      .commyweb-toolbar { position: fixed; bottom: 20px; right: 20px; max-width: calc(100vw - 40px); background: #18181b; color: #fff; border: 1px solid #ffffff55; border-radius: 24px; padding: 12px 18px; font-size: 12px; font-weight: 600; box-shadow: 0 4px 20px #0002; pointer-events: auto; cursor: pointer; }
+      .commyweb-toast { position: fixed; top: 20px; right: 20px; max-width: min(360px, calc(100vw - 40px)); padding: 12px 16px; border-radius: 10px; background: #18181b; color: #fff; box-shadow: 0 4px 20px #0002; font-size: 12px; line-height: 1.6; }
+      @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
       /* Monochrome Cursor Badge */
       .commyweb-cursor-badge {

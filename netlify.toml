@@ -1,0 +1,20 @@
+[build]
+  command = "npm run build:site"
+  publish = "site-dist"
+  ignore = "node scripts/ignore-site-build.mjs"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/downloads/*"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' https://api.fontshare.com; font-src 'self' https://cdn.fontshare.com; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"

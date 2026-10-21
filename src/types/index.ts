@@ -36,6 +36,9 @@ export interface WebComment {
   replies: CommentReply[];
   issueNumber?: number;
   issueUrl?: string;
+  createAttemptedAt?: number;
+  storageRepo?: string;
+  pendingChanges?: ('content' | 'replies' | 'status' | 'anchor')[];
 }
 
 export interface AnchorData {
@@ -45,6 +48,7 @@ export interface AnchorData {
   yPercent: number;
   textSnippet?: string;
   scrollOffset?: { x: number; y: number };
+  fallbackPosition?: { x: number; y: number };
 }
 
 export interface CommentReply {
@@ -55,14 +59,29 @@ export interface CommentReply {
 }
 
 export interface SiteProject {
+  collaboration?: CollaborationAccess | null;
   domain: string;
   repo: string;
   name?: string;
   token?: string;
   updatedAt?: string;
+  realtime?: RealtimeConfig | null;
+}
+
+export interface CollaborationAccess {
+  projectId: string;
+  secret: string;
+  role: 'admin' | 'collaborator';
+}
+
+export interface RealtimeConfig {
+  endpoint: string;
+  channel: string;
 }
 
 export interface UserSettings {
+  collaboration?: CollaborationAccess;
+  realtime?: RealtimeConfig;
   githubToken?: string;
   storageRepo?: string;
   isCommentModeActive?: boolean;
@@ -76,6 +95,11 @@ export interface ExtensionMessage {
   type: 
     | 'TOGGLE_COMMENT_MODE'
     | 'GET_COMMENT_MODE'
+    | 'SET_COMMENT_MODE'
+    | 'COMMENTS_UPDATED'
+    | 'REALTIME_STATUS_UPDATED'
+    | 'LIST_GITHUB_REPOSITORIES'
+    | 'VERIFY_GITHUB_PROJECT'
     | 'GET_PAGE_COMMENTS'
     | 'MARK_MESSAGES_READ'
     | 'ADD_COMMENT'

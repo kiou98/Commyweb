@@ -1,6 +1,7 @@
 import { WebComment, UserSettings, ProjectMember, ProjectSecurityPolicy, SiteProject } from '../types';
 import { generateId, extractDomain } from '../utils/security';
 import { parseGitHubRepo } from '../utils/github-parser';
+import { normalizeRealtime } from '../utils/realtime';
 
 /**
  * Local cache & security policy manager using chrome.storage.local
@@ -9,6 +10,16 @@ export class CacheManager {
   private static readonly SETTINGS_KEY = 'commyweb_settings';
   private static readonly COMMENTS_PREFIX = 'commyweb_comments_';
   private static readonly POLICY_PREFIX = 'commyweb_policy_';
+  private static writes = new Map<string, Promise<unknown>>();
+
+  private static serialize<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    const next = (this.writes.get(key) || Promise.resolve()).catch(() => {}).then(operation);
+    this.writes.set(key, next);
+    void next.finally(() => {
+      if (this.writes.get(key) === next) this.writes.delete(key);
+    }).catch(() => {});
+    return next;
+  }
 
   static async getSettings(urlOrDomain?: string): Promise<UserSettings> {
     try {
@@ -16,13 +27,13 @@ export class CacheManager {
       let settings: UserSettings = res[this.SETTINGS_KEY];
 
       // If local storage is empty or missing storageRepo/token, try to restore from chrome.storage.sync
-      if (!settings || !settings.storageRepo || !settings.githubToken) {
+      if (!settings) {
         try {
           if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
             const syncRes = await chrome.storage.sync.get(this.SETTINGS_KEY);
             if (syncRes && syncRes[this.SETTINGS_KEY]) {
               const syncSettings = syncRes[this.SETTINGS_KEY];
-              settings = { ...syncSettings, ...(settings || {}) };
+              settings = { ...syncSettings };
               await chrome.storage.local.set({ [this.SETTINGS_KEY]: settings });
             }
           }
@@ -44,25 +55,20 @@ export class CacheManager {
         settings.projectsByDomain = {};
       }
 
-      // If a specific URL or domain is provided, resolve the project mapped to this website!
+      // Normalize defaults before resolving a website; reads must never change defaults.
+      if (settings.storageRepo) {
+        settings.storageRepo = parseGitHubRepo(settings.storageRepo)?.fullName || settings.storageRepo;
+      }
+
+      // Resolve a website without persisting its credentials as global defaults.
       if (urlOrDomain) {
         const domain = extractDomain(urlOrDomain);
         if (domain && settings.projectsByDomain[domain]) {
           const siteProj = settings.projectsByDomain[domain];
-          if (siteProj.repo) {
-            settings.storageRepo = siteProj.repo;
-          }
-          if (siteProj.token) {
-            settings.githubToken = siteProj.token;
-          }
-        }
-      }
-
-      if (settings.storageRepo) {
-        const parsed = parseGitHubRepo(settings.storageRepo);
-        if (parsed && settings.storageRepo !== parsed.fullName) {
-          settings.storageRepo = parsed.fullName;
-          chrome.storage.local.set({ [this.SETTINGS_KEY]: settings }).catch(() => {});
+          settings.storageRepo = siteProj.repo;
+          settings.githubToken = siteProj.token ?? settings.githubToken;
+          settings.realtime = normalizeRealtime(siteProj.realtime) || undefined;
+          settings.collaboration = siteProj.collaboration || undefined;
         }
       }
 
@@ -73,6 +79,10 @@ export class CacheManager {
   }
 
   static async saveSettings(settings: Partial<UserSettings>): Promise<void> {
+    return this.serialize(this.SETTINGS_KEY, () => this.writeSettings(settings));
+  }
+
+  private static async writeSettings(settings: Partial<UserSettings>): Promise<void> {
     const current = await this.getSettings();
     const cleanSettings: Partial<UserSettings> = {};
     for (const [key, val] of Object.entries(settings)) {
@@ -92,7 +102,12 @@ export class CacheManager {
     // Also persist in chrome.storage.sync so settings survive plugin reloads, updates and new folder installs
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-        await chrome.storage.sync.set({ [this.SETTINGS_KEY]: updated });
+        const { githubToken: _token, collaboration: _access, projectsByDomain, ...preferences } = updated;
+        const safeProjects = Object.fromEntries(Object.entries(projectsByDomain || {}).map(([domain, project]) => {
+          const { token: _projectToken, collaboration: _projectAccess, ...safeProject } = project;
+          return [domain, safeProject];
+        }));
+        await chrome.storage.sync.set({ [this.SETTINGS_KEY]: { ...preferences, projectsByDomain: safeProjects } });
       }
     } catch {
       // ignore
@@ -112,6 +127,7 @@ export class CacheManager {
    * Save or link a GitHub project repo to a specific website domain
    */
   static async saveSiteProject(project: SiteProject): Promise<void> {
+    return this.serialize(this.SETTINGS_KEY, async () => {
     const cleanDomain = extractDomain(project.domain);
     if (!cleanDomain) return;
 
@@ -127,28 +143,30 @@ export class CacheManager {
       domain: cleanDomain,
       repo: cleanRepo,
       name: project.name?.trim() || cleanDomain,
-      token: project.token?.trim() || undefined,
+      token: project.token === undefined ? settings.projectsByDomain[cleanDomain]?.token : project.token.trim(),
+      collaboration: project.collaboration === undefined && settings.projectsByDomain[cleanDomain]?.repo.toLowerCase() === cleanRepo.toLowerCase()
+        ? settings.projectsByDomain[cleanDomain]?.collaboration : project.collaboration,
+      realtime: project.realtime === undefined && settings.projectsByDomain[cleanDomain]?.repo.toLowerCase() === cleanRepo.toLowerCase()
+        ? settings.projectsByDomain[cleanDomain]?.realtime : normalizeRealtime(project.realtime),
       updatedAt: new Date().toISOString()
     };
 
-    // If default storageRepo is empty, set this repo as default too
-    if (!settings.storageRepo) {
-      settings.storageRepo = cleanRepo;
-    }
-
-    await this.saveSettings(settings);
+    await this.writeSettings(settings);
+    });
   }
 
   /**
    * Remove project association for a specific website domain
    */
   static async removeSiteProject(domain: string): Promise<void> {
+    return this.serialize(this.SETTINGS_KEY, async () => {
     const cleanDomain = extractDomain(domain);
     const settings = await this.getSettings();
     if (settings.projectsByDomain && settings.projectsByDomain[cleanDomain]) {
       delete settings.projectsByDomain[cleanDomain];
-      await this.saveSettings(settings);
+      await this.writeSettings(settings);
     }
+    });
   }
 
   /**
@@ -198,6 +216,7 @@ export class CacheManager {
   }
 
   static async addComment(comment: WebComment): Promise<void> {
+    return this.serialize(comment.urlHash, async () => {
     const comments = await this.getCommentsForUrl(comment.urlHash);
     const existingIndex = comments.findIndex(c => c.id === comment.id);
     if (existingIndex >= 0) {
@@ -206,6 +225,73 @@ export class CacheManager {
       comments.push(comment);
     }
     await this.saveCommentsForUrl(comment.urlHash, comments);
+    });
+  }
+
+  static async mutateComment(hash: string, id: string, repo: string, change: (comment: WebComment) => void): Promise<void> {
+    return this.serialize(hash, async () => {
+      const comments = await this.getCommentsForUrl(hash);
+      const comment = comments.find(c => c.id === id && this.belongsToProject(c, repo));
+      if (!comment) throw new Error('Discussion introuvable.');
+      change(comment);
+      await this.saveCommentsForUrl(hash, comments);
+    });
+  }
+
+  static async addCommentIfMissing(comment: WebComment): Promise<void> {
+    return this.serialize(comment.urlHash, async () => {
+      const comments = await this.getCommentsForUrl(comment.urlHash);
+      if (comments.some(existing => existing.id === comment.id)) return;
+      await this.saveCommentsForUrl(comment.urlHash, [...comments, comment]);
+    });
+  }
+
+  static async acknowledgeSync(sent: WebComment, shared: WebComment): Promise<WebComment> {
+    let acknowledged = shared;
+    await this.mutateComment(sent.urlHash, sent.id, sent.storageRepo || '', current => {
+      const pending: NonNullable<WebComment['pendingChanges']> = [];
+      const editedDuringWrite = current.updatedAt !== sent.updatedAt;
+      if (JSON.stringify(current.replies) !== JSON.stringify(sent.replies)) pending.push('replies');
+      if (current.status !== sent.status || (editedDuringWrite && current.pendingChanges?.includes('status')) || (!sent.issueNumber && sent.status === 'resolved')) pending.push('status');
+      if (JSON.stringify(current.anchor) !== JSON.stringify(sent.anchor) || (editedDuringWrite && current.pendingChanges?.includes('anchor'))) pending.push('anchor');
+      acknowledged = { ...shared,
+        ...(pending.includes('status') ? { status: current.status } : {}),
+        ...(pending.includes('anchor') ? { anchor: current.anchor } : {}),
+        updatedAt: current.updatedAt || shared.updatedAt,
+        replies: [...new Map([...shared.replies, ...current.replies].map(reply => [reply.id, reply])).values()], pendingChanges: pending };
+      Object.assign(current, acknowledged);
+      delete current.createAttemptedAt;
+    });
+    return acknowledged;
+  }
+
+  static belongsToProject(comment: WebComment, repo: string = ''): boolean {
+    const issueRepo = comment.issueUrl?.match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\//)?.[1];
+    return (comment.storageRepo || issueRepo || '').toLowerCase() === repo.toLowerCase();
+  }
+
+  static async saveProjectComments(urlHash: string, repo: string, comments: WebComment[]): Promise<void> {
+    return this.serialize(urlHash, async () => {
+      const existing = await this.getCommentsForUrl(urlHash);
+      const others = existing.filter(c => !this.belongsToProject(c, repo));
+      await this.saveCommentsForUrl(urlHash, [...others, ...comments]);
+    });
+  }
+
+  static async mergeRemoteComments(urlHash: string, repo: string, remote: WebComment[], baseline?: WebComment[]): Promise<void> {
+    return this.serialize(urlHash, async () => {
+      const existing = await this.getCommentsForUrl(urlHash);
+      const merged = new Map(remote.map(comment => [comment.id, comment]));
+      for (const local of existing.filter(c => this.belongsToProject(c, repo))) {
+        const shared = merged.get(local.id);
+        const changedDuringFetch = baseline && JSON.stringify(local) !== JSON.stringify(baseline.find(c => c.id === local.id));
+        if (!shared || local.pendingChanges?.length || !local.issueNumber || changedDuringFetch) {
+          merged.set(local.id, { ...local,
+            ...(!local.issueNumber && shared?.issueNumber ? { issueNumber: shared.issueNumber, issueUrl: shared.issueUrl } : {}) });
+        }
+      }
+      await this.saveCommentsForUrl(urlHash, [...existing.filter(c => !this.belongsToProject(c, repo)), ...merged.values()]);
+    });
   }
 
   // --- Project Members & Revocation Management ---
@@ -282,7 +368,7 @@ export class CacheManager {
   static async validateJoinCode(urlHash: string, code: string, email: string): Promise<boolean> {
     const policy = await this.getPolicy(urlHash);
     const member = policy.members.find(
-      m => m.authCode === code || m.email.toLowerCase() === email.toLowerCase()
+      m => m.authCode === code && m.email.toLowerCase() === email.toLowerCase()
     );
 
     if (member) {
@@ -291,12 +377,6 @@ export class CacheManager {
       }
       member.status = 'active';
       await this.savePolicy(policy);
-      return true;
-    }
-
-    // Auto-authorize if valid signed code
-    if (code.startsWith('cw_auth_')) {
-      await this.addOrInviteMember(urlHash, '', email, 'Magic Link Invite');
       return true;
     }
 

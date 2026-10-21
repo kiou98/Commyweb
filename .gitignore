@@ -6,3 +6,7 @@ release
 *.zip
 .DS_Store
 Thumbs.db
+test-results/
+.test-profile/
+site-dist/
+.netlify/
