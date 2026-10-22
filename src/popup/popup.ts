@@ -5,7 +5,7 @@ import { formatRelativeTime } from '../utils/i18n';
 import { CacheManager } from '../storage/cache';
 import { decodeProjectConfig, projectLink } from '../utils/email-template';
 import { parseGitHubRepo } from '../utils/github-parser';
-import { githubTokenUrl, githubProjectUrl, invitationEmail, invitationMailto } from '../utils/github-setup';
+import { githubTokenUrl, githubProjectUrl, invitationEmail, validateInvitationRecipient } from '../utils/github-setup';
 import { newRealtimeChannel, realtimeEndpoint } from '../utils/realtime';
 import { hasProjectAccess, isUserEdition } from '../storage/collaboration';
 
@@ -377,7 +377,7 @@ class PopupController {
     const button = element<HTMLButtonElement>('btn-prepare-email');
     button.disabled = !settings.githubToken || !settings.storageRepo;
     if (generate && !cached) {
-      invitationMailto(email, '', '');
+      validateInvitationRecipient(email);
       const buttons = ['btn-prepare-email', 'btn-copy-invite-email', 'btn-copy-invite-link'].map(id => element<HTMLButtonElement>(id));
       buttons.forEach(item => { item.disabled = true; }); emailField.disabled = true;
       button.textContent = 'Création du lien magique…';
@@ -393,11 +393,11 @@ class PopupController {
       }
     }
     if (!cached) {
-      element<HTMLTextAreaElement>('invite-email-preview').value = 'Saisissez l’email du collaborateur, puis préparez l’invitation pour créer son lien magique personnel.';
+      element('invite-email-preview').textContent = 'Saisissez l’email du collaborateur, puis préparez l’invitation pour créer son lien magique personnel.';
       return;
     }
     const invitation = invitationEmail(this.url, settings.storageRepo, input('quick-author-name').value.trim() || 'Votre équipe', settings.realtime, cached.link);
-    element<HTMLTextAreaElement>('invite-email-preview').value = `Objet : ${invitation.subject}\n\n${invitation.body}`;
+    element('invite-email-preview').innerHTML = invitation.html;
     return invitation;
   }
 
@@ -429,19 +429,24 @@ class PopupController {
     try {
       const invitation = await this.updateInvitation(true);
       if (!invitation) throw new Error('Ouvrez une page web à partager.');
-      const href = invitationMailto(input('input-invite-email').value.trim(), invitation.subject, invitation.body);
-      const link = document.createElement('a');
-      link.href = href; document.body.append(link); link.click(); link.remove();
-      this.toast('Terminez dans votre messagerie : vérifiez l’email, puis cliquez sur Envoyer. Si elle ne s’ouvre pas, utilisez « Copier l’email complet ».');
+      element<HTMLDetailsElement>('invite-preview-details').open = true;
+      this.toast('Email prêt. Cliquez sur « Copier l’email HTML », puis collez-le dans votre messagerie.');
     } catch (error) { this.toast((error as Error).message); }
   }
 
   private async copyEmail() {
     try {
-      const invitation = await this.updateInvitation(true);
-      if (!invitation) throw new Error('Ouvrez une page web à partager.');
-      await navigator.clipboard.writeText(`Objet : ${invitation.subject}\n\n${invitation.body}`);
-      this.toast('Email copié. Collez-le dans un nouvel email, ajoutez le destinataire et cliquez sur Envoyer.');
+      validateInvitationRecipient(input('input-invite-email').value.trim());
+      // Start the clipboard operation during the click, even if creating the link takes time.
+      const invitation = this.updateInvitation(true).then(email => {
+        if (!email) throw new Error('Ouvrez une page web à partager.');
+        return email;
+      });
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': invitation.then(email => new Blob([email.html], { type: 'text/html' })),
+        'text/plain': invitation.then(email => new Blob([`Objet : ${email.subject}\n\n${email.body}`], { type: 'text/plain' }))
+      })]);
+      this.toast('Email HTML copié. Collez-le dans un nouveau message en conservant la mise en forme, puis ajoutez le destinataire.');
     } catch (error) { this.toast((error as Error).message); }
   }
 

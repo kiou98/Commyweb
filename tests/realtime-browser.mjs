@@ -241,18 +241,49 @@ try {
 
   await popup.locator('#btn-toggle-invite').click();
   await expect(popup.locator('#invite-title')).toContainText('email');
+  await popup.locator('#input-invite-email').fill('adresse-invalide');
+  await popup.locator('#btn-copy-invite-email').click();
+  await expect(popup.locator('#toast')).toContainText('Saisissez une adresse email valide');
   await popup.locator('#input-invite-email').fill('alex@example.test');
   await popup.evaluate(() => document.addEventListener('click', event => {
     const link = event.target.closest('a[href^="mailto:"]');
     if (link) { event.preventDefault(); window.testMailto = link.href; }
   }, true));
-  await popup.locator('#btn-prepare-email').click();
-  await expect.poll(() => popup.evaluate(() => window.testMailto)).toMatch(/^mailto:alex%40example.test\?/);
-  const draft = await popup.evaluate(() => decodeURIComponent(window.testMailto));
+  // Copy directly before preparing: creating the personal link must preserve the clipboard action.
+  await popup.bringToFront();
+  await popup.locator('#btn-copy-invite-email').click();
+  await expect(popup.locator('#toast')).toContainText('Email HTML copié');
+  await first.context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const clipboard = await popup.evaluate(async () => {
+    const [item] = await navigator.clipboard.read();
+    return { types: item.types, html: await (await item.getType('text/html')).text(), text: await (await item.getType('text/plain')).text() };
+  });
+  assert.ok(clipboard.types.includes('text/html'));
+  assert.ok(clipboard.types.includes('text/plain'));
+  const draft = clipboard.text;
   assert.ok(draft.includes('aucun compte GitHub ni jeton'));
   assert.ok(draft.includes('commyweb-user.zip'));
   assert.ok(!draft.includes('test-only-'));
-  await expect(popup.locator('#toast')).toContainText('Envoyer');
+  assert.ok(clipboard.html.includes('<h2'));
+  assert.ok(!clipboard.html.includes('test-only-'));
+  await popup.locator('#btn-prepare-email').click();
+  await expect(popup.locator('#toast')).toContainText('Email prêt');
+  await expect(popup.locator('#invite-email-preview h2')).toContainText('vous invite');
+  const personalLink = await popup.locator('#invite-email-preview a').filter({ hasText: 'Ouvrir la page' }).getAttribute('href');
+  assert.ok(draft.includes(personalLink));
+  assert.ok(clipboard.html.includes(personalLink));
+  assert.equal(await popup.evaluate(() => window.testMailto), undefined);
+  await popup.locator('#btn-copy-invite-email').click();
+  await expect(popup.locator('#toast')).toContainText('Email HTML copié');
+  const composer = await first.context.newPage();
+  await composer.setContent('<!doctype html><html lang="fr"><meta charset="utf-8"><title>Email de test</title><body><div id="email" contenteditable="true" aria-label="Email"></div></body></html>');
+  await composer.locator('#email').press('ControlOrMeta+V');
+  await expect(composer.locator('#email h2')).toContainText('vous invite');
+  await expect(composer.locator('#email a').filter({ hasText: 'Ouvrir la page' })).toHaveAttribute('href', personalLink);
+  await expect(composer.locator('#email a').filter({ hasText: 'Télécharger' })).toHaveCSS('color', 'rgb(37, 99, 235)');
+  await composer.screenshot({ path: join(output, 'invitation-html-pasted.png'), fullPage: true });
+  await composer.close();
+  await popup.bringToFront();
   await popup.screenshot({ path: join(output, 'invite-email.png'), fullPage: true });
   if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
     await popup.locator('#invite-drawer').screenshot({
@@ -261,7 +292,7 @@ try {
     });
   }
   assert.deepEqual(errors, []);
-  console.log('PASS: invitation opens an explicit email draft without sending or sharing tokens');
+  console.log('PASS: invitation previews and copies real HTML and plain-text clipboard content without opening email or sharing tokens');
 
   await popup.locator('#btn-toggle-settings').click();
   await expect(popup.locator('#btn-keep-open')).toBeEnabled();

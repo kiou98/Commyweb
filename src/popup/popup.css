@@ -85,7 +85,7 @@ a.secondary { text-decoration:none; }
 .invite-callout { border-left:3px solid var(--ink); padding:9px 11px; background:#fff; border-radius:0 8px 8px 0; font-size:12px; }
 .access-link { display:block; font-size:12px; font-weight:600; margin:12px 0 6px; }
 .invite-alternatives { display:flex; flex-direction:column; gap:7px; margin-top:10px; }
-#invite-email-preview { margin-top:7px; font-size:11px; line-height:1.6; resize:vertical; }
+#invite-email-preview { margin-top:7px; padding:12px; max-height:320px; overflow:auto; overflow-wrap:anywhere; border:1px solid var(--line); border-radius:8px; background:#fff; font-size:12px; line-height:1.6; }
 #invite-form { margin-top:12px; }
 #realtime-settings input { margin-top:7px; }
 @media (min-width:600px) { body { margin:30px auto; } .popup-container { border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 12px 40px #00000008; } }

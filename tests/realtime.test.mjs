@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 import { createRelay } from '../relay/server.mjs';
 
 const compiled = await build({ stdin: { contents: `export * from './src/utils/github-setup'; export * from './src/utils/realtime'; export * from './src/utils/email-template'; export * from './src/background/realtime';`, resolveDir: process.cwd() }, bundle: true, write: false, format: 'esm', platform: 'node' });
-const { githubTokenUrl, invitationEmail, invitationMailto, realtimeEndpoint, normalizeRealtime, projectLink, decodeProjectConfig, RealtimeManager } =
+const { githubTokenUrl, invitationEmail, validateInvitationRecipient, realtimeEndpoint, normalizeRealtime, projectLink, decodeProjectConfig, RealtimeManager } =
   await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 const channel = 'a'.repeat(64);
 
@@ -21,16 +21,30 @@ test('token creation link prefills only documented owner and least-needed permis
   assert.ok(url.searchParams.get('name').length <= 40);
 });
 
-test('email invitation is a draft action and includes installation and project steps', () => {
+test('email invitation includes HTML formatting, installation and project steps', () => {
   const email = invitationEmail('https://example.test/page', 'team/project', 'Camille');
-  const mailto = invitationMailto('member@example.test', email.subject, email.body);
-  assert.ok(mailto.startsWith('mailto:member%40example.test?subject='));
+  assert.doesNotThrow(() => validateInvitationRecipient('member@example.test'));
+  assert.match(email.html, /<h2[^>]*>Objet : Camille/);
+  assert.match(email.html, /<strong>1\.<\/strong>/);
+  assert.match(email.html, /href="https:\/\/commyweb.neonea.nc\/downloads\/commyweb-user.zip"/);
+  assert.ok(email.html.includes('chrome://extensions'));
   assert.ok(email.body.includes('chrome://extensions'));
   assert.ok(email.body.includes('Créer mon jeton GitHub'));
   assert.ok(email.body.includes('team/project'));
   assert.equal(new URL(email.link).origin, 'https://example.test');
   assert.ok(email.body.includes('modale de l’extension'));
-  assert.throws(() => invitationMailto('user@example.test?bcc=evil@example.test', email.subject, email.body));
+  assert.throws(() => validateInvitationRecipient('user@example.test?bcc=evil@example.test'));
+});
+
+test('HTML invitation escapes names and URLs while preserving the personal link', () => {
+  const link = 'https://example.test/page?first=1&second=2#commyweb_config=abc';
+  const email = invitationEmail('https://example.test/page', 'team/project', '<img src=x onerror="alert(1)"> & Camille', undefined, link);
+  assert.ok(email.html.includes('&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; Camille'));
+  assert.ok(!email.html.includes('<img'));
+  assert.ok(email.html.includes(`href="${link.replace('&', '&amp;')}"`));
+  assert.ok(email.html.includes('aucun compte GitHub ni jeton'));
+  assert.ok(email.html.includes('30 jours'));
+  assert.ok(email.body.includes(link));
 });
 
 test('realtime configuration rejects unsafe endpoints and invalid channels', () => {

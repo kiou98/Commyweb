@@ -1,6 +1,7 @@
 import { parseGitHubRepo } from './github-parser';
 import { projectLink } from './email-template';
 import { RealtimeConfig } from '../types';
+import { escapeHtml } from './security';
 
 /** Only documented GitHub template parameters; repository selection stays explicit. */
 export function githubTokenUrl(repository?: string): string {
@@ -38,10 +39,20 @@ export function invitationEmail(pageUrl: string, repository?: string, author = '
     + `9. Écrivez votre retour, puis cliquez sur le bouton d’envoi.\n\n`
     + (magicLink ? `Conservez cet email pour revenir sur la page avec votre lien personnel (étape 6). Ce lien donne accès aux commentaires de ce site pendant 30 jours, sauf révocation par le responsable. Gardez-le pour vous.\n\n` : '')
     + `À bientôt !`;
-  return { subject, body, link };
+  // Escape every user-supplied value before adding email-safe markup and links.
+  const paragraphs = body.split('\n\n').map(paragraph => {
+    const parts = paragraph.split(/(https?:\/\/[^\s]+)/g);
+    const content = parts.map((part, index) => {
+      if (index % 2 === 0) return escapeHtml(part).replace(/\n/g, '<br>');
+      const label = part === link ? 'Ouvrir la page à commenter' : part.endsWith('/commyweb-user.zip') ? 'Télécharger Commyweb Utilisateur' : part;
+      return `<a href="${escapeHtml(part)}" style="color:#2563eb;text-decoration:underline;overflow-wrap:anywhere">${escapeHtml(label)}</a>`;
+    }).join('').replace(/^(\d+\.) /, '<strong>$1</strong> ');
+    return `<p style="margin:0 0 16px">${content}</p>`;
+  }).join('');
+  const html = `<div lang="fr" style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#17202a;max-width:640px"><p style="font-weight:bold;color:#2563eb;margin:0 0 8px">Commyweb</p><h2 style="font-size:20px;line-height:1.3;margin:0 0 24px">Objet : ${escapeHtml(subject)}</h2>${paragraphs}</div>`;
+  return { subject, body, html, link };
 }
 
-export function invitationMailto(recipient: string, subject: string, body: string): string {
+export function validateInvitationRecipient(recipient: string): void {
   if (!/^[^\s@,;?\r\n]+@[^\s@,;?\r\n]+\.[^\s@,;?\r\n]+$/.test(recipient)) throw new Error('Saisissez une adresse email valide.');
-  return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
