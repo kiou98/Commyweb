@@ -176,8 +176,8 @@ try {
   await expect(popup.getByRole('button', { name: 'Inviter un collaborateur par email', exact: true }).locator('svg')).toBeVisible();
   await popup.locator('#input-storage-repo').fill('team/draft-project');
   await popup.locator('#input-github-token').fill('draft-token-not-verified');
-  await popup.locator('#btn-toggle-comments').click();
   await popup.locator('#quick-author-name').fill('Camille en cours');
+  await popup.locator('#btn-toggle-comments').click();
   await popup.locator('#btn-toggle-settings').click();
   await popup.locator('#realtime-settings summary').click();
   await popup.locator('#input-realtime-endpoint').fill('');
@@ -315,6 +315,7 @@ try {
   await panelView.setViewportSize({ width: 360, height: 900 });
   await panelView.goto(panel.documentUrl);
   await expect(panelView.locator('#settings-drawer')).toBeVisible();
+  await expect(panelView.locator('#quick-author-name')).toBeVisible();
   await expect(panelView.locator('#active-site-domain')).toHaveText(new URL(origin).host);
   await expect(panelView.locator('#btn-keep-open')).toBeHidden();
   await expect(panelView.locator('body')).toHaveClass('side-panel settings-open');
@@ -334,8 +335,15 @@ try {
   }, { tabId: second.tabId, targetUrl });
   await userPopup.goto(`chrome-extension://${new URL(second.worker.url()).host}/popup.html?tabId=${second.tabId}`);
   await expect(userPopup.locator('#toggle-comments')).toBeEnabled();
-  await expect(userPopup.locator('#btn-toggle-settings')).toBeHidden();
+  await expect(userPopup.locator('#btn-toggle-settings')).toBeVisible();
   await expect(userPopup.locator('#btn-toggle-invite')).toBeHidden();
+  await expect(userPopup.locator('#comments-drawer #quick-author-name')).toHaveCount(0);
+  await userPopup.locator('#btn-toggle-settings').click();
+  await expect(userPopup.locator('#quick-author-name')).toBeVisible();
+  await expect(userPopup.locator('#settings-form')).toBeHidden();
+  await userPopup.locator('#quick-author-name').fill('Alex Profil');
+  await expect.poll(() => second.worker.evaluate(async () => (await chrome.storage.local.get('commyweb_user')).commyweb_user.name)).toBe('Alex Profil');
+  await userPopup.locator('#btn-toggle-comments').click();
   await expect(userPopup.locator('#input-github-token')).toBeHidden();
   await expect(userPopup.locator('#project-status-tag')).toHaveText('Équipe');
   await userPopup.locator('#toggle-comments').uncheck();

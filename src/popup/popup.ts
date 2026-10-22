@@ -43,9 +43,11 @@ class PopupController {
     document.body.classList.toggle('side-panel', this.panel);
     document.body.classList.toggle('user-edition', this.userEdition);
     if (this.userEdition) {
-      element('btn-toggle-settings').hidden = true;
       element('btn-toggle-invite').hidden = true;
-      element('popup-tabs').hidden = true;
+      element('settings-title').textContent = 'Votre profil';
+      element('settings-drawer').querySelector<HTMLElement>(':scope > p')!.hidden = true;
+      element('settings-form').hidden = true;
+      element('settings-drawer').querySelector<HTMLElement>('.setup-utility')!.hidden = true;
       const join = element<HTMLDetailsElement>('join-details');
       join.classList.add('join-card');
       element('page-path').after(join);
@@ -96,7 +98,7 @@ class PopupController {
   }
 
   private openDrawer(drawer?: string) {
-    if (this.userEdition || !drawer) drawer = 'comments';
+    if (!drawer || (this.userEdition && drawer === 'invite')) drawer = 'comments';
     document.body.classList.toggle('settings-open', drawer === 'settings');
     // Three zones, one visible at a time: comments, invitation, settings.
     for (const name of ['comments', 'settings', 'invite']) {

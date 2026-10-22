@@ -22,7 +22,6 @@
       <h1 id="active-site-domain">Cette page</h1>
       <p id="page-path" class="muted"></p>
       <label class="visibility-control" id="comment-visibility" for="toggle-comments"><span>Activer les commentaires</span><input type="checkbox" role="switch" id="toggle-comments" checked disabled></label>
-    <div class="identity"><label for="quick-author-name">Votre nom <span class="helper">Visible par l’équipe</span></label><input id="quick-author-name" type="text" placeholder="Prénom et nom" maxlength="80" autocomplete="name" aria-required="true"></div>
       <button class="primary" id="btn-add-comment">＋ Ajouter un commentaire</button>
       <p class="shortcut" id="mode-hint">Choisissez un endroit sur la page · Alt + C</p>
     </section>
@@ -45,6 +44,7 @@
 
     <section class="drawer" id="settings-drawer" aria-labelledby="settings-title" hidden>
       <div class="drawer-heading"><h2 id="settings-title">Connecter votre équipe</h2><button class="text-button" data-close>Fermer</button></div>
+      <div class="identity"><label for="quick-author-name">Votre nom <span class="helper">Visible par l’équipe</span></label><input id="quick-author-name" type="text" placeholder="Prénom et nom" maxlength="80" autocomplete="name" aria-required="true"></div>
       <p class="muted">Partagez les commentaires de ce site avec votre équipe.</p>
       <div class="setup-utility">
         <button type="button" class="secondary" id="btn-keep-open" hidden disabled>Garder la configuration ouverte</button>

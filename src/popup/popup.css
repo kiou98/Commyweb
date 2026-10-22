@@ -91,7 +91,7 @@ a.secondary { text-decoration:none; }
 @media (min-width:600px) { body { margin:30px auto; } .popup-container { border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 12px 40px #00000008; } }
 body.side-panel { width:100%; margin:0; }
 .side-panel .popup-container { border:0; border-radius:0; box-shadow:none; }
-.side-panel.settings-open :is(#btn-add-comment,#mode-hint,#comment-visibility,.identity,.list-toolbar,.filters,.comments-list,footer) { display:none; }
+.side-panel.settings-open :is(#btn-add-comment,#mode-hint,#comment-visibility,.list-toolbar,.filters,.comments-list,footer) { display:none; }
 .visibility-control { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:15px; font-size:12px; cursor:pointer; }
 #toggle-comments { appearance:none; flex:none; width:38px; height:22px; min-height:0; padding:2px; border:0; border-radius:12px; background:#b8b8c1; cursor:pointer; box-shadow:none; }
 #toggle-comments::after { content:''; display:block; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform .15s; }
@@ -126,7 +126,7 @@ body { width:420px; background:#f6f6f8; }
 .setup-utility { margin-bottom:12px; }
 .setup-utility .secondary { margin-bottom:8px; }
 .setup-footer { display:flex; flex-direction:column; gap:8px; align-items:center; font-size:11px; padding:4px 0; }
-.page-summary .identity { padding:0; margin:0 0 14px; align-items:center; }
+#settings-drawer .identity { padding:0; margin:0 0 14px; align-items:stretch; }
 .identity label .helper { display:block; font-size:10px; font-weight:400; margin-top:3px; }
 .identity input { padding:10px; }
 .drawer-heading h2 { font-size:17px; letter-spacing:-.4px; }
@@ -144,6 +144,7 @@ input:focus-visible,select:focus-visible { outline:3px solid #9ba9ef; outline-of
 
 /* Three tabs under the header: Commentaires, Inviter, Paramétrage. */
 .tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:10px 12px; border-bottom:1px solid var(--line); background:#fff; position:sticky; top:0; z-index:5; }
+.user-edition .tabs { grid-template-columns:repeat(2,1fr); }
 .tab { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:54px; padding:6px 4px; border:1px solid transparent; border-radius:10px; background:transparent; color:var(--muted); font-size:11px; font-weight:600; }
 .tab:hover { background:var(--surface); color:var(--ink); }
 .tab[aria-pressed="true"] { background:var(--surface); border-color:#b8b8c1; color:var(--ink); }

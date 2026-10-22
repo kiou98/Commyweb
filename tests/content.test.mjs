@@ -49,6 +49,6 @@ test('comments and replies reject missing names before saving', async () => {
   const app = Object.assign(Object.create(CommywebContentApp.prototype), {
     currentUser: { id: 'anonymous', username: 'Invite' }, joining: false
   });
-  await assert.rejects(app.createComment('Bonjour'), /nom avant de publier/);
-  await assert.rejects(app.reply('thread', 'Bonjour'), /nom avant de publier/);
+  await assert.rejects(app.createComment('Bonjour'), /nom dans l’onglet Paramétrage du plugin/);
+  await assert.rejects(app.reply('thread', 'Bonjour'), /nom dans l’onglet Paramétrage du plugin/);
 });

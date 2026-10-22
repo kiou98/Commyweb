@@ -63,8 +63,20 @@ try {
 
   let popup = await openPopup();
   await popup.screenshot({ path: join(output, 'popup-empty.png'), fullPage: true });
+  await expect(popup.locator('#comments-drawer #quick-author-name')).toHaveCount(0);
+  await command('SET_COMMENT_MODE', { active: true });
+  await page.locator('#target').click();
+  await expect(page.locator('.commyweb-modal input')).toHaveCount(0);
+  await page.locator('#new-comment-input').fill('Brouillon sans nom');
+  await page.locator('#btn-submit-new').click();
+  await expect(page.locator('.commyweb-modal [role="alert"]')).toContainText('Paramétrage du plugin');
+  await expect(page.locator('#new-comment-input')).toHaveValue('Brouillon sans nom');
+  await expect(page.locator('.commyweb-pin')).toHaveCount(0);
+  await page.locator('#new-comment-input').press('Escape');
+  await popup.locator('#btn-toggle-settings').click();
   await popup.locator('#quick-author-name').fill('Camille');
   await popup.locator('#quick-author-name').press('Tab');
+  await popup.locator('#btn-toggle-comments').click();
   await popup.getByRole('button', { name: 'Ajouter un commentaire' }).click();
   await page.bringToFront();
   await page.locator('#target').click();
@@ -87,18 +99,31 @@ try {
   console.log('PASS: multiline comment persists locally and normal browsing resumes');
 
   await page.locator('.commyweb-pin').click();
+  await expect(page.locator('.commyweb-header-name')).toHaveText('Camille');
+  await expect(page.locator('.commyweb-modal input')).toHaveCount(0);
   await expect(page.locator('.commyweb-comment-text').first()).toContainText('Rendre ce titre');
   await page.locator('#reply-input').fill('Je propose : « Parlons de votre projet ». Qu’en penses-tu ?');
   await page.locator('#reply-input').press('Escape');
   await expect(page.locator('.commyweb-modal')).toHaveCount(0);
   await page.locator('.commyweb-pin').press('Enter');
   await expect(page.locator('#reply-input')).toHaveValue('Je propose : « Parlons de votre projet ». Qu’en penses-tu ?');
-  await page.locator('#author-name').fill('Alex');
+  popup = await openPopup();
+  await popup.locator('#btn-toggle-settings').click();
+  await popup.locator('#quick-author-name').fill('Alex');
+  await expect.poll(() => worker.evaluate(async () => (await chrome.storage.local.get('commyweb_user')).commyweb_user.name)).toBe('Alex');
+  await popup.locator('#btn-toggle-comments').click();
+  await popup.close();
+  await page.bringToFront();
   await page.locator('#btn-send-reply').click();
   await expect(page.locator('.commyweb-reply-item')).toHaveCount(1);
   await expect(page.locator('.commyweb-reply-author')).toHaveText('Alex');
   await expect(page.locator('#reply-input')).toHaveValue('');
   await page.screenshot({ path: join(output, 'thread.png'), fullPage: false });
+  await page.setViewportSize({ width: 360, height: 480 });
+  await expect(page.locator('#reply-input')).toBeVisible();
+  assert.ok((await page.locator('#reply-input').boundingBox()).width > 140, 'reply field stays usable on narrow screens');
+  await page.locator('.commyweb-modal').screenshot({ path: join(output, 'thread-name-in-settings.png') });
+  await page.setViewportSize({ width: 1280, height: 900 });
   if (process.env.COMMYWEB_CAPTURE_SITE === '1') {
     await page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/discussion.png' });
     await page.locator('.commyweb-modal').screenshot({ path: 'site/screenshots/echanger.png' });
