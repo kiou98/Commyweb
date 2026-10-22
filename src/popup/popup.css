@@ -93,7 +93,7 @@ body.side-panel { width:100%; margin:0; }
 .side-panel .popup-container { border:0; border-radius:0; box-shadow:none; }
 .side-panel.settings-open :is(#btn-add-comment,#mode-hint,#comment-visibility,.identity,.list-toolbar,.filters,.comments-list,footer) { display:none; }
 .visibility-control { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:15px; font-size:12px; cursor:pointer; }
-#toggle-comments { appearance:none; flex:none; width:38px; height:22px; padding:2px; border:0; border-radius:12px; background:#b8b8c1; cursor:pointer; box-shadow:none; }
+#toggle-comments { appearance:none; flex:none; width:38px; height:22px; min-height:0; padding:2px; border:0; border-radius:12px; background:#b8b8c1; cursor:pointer; box-shadow:none; }
 #toggle-comments::after { content:''; display:block; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform .15s; }
 #toggle-comments:checked { background:var(--ink); }
 #toggle-comments:checked::after { transform:translateX(16px); }
